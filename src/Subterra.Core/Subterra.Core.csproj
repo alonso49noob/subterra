@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Subterra.Core</AssemblyName>
+    <RootNamespace>Subterra.Core</RootNamespace>
+  </PropertyGroup>
+</Project>

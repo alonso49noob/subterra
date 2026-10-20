@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Subterra.DevTools</AssemblyName>
+    <RootNamespace>Subterra.DevTools</RootNamespace>
+    <!-- Not shipped: only the test harness copies this into a throwaway KSP. -->
+    <DevToolsFolder>$(MSBuildThisFileDirectory)..\..\build\DevTools\Subterra.DevTools</DevToolsFolder>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp"><HintPath>$(KSPManaged)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp-firstpass"><HintPath>$(KSPManaged)\Assembly-CSharp-firstpass.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(KSPManaged)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(KSPManaged)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(KSPManaged)\UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(KSPManaged)\UnityEngine.InputLegacyModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(KSPManaged)\UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AnimationModule"><HintPath>$(KSPManaged)\UnityEngine.AnimationModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(KSPManaged)\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ImageConversionModule"><HintPath>$(KSPManaged)\UnityEngine.ImageConversionModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(HarmonyDll)</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Subterra\Subterra.csproj" />
+    <ProjectReference Include="..\Subterra.Core\Subterra.Core.csproj" />
+  </ItemGroup>
+  <!-- Copies only this DLL; Subterra.dll and Subterra.Core.dll are deployed by the Subterra project. -->
+  <Target Name="DeployDevTools" AfterTargets="Build">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(DevToolsFolder)\Plugins\" />
+  </Target>
+</Project>

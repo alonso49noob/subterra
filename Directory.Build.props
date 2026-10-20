@@ -1,0 +1,18 @@
+<Project>
+  <!-- Machine-specific paths go in Local.props (git-ignored), e.g.
+       <Project><PropertyGroup><KSPRefDir>D:\SteamLibrary\steamapps\common\Kerbal Space Program</KSPRefDir></PropertyGroup></Project>
+       Values there win over the defaults below; environment variables win over both. -->
+  <Import Project="$(MSBuildThisFileDirectory)Local.props" Condition="Exists('$(MSBuildThisFileDirectory)Local.props')" />
+  <PropertyGroup>
+    <!-- MSBuild property names are case-insensitive, so a KSPREFDIR / KSPTESTDIR environment variable already overrides these. -->
+    <!-- KSPRefDir is a read-only reference install: only its DLLs are read, nothing is ever written there. -->
+    <KSPRefDir Condition="'$(KSPRefDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program</KSPRefDir>
+    <!-- KSPTestDir is the throwaway KSP copy where the automated scenarios run. -->
+    <KSPTestDir Condition="'$(KSPTestDir)' == ''">C:\KSP_SubterraTest</KSPTestDir>
+    <KSPManaged>$(KSPRefDir)\KSP_x64_Data\Managed</KSPManaged>
+    <HarmonyDll>$(KSPRefDir)\GameData\000_Harmony\0Harmony.dll</HarmonyDll>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+</Project>
