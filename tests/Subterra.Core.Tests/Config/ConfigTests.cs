@@ -1,0 +1,120 @@
+using System.IO;
+using System.Linq;
+using Subterra.Core.Config;
+using Subterra.Core.Model;
+using Xunit;
+
+namespace Subterra.Core.Tests.Config
+{
+    public class CfgTextTests
+    {
+        [Fact]
+        public void ParsesNestedNodesAndComments()
+        {
+            var n = CfgText.Parse("A { x = 1 // c\n B\n {\n y = 2\n }\n}")[0];
+            Assert.Equal("1", n.GetValue("x"));
+            Assert.Equal("2", n.GetNodes("B").Single().GetValue("y"));
+        }
+
+        [Fact]
+        public void BraceOnSameLineAndSiblings()
+        {
+            var roots = CfgText.Parse("A {\n}\nB\n{\n k = v = w\n C { }\n}");
+            Assert.Equal(new[] { "A", "B" }, roots.Select(r => r.Name));
+            Assert.Equal("v = w", roots[1].GetValue("k"));
+            Assert.Single(roots[1].GetNodes("C"));
+        }
+    }
+
+    public class BodySpecParserTests
+    {
+        private static ParseResult<BodySpec> Parse(string path) =>
+            BodySpecParser.Parse(CfgText.Parse(File.ReadAllText(Path.Combine(System.AppContext.BaseDirectory, path)))[0]);
+
+        private static ParseResult<BodySpec> ParseText(string text) => BodySpecParser.Parse(CfgText.Parse(text)[0]);
+
+        private const string TwoNodes = @"
+SUBTERRA_BODY
+{
+    body = Mun
+    TUBE_SITE
+    {
+        name = BadSite
+        NODE
+        {
+            lat = 0
+            lon = 0
+            width = WIDTH
+        }
+        NODE
+        {
+            lat = 0
+            lon = 1
+        }
+        EDGE
+        {
+            from = 0
+            to = TO
+        }
+    }
+}";
+
+        [Fact]
+        public void ParsesMunSample()
+        {
+            var r = Parse("Data/mun-sample.cfg");
+            var b = r.Value;
+            Assert.Equal("Mun", b.Body);
+            Assert.Equal("MN", b.IdPrefix);
+            Assert.Equal(250, b.Geotherm.SurfaceMeanTemp);
+            Assert.Equal("Regolith", b.Strata[0].Name);
+            Assert.Equal(8, b.Strata[0].Bottom);
+            Assert.Equal(new[] { 0.55f, 0.53f, 0.50f }, b.Strata[0].Tint);
+            var s = b.Sites.Single();
+            Assert.Equal(NodeFeature.Skylight, s.Nodes[0].Feature);
+            Assert.Equal(50, s.Nodes[0].SkylightRadius);
+            Assert.Equal(new Range(20, 350), b.Fields[0].Width);
+            Assert.Contains("Northern Basin", b.Fields[0].Biomes);
+            Assert.Equal(ScatterPlacement.Floor, b.Scatters[0].Placement);
+            Assert.Equal(new[] { ZoneKind.TubeGallery, ZoneKind.TubeChamber }, b.Scatters[0].Zones);
+            Assert.Equal(0.4, b.Scatters[0].NoiseThreshold);
+            Assert.Equal(ZoneKind.TubeGallery, b.Enrichment[0].Zone);
+            Assert.Empty(r.Warnings);
+        }
+
+        [Fact]
+        public void RejectsSiteWithEdgeToMissingNode()
+        {
+            var r = ParseText(TwoNodes.Replace("WIDTH", "60").Replace("TO", "5"));
+            Assert.Empty(r.Value.Sites);
+            Assert.Contains(r.Warnings, w => w.Contains("BadSite"));
+        }
+
+        [Fact]
+        public void ClampsWidthAndWarns()
+        {
+            var r = ParseText(TwoNodes.Replace("WIDTH", "600").Replace("TO", "1"));
+            Assert.Equal(500, r.Value.Sites[0].Nodes[0].Width);
+            Assert.Contains(r.Warnings, w => w.Contains("width"));
+        }
+
+        [Fact]
+        public void MissingBodyNameDropsNode()
+        {
+            var r = BodySpecParser.Parse(CfgText.Parse("SUBTERRA_BODY { idPrefix = XX }")[0]);
+            Assert.Null(r.Value);
+            Assert.NotEmpty(r.Warnings);
+        }
+
+        [Fact]
+        public void MalformedNumberWarnsAndUsesDefault()
+        {
+            var r = ParseText("SUBTERRA_BODY\n{\n body = Mun\n caveScienceMultiplier = abc\n}");
+            Assert.Equal(1.5, r.Value.CaveScienceMultiplier);
+            Assert.Contains(r.Warnings, w => w.Contains("caveScienceMultiplier"));
+        }
+
+        [Fact]
+        public void DefaultPrefixIsFirstTwoLetters() => Assert.Equal("MU", ParseText("SUBTERRA_BODY\n{\n body = Mun\n}").Value.IdPrefix);
+    }
+}

@@ -1,0 +1,29 @@
+namespace Subterra.Core.Model
+{
+    public enum NodeFeature
+    {
+        None,
+        Skylight,
+        Chamber,
+        End,
+    }
+
+    /// <summary>A tube graph node: position, roof depth (m under the local terrain), cross-section and feature.</summary>
+    public sealed class NodeSpec
+    {
+        public double Lat { get; set; }
+
+        public double Lon { get; set; }
+
+        /// <summary>Metres from the terrain surface down to the tube roof.</summary>
+        public double Depth { get; set; }
+
+        public double Width { get; set; }
+
+        public double Height { get; set; }
+
+        public NodeFeature Feature { get; set; }
+
+        public double SkylightRadius { get; set; }
+    }
+}
