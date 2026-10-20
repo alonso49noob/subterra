@@ -16,6 +16,7 @@ namespace Subterra.Core.Sdf
         private readonly IReadOnlyList<Primitive> prims;
         private readonly SpatialGrid grid;
         private readonly ulong noiseSeed;
+        private readonly int[][] noiseTables;
         private readonly float smoothFactor;
 
         public NetworkSdf(IReadOnlyList<Primitive> prims, SpatialGrid grid, ulong noiseSeed, float smoothFactor = 0.15f)
@@ -23,6 +24,7 @@ namespace Subterra.Core.Sdf
             this.prims = prims;
             this.grid = grid;
             this.noiseSeed = noiseSeed;
+            noiseTables = Noise.Tables(noiseSeed);
             this.smoothFactor = smoothFactor;
         }
 
@@ -108,9 +110,11 @@ namespace Subterra.Core.Sdf
             if (noise && nearest >= 0)
             {
                 Primitive prim = prims[nearest];
-                if (prim.Roughness > 0)
+                // Far from the surface the noise cannot change the sign: skip it (deterministic, so
+                // neighbouring chunks still agree).
+                if (prim.Roughness > 0 && Math.Abs(result) < prim.Roughness + 4f)
                 {
-                    result += prim.Roughness * prim.NoiseMask(p) * Noise.Fbm(p / prim.NoiseScale, noiseSeed, 3);
+                    result += prim.Roughness * prim.NoiseMask(p) * Noise.Fbm(p / prim.NoiseScale, noiseTables, 3);
                 }
             }
 

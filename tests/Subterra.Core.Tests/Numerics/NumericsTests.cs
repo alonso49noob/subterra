@@ -36,6 +36,8 @@ namespace Subterra.Core.Tests.Numerics
 
         [Fact] public void HashDiffers() => Assert.NotEqual(Hash.Of("Mun"), Hash.Of("Minmus"));
 
+        [Fact] public void TwoValueCombineMatchesParams() => Assert.Equal(Hash.Combine(new ulong[] { 7, 9 }), Hash.Combine(7UL, 9UL));
+
         [Fact] public void CombineIsOrderSensitive() => Assert.NotEqual(Hash.Combine(1, 2), Hash.Combine(2, 1));
     }
 

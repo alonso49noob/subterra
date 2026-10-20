@@ -36,6 +36,9 @@ namespace Subterra.Core.Numerics
             return x;
         }
 
+        /// <summary>Order-sensitive combination of two values (same result as Combine(a, b), without an array).</summary>
+        public static ulong Combine(ulong a, ulong b) => unchecked(Mix(Mix(Golden + Golden + Mix(a)) + Golden + Mix(b)));
+
         /// <summary>Order-sensitive combination of several values.</summary>
         public static ulong Combine(params ulong[] values)
         {
