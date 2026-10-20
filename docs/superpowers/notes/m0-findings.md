@@ -41,3 +41,21 @@ Pitfall found: setting every colour property white turns Bumped Specular's `_Rim
 
 Decision: `RockShaderMode = BumpedSpecularBoxUv` (spec §6.2 option 2), `_Color` = layer tint, 4 m per texture tile;
 procedural rock textures until Task 33 provides `Textures/Rock_d` / `Rock_n`.
+
+## Underground vessels (Task 5)
+
+Spike `TestRoom` (a closed 60 × 60 × 30 m room 100 m under the Mun's terrain, layer-15 mesh collider, child of the PQS)
+and scenarios `m0-underground` (patches on) / `m0-underground-control` (patches off), stock.
+
+What KSP does to a vessel under the terrain, found by logging every frame around loads:
+
+| Mechanism | Where | Fix used |
+|---|---|---|
+| Lift onto the first ground hit from 500 m above the PQS when going off rails | `Vessel.CheckGroundCollision` (from `GoOffRails`) | prefix: skip inside a cave. `skipGroundPositioning` cannot be used: `GoOffRails` rewrites it (true only for landed vessels whose saved PQS levels match) |
+| **Loading a landed vessel lifts it to max(saved altitude, PQS surface)** — not in the spec | private `Vessel.getCorrectedLandedAltitude(lat, lon, alt, body)` | prefix: return the saved altitude when (lat, lon, alt) is inside a cave. Without it F9 puts the rover on the surface with its parts in the ground: explosion, thrown 200 m up (seen with patches on and off) |
+| "Crashed through terrain" for packed / unloaded vessels | `Vessel.CheckKill`: `altitude < terrainAltitude`, where packed vessels take `terrainAltitude = PQSAltitude()` | postfix of `Vessel.PQSAltitude()`: the cave floor's altitude. Unpacked vessels already get the floor from the layer-15 raycast (`heightFromTerrain`) |
+| Unpacking | the active vessel unpacks whenever `OrbitPhysicsManager.holdVesselUnpack` is false (ranges do not apply to it); other vessels by `vesselRanges` | load guard: `OrbitPhysicsManager.HoldVesselUnpack` each frame for the active vessel, shrunken ranges for the others |
+| Moving a vessel 100 m in one frame while unpacked gives its parts a huge velocity (explosion) | — | test steps pack the vessel, move it pinned (Landed, idle orbit driver, lat/lon/alt updated) and let KSP unpack it, like the cheat menu |
+
+Camera: `FlightCamera.UpdateCameraTransform` casts one layer-15 ray from `distance` above the pivot; the transpiler swaps it
+for a ray from the pivot when the pivot is in a cave, and `minHeightAtMinDist/MaxDist` are lowered for that call.

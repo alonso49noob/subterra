@@ -27,7 +27,9 @@ param(
     [Parameter(Mandatory = $true)][string]$Scenario,
     [Parameter(Mandatory = $true)][string]$Profile,
     [switch]$NoBuild,
-    [int]$TimeoutMin = 15
+    [int]$TimeoutMin = 15,
+    # Development cfgs from tests\ksp\cfg to load (base names; 'none' loads none). M0 spikes use none.
+    [string[]]$Cfg = @('*')
 )
 
 Set-StrictMode -Version 2.0
@@ -249,11 +251,12 @@ foreach ($name in $wanted.Keys) {
 Sync-Directory $ModSource (Join-Path $TestGameData 'Subterra')
 $DevToolsDir = Join-Path $TestGameData 'Subterra.DevTools'
 Sync-Directory $DevToolsSource $DevToolsDir
-foreach ($folder in @('tests\ksp\scenarios', 'tests\ksp\cfg')) {
-    $path = Join-Path $RepoRoot $folder
-    if (Test-Path -LiteralPath $path) {
-        Get-ChildItem -LiteralPath $path -Filter '*.cfg' -File | Copy-Item -Destination $DevToolsDir -Force
-    }
+Get-ChildItem -LiteralPath (Join-Path $RepoRoot 'tests\ksp\scenarios') -Filter '*.cfg' -File | Copy-Item -Destination $DevToolsDir -Force
+$cfgDir = Join-Path $RepoRoot 'tests\ksp\cfg'
+if (Test-Path -LiteralPath $cfgDir) {
+    Get-ChildItem -LiteralPath $cfgDir -Filter '*.cfg' -File |
+        Where-Object { $Cfg -contains '*' -or $Cfg -contains $_.BaseName } |
+        Copy-Item -Destination $DevToolsDir -Force
 }
 $PluginData = Join-Path $DevToolsDir 'PluginData'
 New-Item -ItemType Directory -Force -Path $PluginData | Out-Null
