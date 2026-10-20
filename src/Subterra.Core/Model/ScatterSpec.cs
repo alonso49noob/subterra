@@ -1,0 +1,45 @@
+using System.Collections.Generic;
+
+namespace Subterra.Core.Model
+{
+    public enum ScatterPlacement
+    {
+        Floor,
+        Wall,
+        Ceiling,
+        SkylightRubble,
+    }
+
+    /// <summary>Props scattered over the cave surfaces.</summary>
+    public sealed class ScatterSpec
+    {
+        public string Name { get; set; }
+
+        /// <summary>GameDatabase model urls (without the <c>_lod1</c> suffix).</summary>
+        public List<string> Models { get; set; } = new List<string>();
+
+        public ScatterPlacement Placement { get; set; }
+
+        /// <summary>Zones where it appears; empty = all.</summary>
+        public List<ZoneKind> Zones { get; set; } = new List<ZoneKind>();
+
+        /// <summary>Instances per 100 m².</summary>
+        public double Density { get; set; } = 0.5;
+
+        public Range Scale { get; set; } = new Range(1, 1);
+
+        /// <summary>0 = upright, 1 = follows the surface normal.</summary>
+        public double AlignToSurface { get; set; }
+
+        /// <summary>Noise mask frequency (1/m); 0 = no mask.</summary>
+        public double NoiseFrequency { get; set; }
+
+        public double NoiseThreshold { get; set; }
+
+        public double Lod0Distance { get; set; } = 100;
+
+        public double Lod1Distance { get; set; } = 400;
+
+        public bool Collide { get; set; }
+    }
+}

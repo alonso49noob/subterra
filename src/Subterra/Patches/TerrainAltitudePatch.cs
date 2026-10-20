@@ -1,0 +1,77 @@
+using HarmonyLib;
+
+namespace Subterra
+{
+    /// <summary>
+    /// Patches <c>terrainAltitude</c> and <c>groundPositioning</c>. Inside a cave the terrain under a
+    /// vessel is the cave floor: Vessel.PQSAltitude (used for packed and unloaded vessels, and by
+    /// CheckKill's "crashed through terrain") returns the floor's altitude. Vessel.CheckGroundCollision,
+    /// which lifts a vessel going off rails onto the first ground hit from 500 m above the PQS, is
+    /// skipped (setting skipGroundPositioning does not work: GoOffRails overwrites it). Loading a landed vessel
+    /// would also lift it to the PQS surface (private Vessel.getCorrectedLandedAltitude): kept in caves.
+    /// </summary>
+    public static class TerrainAltitudePatch
+    {
+        public const string Id = "terrainAltitude";
+        public const string GroundId = "groundPositioning";
+
+        public static void Register()
+        {
+            PatchManager.Register(Id, harmony => harmony.Patch(
+                AccessTools.Method(typeof(Vessel), nameof(Vessel.PQSAltitude)),
+                postfix: new HarmonyMethod(typeof(TerrainAltitudePatch), nameof(PqsAltitudePostfix))));
+            PatchManager.Register(GroundId, harmony =>
+            {
+                harmony.Patch(AccessTools.Method(typeof(Vessel), nameof(Vessel.CheckGroundCollision)),
+                    prefix: new HarmonyMethod(typeof(TerrainAltitudePatch), nameof(CheckGroundCollisionPrefix)));
+                harmony.Patch(AccessTools.Method(typeof(Vessel), "getCorrectedLandedAltitude") ?? throw new System.MissingMethodException("Vessel", "getCorrectedLandedAltitude"),
+                    prefix: new HarmonyMethod(typeof(TerrainAltitudePatch), nameof(CorrectedLandedAltitudePrefix)));
+            });
+        }
+
+        private static void PqsAltitudePostfix(Vessel __instance, ref double __result)
+        {
+            SubterraVesselModule module = SubterraVesselModule.Of(__instance);
+            UndergroundState state = module != null ? module.State : UndergroundTracker.Compute(__instance.mainBody, __instance.GetWorldPos3D(), false);
+            if (!state.Inside)
+            {
+                return;
+            }
+
+            float? floor = state.Net.FloorBelow(state.Local);
+            if (floor.HasValue)
+            {
+                __result = __instance.altitude - floor.Value;
+            }
+        }
+
+        // Loading a landed vessel lifts it to max(saved altitude, PQS surface) (M0): keep the saved altitude in a cave.
+        private static bool CorrectedLandedAltitudePrefix(double lat, double lon, double alt, CelestialBody body, ref double __result)
+        {
+            if (body == null || !BodyRegistry.Instance.TryGet(body, out BodyRuntime runtime))
+            {
+                return true;
+            }
+
+            var bodyPos = Core.Geo.BodyFrame.Direction(lat, lon) * (body.Radius + alt);
+            if (runtime.Catalog.FindContaining(bodyPos) == null)
+            {
+                return true;
+            }
+
+            __result = alt;
+            return false;
+        }
+
+        private static bool CheckGroundCollisionPrefix(Vessel __instance, ref bool __result)
+        {
+            if (Underground.Locate(__instance.mainBody, __instance.GetWorldPos3D(), out _, out _))
+            {
+                __result = true;
+                return false;
+            }
+
+            return true;
+        }
+    }
+}

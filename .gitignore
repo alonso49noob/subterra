@@ -9,3 +9,6 @@ __pycache__/
 GameData/Subterra/Plugins/*.dll
 GameData/Subterra/Plugins/*.pdb
 GameData/Subterra/PluginData/
+.claude/
+Local.props
+build-*.log

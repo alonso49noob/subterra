@@ -1,0 +1,27 @@
+{
+    "spec_version": "v1.4",
+    "identifier": "Subterra",
+    "name": "Subterra",
+    "abstract": "Lava tubes you can fly into, land in and drive through under the Mun.",
+    "author": [ "Lucas Gonzalez", "alonso cardenas" ],
+    "$kref": "#/ckan/github/alonso49noob/subterra",
+    "$vref": "#/ckan/ksp-avc",
+    "license": "MIT",
+    "resources": {
+        "repository": "https://github.com/alonso49noob/subterra",
+        "bugtracker": "https://github.com/alonso49noob/subterra/issues"
+    },
+    "depends": [
+        { "name": "ModuleManager" },
+        { "name": "Harmony2" }
+    ],
+    "suggests": [
+        { "name": "SCANsat" },
+        { "name": "Kerbalism" },
+        { "name": "CommunityResourcePack" },
+        { "name": "Parallax" }
+    ],
+    "install": [
+        { "find": "Subterra", "install_to": "GameData" }
+    ]
+}

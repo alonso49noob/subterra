@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Subterra.Kerbalism</AssemblyName>
+    <RootNamespace>Subterra.Kerbalism</RootNamespace>
+    <ModFolder>$(MSBuildThisFileDirectory)..\..\GameData\Subterra</ModFolder>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp"><HintPath>$(KSPManaged)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(KSPManaged)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(KSPManaged)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(HarmonyDll)</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Subterra\Subterra.csproj"><Private>false</Private></ProjectReference>
+    <ProjectReference Include="..\Subterra.Core\Subterra.Core.csproj"><Private>false</Private></ProjectReference>
+  </ItemGroup>
+  <Target Name="DeployKerbalism" AfterTargets="Build" Condition="'$(SkipDeploy)' != 'true'">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModFolder)\Plugins\" />
+  </Target>
+</Project>
