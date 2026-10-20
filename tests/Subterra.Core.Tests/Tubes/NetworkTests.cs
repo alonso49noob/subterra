@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Subterra.Core.Geo;
 using Subterra.Core.Model;
 using Subterra.Core.Numerics;
@@ -98,6 +99,33 @@ namespace Subterra.Core.Tests.Tubes
             }
 
             NetworkCompiler.Compile(site, "Mun", R, ps, new List<string>());
+        }
+    }
+}
+
+namespace Subterra.Core.Tests.Tubes
+{
+    public class MeshClipTests
+    {
+        [Fact]
+        public void ShaftTopIsClipped()
+        {
+            var site = new SiteSpec { Name = "Clip", IsNamed = true };
+            site.Nodes.Add(Node(0, 10, depth: 30, width: 120, height: 40, feature: NodeFeature.Skylight, skylightRadius: 30));
+            site.Nodes.Add(Node(0, 10 + Deg(500), depth: 30, width: 120, height: 40));
+            site.Edges.Add(new EdgeSpec { From = 0, To = 1, Sinuosity = 0, Roughness = 0 });
+            var net = NetworkCompiler.Compile(site, "Mun", R, new FlatSampler(R), new List<string>());
+            // A chunk around the shaft top (terrain at R).
+            var top = net.ToLocal(BodyFrame.Direction(0, 10) * R);
+            var origin = top - new Vec3(32, 32, 32);
+            var mesh = Subterra.Core.Meshing.SurfaceNets.Build(net.Sdf.ForRegion(new Aabb(origin, origin + new Vec3(64, 64, 64))), origin, 2f, false);
+            Assert.Contains(Enumerable.Range(0, mesh.Vertices.Count), i => net.AboveSurface(mesh.Vertices[i]) > 5);
+            var clipped = Subterra.Core.Meshing.MeshClip.DropAboveSurface(mesh, net);
+            Assert.True(clipped.Triangles.Count < mesh.Triangles.Count);
+            for (int i = 0; i < clipped.Triangles.Count; i++)
+            {
+                Assert.True(net.AboveSurface(clipped.Vertices[clipped.Triangles[i]]) < 2);
+            }
         }
     }
 }

@@ -51,6 +51,33 @@ namespace Subterra.Core.Sdf
             return new RegionSdf(this, list.ToArray());
         }
 
+        /// <summary>
+        /// Whether the cave surface may cross <paramref name="box"/>: the primitives whose bounds touch the box,
+        /// evaluated at its centre without bounds clipping, come within half its diagonal plus twice
+        /// their roughness (and a little margin). Conservative: a false "maybe" only costs an empty chunk.
+        /// </summary>
+        public bool MayHaveSurface(Aabb box)
+        {
+            var list = new List<int>();
+            grid.Query(box, list);
+            if (list.Count == 0)
+            {
+                return false;
+            }
+
+            Vec3 centre = box.Center;
+            float reach = box.HalfDiagonal;
+            float d = float.MaxValue;
+            float roughness = 0;
+            foreach (int i in list)
+            {
+                d = Math.Min(d, prims[i].Distance(centre));
+                roughness = Math.Max(roughness, prims[i].Roughness);
+            }
+
+            return Math.Abs(d) <= reach + 2 * roughness + 2f;
+        }
+
         internal float Evaluate(Vec3 p, int[] indices, int[] subset, bool noise, out int nearest)
         {
             int[] source = subset ?? indices;

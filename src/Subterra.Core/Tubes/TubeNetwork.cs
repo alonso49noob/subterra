@@ -14,11 +14,14 @@ namespace Subterra.Core.Tubes
     {
         private readonly Vec3d[] surfaceDirs;
         private readonly double[] surfaceRadii;
+        private readonly double minSurfaceRadius;
 
         public TubeNetwork(string id, string body, string siteName, string displayName, Vec3d anchor,
             IReadOnlyList<Primitive> primitives, NetworkSdf sdf, IReadOnlyList<Skylight> skylights,
-            Vec3d[] surfaceDirs, double[] surfaceRadii)
+            Vec3d[] surfaceDirs, double[] surfaceRadii, IReadOnlyList<PathPoint> nodes = null, SiteSpec site = null)
         {
+            Nodes = nodes ?? new PathPoint[0];
+            Site = site;
             Id = id;
             Body = body;
             SiteName = siteName;
@@ -29,6 +32,11 @@ namespace Subterra.Core.Tubes
             Skylights = skylights;
             this.surfaceDirs = surfaceDirs;
             this.surfaceRadii = surfaceRadii;
+            minSurfaceRadius = double.MaxValue;
+            foreach (double r in surfaceRadii)
+            {
+                minSurfaceRadius = Math.Min(minSurfaceRadius, r);
+            }
             Aabb bounds = primitives.Count > 0 ? primitives[0].Bounds : default;
             foreach (Primitive prim in primitives)
             {
@@ -61,6 +69,12 @@ namespace Subterra.Core.Tubes
 
         public IReadOnlyList<Skylight> Skylights { get; }
 
+        /// <summary>The graph nodes after the roof rule: floor centre (body coordinates), terrain radius, size.</summary>
+        public IReadOnlyList<PathPoint> Nodes { get; }
+
+        /// <summary>The graph it was compiled from.</summary>
+        public SiteSpec Site { get; }
+
         public Vec3 ToLocal(Vec3d bodyPos) => (bodyPos - Anchor).ToVec3();
 
         public Vec3d ToBody(Vec3 local) => Anchor + Vec3d.FromVec3(local);
@@ -88,6 +102,12 @@ namespace Subterra.Core.Tubes
 
             return radius;
         }
+
+        /// <summary>Lowest terrain radius over the network's path points (a quick bound for <see cref="AboveSurface"/>).</summary>
+        public double MinSurfaceRadius => minSurfaceRadius;
+
+        /// <summary>Metres of <paramref name="local"/> above the terrain (negative under it), using the nearest path point's terrain.</summary>
+        public double AboveSurface(Vec3 local) => ToBody(local).Length - SurfaceRadiusNear(local);
 
         /// <summary>Distance (m) straight down from <paramref name="local"/> to the cave floor; null if not in the void.</summary>
         public float? FloorBelow(Vec3 local)

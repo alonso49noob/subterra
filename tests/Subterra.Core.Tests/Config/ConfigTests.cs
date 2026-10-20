@@ -118,3 +118,53 @@ SUBTERRA_BODY
         public void DefaultPrefixIsFirstTwoLetters() => Assert.Equal("MU", ParseText("SUBTERRA_BODY\n{\n body = Mun\n}").Value.IdPrefix);
     }
 }
+
+namespace Subterra.Core.Tests.Config
+{
+    public class BodyMergeTests
+    {
+        [Fact]
+        public void MergesSameBody()
+        {
+            var nodes = CfgText.Parse(@"
+SUBTERRA_BODY
+{
+    body = Mun
+    idPrefix = MN
+    GEOTHERM
+    {
+        surfaceMeanTemp = 250
+    }
+    TUBE_SITE
+    {
+        name = A
+    }
+}
+SUBTERRA_BODY
+{
+    body = Mun
+    idPrefix = ZZ
+    caveScienceMultiplier = 3
+    GEOTHERM
+    {
+        surfaceMeanTemp = 999
+    }
+    TUBE_SITE
+    {
+        name = B
+    }
+}
+SUBTERRA_BODY
+{
+    body = Minmus
+}");
+            var merged = BodyMerge.MergeBodies(nodes);
+            Assert.Equal(2, merged.Count);
+            var mun = merged[0];
+            Assert.Equal("MN", mun.GetValue("idPrefix"));
+            Assert.Equal("3", mun.GetValue("caveScienceMultiplier"));
+            Assert.Equal("250", mun.GetNode("GEOTHERM").GetValue("surfaceMeanTemp"));
+            Assert.Equal(new[] { "A", "B" }, mun.GetNodes("TUBE_SITE").Select(n => n.GetValue("name")));
+        }
+    }
+}

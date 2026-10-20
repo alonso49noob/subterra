@@ -156,3 +156,34 @@ namespace Subterra.Core.Tests.Sdf
             new Vec3((float)rng.Range(-50, 450), (float)rng.Range(-30, 120), (float)rng.Range(-50, 450));
     }
 }
+
+namespace Subterra.Core.Tests.Sdf
+{
+    public class MayHaveSurfaceTests
+    {
+        private static NetworkSdf Tube()
+        {
+            var prims = new System.Collections.Generic.List<Primitive>
+            {
+                new TubeSegment(new Vec3(0, 0, 0), new Vec3(400, 0, 0), new Vec3(0, 1, 0), new Vec3(0, 1, 0), 40, 40, 20, 20, 0, ZoneKind.TubeGallery),
+            };
+            return new NetworkSdf(prims, new SpatialGrid(prims), 1);
+        }
+
+        [Fact]
+        public void BigBoxAroundTubeHasSurface() => Assert.True(Tube().MayHaveSurface(new Aabb(new Vec3(-128, -128, -128), new Vec3(128, 128, 128)) .Expand(0)));
+
+        [Fact]
+        public void BoxFarAwayHasNone() => Assert.False(Tube().MayHaveSurface(new Aabb(new Vec3(0, 200, 0), new Vec3(32, 232, 32))));
+
+        [Fact]
+        public void BoxInsideTheVoidHasNone()
+        {
+            var big = new TubeSegment(new Vec3(0, 0, 0), new Vec3(400, 0, 0), new Vec3(0, 1, 0), new Vec3(0, 1, 0), 300, 300, 150, 150, 0, ZoneKind.TubeGallery);
+            var prims = new System.Collections.Generic.List<Primitive> { big };
+            var sdf = new NetworkSdf(prims, new SpatialGrid(prims), 1);
+            Assert.False(sdf.MayHaveSurface(new Aabb(new Vec3(190, 60, -8), new Vec3(206, 76, 8))));
+            Assert.True(sdf.MayHaveSurface(new Aabb(new Vec3(190, -8, -8), new Vec3(206, 8, 8))));
+        }
+    }
+}

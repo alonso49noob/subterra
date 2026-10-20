@@ -147,7 +147,7 @@ namespace Subterra.Core.Tubes
 
             var sdf = new NetworkSdf(prims, new SpatialGrid(prims), Hash.Of(id));
             return new TubeNetwork(id, body, site.IsNamed ? site.Name : null, site.DisplayName, anchor, prims, sdf, skylights,
-                surfaceDirs.ToArray(), surfaceRadii.ToArray());
+                surfaceDirs.ToArray(), surfaceRadii.ToArray(), nodePoints, site);
         }
 
         // Edges joined at nodes of degree 2 form one chain (one group: plain min between their pieces).
