@@ -52,8 +52,14 @@ namespace Subterra.Core.Sdf
             float u = Vec3.Dot(pc, side);
             float v = Vec3.Dot(pc, up);
 
-            // Distance past the end caps (0 between them).
+            // Past an end the cross-section turns around the end point: rounded ends (half-domes
+            // reaching half a width beyond the node) and seamless joints between consecutive pieces.
             float w = along < 0 ? -along : along > length ? along - length : 0f;
+            if (w > 0)
+            {
+                u = (float)Math.Sqrt(u * u + w * w);
+            }
+
             float hw = (widthA + (widthB - widthA) * t) * 0.5f;
             float height = heightA + (heightB - heightA) * t;
             float hb = bench * height;
@@ -73,7 +79,19 @@ namespace Subterra.Core.Sdf
                 d2 = Math.Max(SdfOps.Ellipse(u, v, hw, height), -v);
             }
 
-            return w > 0 ? Math.Max(d2, w) : d2;
+            return d2;
+        }
+
+        // No noise on the floor (solidified lava is flat), full noise from a fifth of the height up.
+        public override float NoiseMask(Vec3 p)
+        {
+            Vec3 ap = p - a;
+            float t = length > 0 ? Math.Max(0f, Math.Min(1f, Vec3.Dot(ap, axis) / length)) : 0f;
+            Vec3 up = Vec3.Lerp(upA, upB, t);
+            up = (up - axis * Vec3.Dot(up, axis)).Normalized;
+            float v = Vec3.Dot(p - (a + axis * (t * length)), up);
+            float height = heightA + (heightB - heightA) * t;
+            return Math.Max(0f, Math.Min(1f, v / (0.2f * height)));
         }
     }
 }

@@ -60,6 +60,7 @@ namespace Subterra.Core.Sdf
 
             float result = Far;
             float resultWidth = 0;
+            int resultGroup = -1;
             float best = float.MaxValue;
             bool first = true;
             foreach (int i in source)
@@ -83,16 +84,19 @@ namespace Subterra.Core.Sdf
                 {
                     result = d;
                     resultWidth = prim.Width;
+                    resultGroup = prim.Group;
                     first = false;
                     continue;
                 }
 
-                float k = smoothFactor * Math.Min(resultWidth, prim.Width);
+                bool sameGroup = prim.Group >= 0 && prim.Group == resultGroup;
+                float k = sameGroup ? 0f : smoothFactor * Math.Min(resultWidth, prim.Width);
                 float before = result;
                 result = SdfOps.SmoothMin(result, d, k);
                 if (d < before)
                 {
                     resultWidth = prim.Width;
+                    resultGroup = prim.Group;
                 }
             }
 
@@ -106,7 +110,7 @@ namespace Subterra.Core.Sdf
                 Primitive prim = prims[nearest];
                 if (prim.Roughness > 0)
                 {
-                    result += prim.Roughness * Noise.Fbm(p / prim.NoiseScale, noiseSeed, 3);
+                    result += prim.Roughness * prim.NoiseMask(p) * Noise.Fbm(p / prim.NoiseScale, noiseSeed, 3);
                 }
             }
 

@@ -39,6 +39,12 @@ namespace Subterra.Core.Sdf
 
         public abstract float Distance(Vec3 p);
 
+        /// <summary>Weight of the wall noise at <paramref name="p"/> (0–1); floors return 0 so they stay flat.</summary>
+        public virtual float NoiseMask(Vec3 p) => 1f;
+
+        /// <summary>Primitives of the same group join with a plain min (no blend groove between pieces of one tube).</summary>
+        public int Group { get; set; } = -1;
+
         /// <summary>Sets the box around the void (the margin is added here).</summary>
         protected void SetCoreBounds(Aabb voidBox)
         {

@@ -32,5 +32,11 @@ namespace Subterra.Core.Sdf
             float ellipsoid = SdfOps.Ellipse(horizontal.Length, v, radius, height);
             return Math.Max(ellipsoid, -v);
         }
+
+        public override float NoiseMask(Vec3 p)
+        {
+            float v = Vec3.Dot(p - floorCenter, up);
+            return Math.Max(0f, Math.Min(1f, v / (0.2f * height)));
+        }
     }
 }

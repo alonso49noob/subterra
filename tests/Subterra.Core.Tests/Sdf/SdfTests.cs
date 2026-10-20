@@ -22,7 +22,7 @@ namespace Subterra.Core.Tests.Sdf
 
         [Fact] public void FlatFloorFullWidth() => Assert.True(Seg0.Distance(new Vec3(50, 0.2f, 19.5f)) < 0);
 
-        [Fact] public void RockBeyondEnds() => Assert.True(Seg0.Distance(new Vec3(101, 5, 0)) > 0);
+        [Fact] public void RoundedEnds() { Assert.True(Seg0.Distance(new Vec3(110, 5, 0)) < 0); Assert.True(Seg0.Distance(new Vec3(121, 5, 0)) > 0); }
 
         [Fact]
         public void BenchMakesLedge()
