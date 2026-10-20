@@ -23,7 +23,7 @@
     <ProjectReference Include="..\Subterra.Core\Subterra.Core.csproj" />
   </ItemGroup>
   <!-- Copies only this DLL; Subterra.dll and Subterra.Core.dll are deployed by the Subterra project. -->
-  <Target Name="DeployDevTools" AfterTargets="Build">
+  <Target Name="DeployDevTools" AfterTargets="Build" Condition="'$(SkipDeploy)' != 'true'">
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(DevToolsFolder)\Plugins\" />
   </Target>
 </Project>

@@ -82,7 +82,8 @@ namespace Subterra.Core.Tubes
         /// <summary>Local vertical at a local point.</summary>
         public Vec3 UpAt(Vec3 local) => ToBody(local).Normalized.ToVec3();
 
-        public bool IsInside(Vec3 local) => Bounds.Contains(local) && Sdf.Distance(local) < 0;
+        /// <summary>In the void and under the terrain (the part of a skylight shaft above the ground is open air).</summary>
+        public bool IsInside(Vec3 local) => Bounds.Contains(local) && Sdf.Distance(local) < 0 && AboveSurface(local) < 0;
 
         /// <summary>Terrain radius above the path point nearest to the direction of <paramref name="local"/>.</summary>
         public double SurfaceRadiusNear(Vec3 local)

@@ -21,7 +21,7 @@
     <ProjectReference Include="..\Subterra.Core\Subterra.Core.csproj" />
   </ItemGroup>
   <!-- Copies the plugin and the core library into the repo's GameData (git-ignored). Never touches a KSP install. -->
-  <Target Name="DeployMod" AfterTargets="Build">
+  <Target Name="DeployMod" AfterTargets="Build" Condition="'$(SkipDeploy)' != 'true'">
     <Copy SourceFiles="$(TargetPath);$(OutDir)Subterra.Core.dll" DestinationFolder="$(ModFolder)\Plugins\" />
   </Target>
 </Project>

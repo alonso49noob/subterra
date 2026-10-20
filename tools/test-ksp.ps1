@@ -52,6 +52,18 @@ $ModProfiles = @{
                      'KSPTextureLoader', '000_KSPBurst')
         Junction = @('Parallax_StockTerrainTextures', 'Parallax_StockScatterTextures', 'Parallax_StockPlanetTextures')
     }
+    # Kerbalism 3.43 (downloaded to build\deps, not in the reference install); it needs
+    # KSPCommunityFixes, and its config pack needs CommunityResourcePack.
+    kerbalism = @{
+        Copy     = @('000_Harmony', 'ModuleManager.4.2.3.dll', 'KSPCommunityFixes', 'CommunityResourcePack')
+        Junction = @()
+        Deps     = @('kerbalism\GameData\Kerbalism', 'kerbalism\GameData\KerbalismConfig')
+    }
+    # Stock plus Kopernicus alone (and what Kopernicus needs), for the compatibility matrix.
+    kopernicus = @{
+        Copy     = @('000_Harmony', 'ModuleManager.4.2.3.dll', 'Kopernicus', 'ModularFlightIntegrator', 'KSPTextureLoader')
+        Junction = @()
+    }
 }
 
 # settings.cfg values forced in the test copy on every run: keep simulating when the window has
@@ -225,6 +237,16 @@ foreach ($name in @('SquadExpansion') + $ModProfiles[$Profile].Junction) { $want
 foreach ($name in @('Squad') + $ModProfiles[$Profile].Copy) { $wanted[$name] = 'copy' }
 $wanted['Subterra'] = 'repo'
 $wanted['Subterra.DevTools'] = 'repo'
+$depsSources = @{}
+if ($ModProfiles[$Profile].ContainsKey('Deps')) {
+    foreach ($dep in $ModProfiles[$Profile].Deps) {
+        $source = Join-Path $RepoRoot "build\deps\$dep"
+        if (-not (Test-Path -LiteralPath $source)) { throw "Missing $source (download it first, see the profile comment)" }
+        $name = Split-Path -Leaf $source
+        $wanted[$name] = 'deps'
+        $depsSources[$name] = $source
+    }
+}
 
 # Anything not in the profile goes (junctions are unlinked, their targets are left alone), so
 # every run starts from the same GameData, ModuleManager caches included.
@@ -245,6 +267,7 @@ foreach ($name in $wanted.Keys) {
             if (Test-Path -LiteralPath $source -PathType Leaf) { Copy-Item -LiteralPath $source $destination -Force }
             else { Sync-Directory $source $destination @('/XD', 'TextureCache') }   # KSPCommunityFixes' cache of the user's textures
         }
+        'deps' { Sync-Directory $depsSources[$name] $destination }
     }
 }
 

@@ -57,5 +57,29 @@ What KSP does to a vessel under the terrain, found by logging every frame around
 | Unpacking | the active vessel unpacks whenever `OrbitPhysicsManager.holdVesselUnpack` is false (ranges do not apply to it); other vessels by `vesselRanges` | load guard: `OrbitPhysicsManager.HoldVesselUnpack` each frame for the active vessel, shrunken ranges for the others |
 | Moving a vessel 100 m in one frame while unpacked gives its parts a huge velocity (explosion) | — | test steps pack the vessel, move it pinned (Landed, idle orbit driver, lat/lon/alt updated) and let KSP unpack it, like the cheat menu |
 
+Results: `m0-underground` (patches on) 26/26 PASS — after F9 the rover is 0.01 m from where it was saved, the camera stays
+in the room, an EVA kerbal survives, the load guard keeps the vessel packed while the collider is removed.
+`m0-underground-control` (patches off) fails exactly where expected: after F9 the rover reappears on the surface,
+explodes and is thrown 230 m up (positionDelta, vesselAlive), the camera is pushed out of the room, the EVA kerbal is
+lost.
+
 Camera: `FlightCamera.UpdateCameraTransform` casts one layer-15 ray from `distance` above the pivot; the transpiler swaps it
 for a ray from the pivot when the pivot is in a cave, and `minHeightAtMinDist/MaxDist` are lowered for that call.
+
+## M0 checkpoint (Task 6)
+
+| Risk | Result | Decision |
+|---|---|---|
+| Hole in the PQS | Works in stock and full; re-stitching handled by a `PQ.UpdateVisibility` postfix keyed on `edgeState`. Vertex spacing 69 m at the Mun's maxLevel 9 (spec assumed 20–40 m) | Cut only finest-level quads, whole triangles overlapping the disc; rim covers up to R + 1.2·√2·spacing; the far cap is shown while the finest quads are not cut (a coarse cut would open a crater visible from orbit) |
+| Rock shader | Stock triplanar works on custom meshes but looks blocky up close | `KSP/Bumped Specular` + box UVs (spec §6.2 option 2) |
+| Load guard | Ranges do not apply to the active vessel | `OrbitPhysicsManager.HoldVesselUnpack` for the active vessel, shrunken ranges for the others |
+| Parallax order | `PQSMod_Parallax` order 999999 > Subterra's 50; no scatter colliders in the hole | as planned |
+| Camera / CheckKill | Camera transpiler and `PQSAltitude` postfix work; `skipGroundPositioning` does not (rewritten by `GoOffRails`); a third mechanism lifts loaded landed vessels to the surface | prefixes on `CheckGroundCollision` and `getCorrectedLandedAltitude` instead of `skipGroundPositioning` |
+
+Further deviations decided while implementing (rulings R11–R16 in the SDD ledger): body radius passed to path sampling,
+rounded tube ends, flat floors, plain-min joins within a tube, Surface Nets normals from corner values, network roots
+placed in world space each frame in double precision (instead of PQS children), cave mesh clipped above the terrain.
+
+None of these changes what the mod does (spec §1); they are the spec's own alternatives or implementation details.
+Python is not installed on this PC: props are generated procedurally in C# (`PropGenerator`) and textures in code; the
+`.mu`/DDS tool chain of Task 33 waits for the user's decision.
