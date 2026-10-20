@@ -1,0 +1,11 @@
+bin/
+obj/
+.vs/
+*.user
+.superpowers/
+build/
+dist/
+__pycache__/
+GameData/Subterra/Plugins/*.dll
+GameData/Subterra/Plugins/*.pdb
+GameData/Subterra/PluginData/
