@@ -32,6 +32,7 @@ namespace Subterra
         private float nextPlan;
         private long frame;
         private bool visibilityDirty = true;
+        private bool issueDirty = true;
 
         public static ChunkStreamer Instance { get; private set; }
 
@@ -178,6 +179,7 @@ namespace Subterra
         private void Plan()
         {
             visibilityDirty = true;
+            issueDirty = true;
             desiredVisual.Clear();
             desiredColliders.Clear();
             Settings settings = Settings.Current;
@@ -224,10 +226,13 @@ namespace Subterra
         // Starts meshing for wanted chunks that are neither cached nor in progress (nearest first).
         private void Issue()
         {
-            if (pending.Count >= MaxPendingJobs)
+            // Only after a new plan or a finished job: sorting the wanted set every frame is wasted work.
+            if (!issueDirty || pending.Count >= MaxPendingJobs)
             {
                 return;
             }
+
+            issueDirty = false;
 
             Vec3d camera = Frames.ToBody(body, FlightCamera.fetch.mainCamera.transform.position);
             IEnumerable<ChunkKey> wanted = desiredColliders.Concat(desiredVisual)
@@ -265,6 +270,7 @@ namespace Subterra
 
             pending.Remove(key);
             visibilityDirty = true;
+            issueDirty = true;
             Mesh mesh = data.IsEmpty ? null : MeshUploader.Upload(data, key.ToString());
             long bytes = data.ByteSize;
             var chunk = new ChunkObject(key, mesh, MaterialFor(net, key), root, bytes);
@@ -283,8 +289,14 @@ namespace Subterra
             bool updateVisibility = visibilityDirty;
             visibilityDirty = false;
             int active = 0;
-            var keep = new HashSet<ChunkKey>(desiredVisual);
-            keep.UnionWith(desiredColliders);
+            // The keep set is only needed to evict, i.e. when over the memory budget.
+            HashSet<ChunkKey> keep = null;
+            if (cache.OverBudget)
+            {
+                keep = new HashSet<ChunkKey>(desiredVisual);
+                keep.UnionWith(desiredColliders);
+            }
+
             foreach (ChunkKey key in cache.Keys.ToList())
             {
                 cache.TryGet(key, out ChunkObject chunk);
@@ -295,7 +307,7 @@ namespace Subterra
 
                 if (chunk.Visible)
                 {
-                    keep.Add(key);
+                    keep?.Add(key);
                     cache.Touch(key, frame);
                     active++;
                 }
@@ -331,9 +343,12 @@ namespace Subterra
             }
 
             ActiveChunks = active;
-            foreach (var evicted in cache.EvictOver(keep))
+            if (keep != null)
             {
-                evicted.Value.Destroy();
+                foreach (var evicted in cache.EvictOver(keep))
+                {
+                    evicted.Value.Destroy();
+                }
             }
         }
 

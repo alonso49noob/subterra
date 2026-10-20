@@ -16,6 +16,8 @@ namespace Subterra.Core.Meshing
 
         public long Bytes { get; private set; }
 
+        public bool OverBudget => Bytes > budget;
+
         public int Count => entries.Count;
 
         public IEnumerable<ChunkKey> Keys => entries.Keys;

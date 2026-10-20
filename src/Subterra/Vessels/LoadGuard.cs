@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace Subterra
 {
@@ -11,12 +12,20 @@ namespace Subterra
     {
         public const float Radius = 30f;
         private Dictionary<VesselRanges.Situation, (float pack, float unpack)> saved;
+        private float nextCheck;
+        private bool needed;
 
         public bool Active { get; private set; }
 
         public void Update(Vessel vessel, UndergroundState state)
         {
-            bool needed = state.Inside && ChunkStreamer.Instance != null && !ChunkStreamer.Instance.CollidersReady(vessel.GetWorldPos3D(), Radius);
+            // The collider check is not free: 5 times a second is enough (the hold is renewed every frame).
+            if (Time.realtimeSinceStartup >= nextCheck || !state.Inside)
+            {
+                nextCheck = Time.realtimeSinceStartup + 0.2f;
+                needed = state.Inside && ChunkStreamer.Instance != null && !ChunkStreamer.Instance.CollidersReady(vessel.GetWorldPos3D(), Radius);
+            }
+
             if (!needed)
             {
                 Release(vessel);

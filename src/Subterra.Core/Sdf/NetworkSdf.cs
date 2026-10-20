@@ -19,6 +19,9 @@ namespace Subterra.Core.Sdf
         private readonly int[][] noiseTables;
         private readonly float smoothFactor;
 
+        [ThreadStatic]
+        private static List<int> QueryBuffer;
+
         public NetworkSdf(IReadOnlyList<Primitive> prims, SpatialGrid grid, ulong noiseSeed, float smoothFactor = 0.15f)
         {
             this.prims = prims;
@@ -58,7 +61,8 @@ namespace Subterra.Core.Sdf
         /// </summary>
         public bool MayHaveSurface(Aabb box)
         {
-            var list = new List<int>();
+            List<int> list = QueryBuffer ?? (QueryBuffer = new List<int>());
+            list.Clear();
             grid.Query(box, list);
             if (list.Count == 0)
             {

@@ -176,10 +176,19 @@ namespace Subterra.Core.Tubes
         {
             Vec3 d = dir.Normalized;
             float travelled = 0;
+            double surface = SurfaceRadiusNear(from);
+            float surfaceAt = 0;
             while (travelled <= maxDist)
             {
                 Vec3 p = from + d * travelled;
-                if (ToBody(p).Length > SurfaceRadiusNear(p) + 10.0)
+                // The terrain radius changes slowly along a ray: look it up every 25 m.
+                if (travelled - surfaceAt > 25f)
+                {
+                    surface = SurfaceRadiusNear(p);
+                    surfaceAt = travelled;
+                }
+
+                if (ToBody(p).Length > surface + 10.0)
                 {
                     return true;
                 }

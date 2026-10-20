@@ -11,6 +11,9 @@ namespace Subterra.Core.Sdf
         private readonly float cellSize;
         private readonly Dictionary<(int, int, int), int[]> cells = new Dictionary<(int, int, int), int[]>();
 
+        [ThreadStatic]
+        private static HashSet<int> Seen;
+
         public SpatialGrid(IReadOnlyList<Primitive> prims, float cellSize = 128f)
         {
             this.prims = prims;
@@ -52,7 +55,8 @@ namespace Subterra.Core.Sdf
         {
             Cell(box.Min, out int x0, out int y0, out int z0);
             Cell(box.Max, out int x1, out int y1, out int z1);
-            var seen = new HashSet<int>();
+            HashSet<int> seen = Seen ?? (Seen = new HashSet<int>());
+            seen.Clear();
             for (int x = x0; x <= x1; x++)
             {
                 for (int y = y0; y <= y1; y++)
