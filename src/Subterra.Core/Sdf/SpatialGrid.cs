@@ -89,6 +89,14 @@ namespace Subterra.Core.Sdf
             return cells.TryGetValue((x, y, z), out int[] list) ? list : Array.Empty<int>();
         }
 
+        /// <summary>The grid cell that contains <paramref name="p"/> (the one <see cref="At"/> reads).</summary>
+        internal Aabb CellBox(Vec3 p)
+        {
+            Cell(p, out int x, out int y, out int z);
+            var min = new Vec3(x * cellSize, y * cellSize, z * cellSize);
+            return new Aabb(min, min + new Vec3(cellSize, cellSize, cellSize));
+        }
+
         private void Cell(Vec3 p, out int x, out int y, out int z)
         {
             x = (int)Math.Floor(p.X / cellSize);

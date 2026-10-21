@@ -18,11 +18,40 @@ namespace Subterra.Core.Procedural
         public const double StepLength = 400;
         public const double OriginSpacing = 8000;
         public const double CellMargin = 10000;
+
+        /// <summary>Longest trunk (m), whatever the FieldSpec says.</summary>
+        public const double MaxLength = 100000;
         private const double BodySpecWidthMin = 20;
 
-        public static List<SiteSpec> Generate(FieldSpec f, string body, string idPrefix, CellGrid grid, CellId cell, IHeightSampler h, IBiomeSampler b)
+        /// <summary>
+        /// The networks of every field of a body in one cell, in field order. The fields share the cap of
+        /// <see cref="MaxNetworksPerCell"/> and the id counter, so ids stay unique (cell × 10 + k).
+        /// </summary>
+        public static List<SiteSpec> Generate(IEnumerable<FieldSpec> fields, string body, string idPrefix, CellGrid grid, CellId cell, IHeightSampler h, IBiomeSampler b)
         {
             var result = new List<SiteSpec>();
+            int next = 0;
+            foreach (FieldSpec f in fields)
+            {
+                if (next >= MaxNetworksPerCell)
+                {
+                    break;
+                }
+
+                GenerateField(f, body, idPrefix, grid, cell, h, b, ref next, result);
+            }
+
+            return result;
+        }
+
+        /// <summary>The networks of a single field in one cell (as the only field of its body).</summary>
+        public static List<SiteSpec> Generate(FieldSpec f, string body, string idPrefix, CellGrid grid, CellId cell, IHeightSampler h, IBiomeSampler b) =>
+            Generate(new[] { f }, body, idPrefix, grid, cell, h, b);
+
+        // Adds the field's networks; `next` is the cell's next free network index (the id's last digit).
+        private static void GenerateField(FieldSpec f, string body, string idPrefix, CellGrid grid, CellId cell, IHeightSampler h, IBiomeSampler b,
+            ref int next, List<SiteSpec> result)
+        {
             var rng = new Rng(Hash.Combine(Hash.Of(body), Hash.Of(f.Name), (ulong)cell.Index(grid.N), f.Seed));
             double radius = grid.BodyRadius;
             var allowedBiomes = new HashSet<string>(f.Biomes, StringComparer.OrdinalIgnoreCase);
@@ -47,7 +76,7 @@ namespace Subterra.Core.Procedural
 
             if (inCell == 0 || allowed.Count == 0 || f.NetworksPer10k <= 0)
             {
-                return result;
+                return;
             }
 
             double area = 4 * Math.PI * radius * radius / (6.0 * grid.N * grid.N);
@@ -58,7 +87,7 @@ namespace Subterra.Core.Procedural
                 count++;
             }
 
-            count = Math.Min(count, MaxNetworksPerCell);
+            count = Math.Min(count, MaxNetworksPerCell - next);
             var origins = new List<Vec3d>();
             for (int k = 0; k < count; k++)
             {
@@ -93,16 +122,22 @@ namespace Subterra.Core.Procedural
                     continue;
                 }
 
-                site.Name = $"{idPrefix}-{cell.Index(grid.N) * 10 + k:D4}";
+                site.Name = $"{idPrefix}-{cell.Index(grid.N) * 10 + next + k:D4}";
                 result.Add(site);
             }
 
-            return result;
+            next += origins.Count;
         }
 
         private static SiteSpec Network(FieldSpec f, Rng rng, Walker walker, Vec3d origin)
         {
+            // The parser keeps ranges sane; a FieldSpec built in code may not be, so cap what loops depend on.
             double length = rng.Range(f.Length.Min, f.Length.Max);
+            if (!(length <= MaxLength))
+            {
+                length = MaxLength;
+            }
+
             double u = rng.NextDouble();
             double w = f.Width.Min + (f.Width.Max - f.Width.Min) * u * u * u;
             double trunkWidth = Math.Max(BodySpecWidthMin, w);
@@ -136,6 +171,12 @@ namespace Subterra.Core.Procedural
             while (true)
             {
                 double target = previous + rng.Range(f.SkylightSpacing.Min, f.SkylightSpacing.Max);
+                if (!(target >= previous + StepLength))
+                {
+                    // Zero, negative or NaN spacing would never move on.
+                    target = previous + StepLength;
+                }
+
                 if (target > along[trunk.Count - 1] + 500)
                 {
                     break;

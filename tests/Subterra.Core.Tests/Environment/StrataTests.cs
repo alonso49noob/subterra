@@ -51,6 +51,25 @@ namespace Subterra.Core.Tests.Environment
         }
 
         [Fact]
+        public void OverlappingLayersCountOnlyWhereTheyWin()
+        {
+            // A (0-100 m, 10 K/km) wins over B (50-200 m, 20 K/km) in 50-100 m.
+            var strata = new Strata(new List<LayerSpec> { L("A", 0, 100, 10), L("B", 50, 200, 20) });
+            var heat = new Geotherm(new GeothermSpec { SurfaceMeanTemp = 250 }, strata);
+            Assert.Equal(250 + 0.1 * 10 + 0.05 * 20, heat.Temperature(150, "Lowlands").Value, 9);
+            Assert.Equal(250 + 0.1 * 10 + 0.1 * 20 + 0.05 * 20, heat.Temperature(250, "Lowlands").Value, 9);
+        }
+
+        [Fact]
+        public void LaterLayerInsideAnEarlierOneNeverCounts()
+        {
+            // B (20-40 m) lies inside A (0-100 m): A wins everywhere.
+            var strata = new Strata(new List<LayerSpec> { L("A", 0, 100, 10), L("B", 20, 40, 50) });
+            var heat = new Geotherm(new GeothermSpec { SurfaceMeanTemp = 250 }, strata);
+            Assert.Equal(250 + 0.08 * 10, heat.Temperature(80, "Lowlands").Value, 9);
+        }
+
+        [Fact]
         public void BelowLastLayerKeepsItsGradient()
         {
             double t1 = Heat.Temperature(210000, "Lowlands").Value, t2 = Heat.Temperature(220000, "Lowlands").Value;

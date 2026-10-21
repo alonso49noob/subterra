@@ -114,6 +114,50 @@ SUBTERRA_BODY
             Assert.Contains(r.Warnings, w => w.Contains("caveScienceMultiplier"));
         }
 
+        private static FieldSpec Field(string lines) =>
+            ParseText("SUBTERRA_BODY\n{\n body = Mun\n TUBE_FIELD\n {\n  name = F\n  biomes = Lowlands\n" + lines + "\n }\n}").Value.Fields.Single();
+
+        [Theory]
+        [InlineData("0, 0")]
+        [InlineData("-3000, -10")]
+        [InlineData("100, 200")]
+        public void ClampsSkylightSpacingAndWarns(string value)
+        {
+            var r = ParseText("SUBTERRA_BODY\n{\n body = Mun\n TUBE_FIELD\n {\n  name = F\n  biomes = Lowlands\n  skylightSpacing = " + value + "\n }\n}");
+            FieldSpec f = r.Value.Fields.Single();
+            Assert.True(f.SkylightSpacing.Min >= 500, $"min {f.SkylightSpacing.Min}");
+            Assert.True(f.SkylightSpacing.Max >= f.SkylightSpacing.Min);
+            Assert.Contains(r.Warnings, w => w.Contains("skylightSpacing"));
+        }
+
+        [Fact]
+        public void ClampsLengthAndRoofDepthAndWarns()
+        {
+            var r = ParseText("SUBTERRA_BODY\n{\n body = Mun\n TUBE_FIELD\n {\n  name = F\n  biomes = Lowlands\n  length = -100, 0\n  roofDepth = 0, -5\n }\n}");
+            FieldSpec f = r.Value.Fields.Single();
+            Assert.True(f.Length.Min > 0 && f.Length.Max >= f.Length.Min, $"length {f.Length}");
+            Assert.True(f.RoofDepth.Min > 0 && f.RoofDepth.Max >= f.RoofDepth.Min, $"roofDepth {f.RoofDepth}");
+            Assert.Contains(r.Warnings, w => w.Contains("'length'"));
+            Assert.Contains(r.Warnings, w => w.Contains("'roofDepth'"));
+        }
+
+        [Fact]
+        public void NonFiniteFieldRangesFallBackToDefaults()
+        {
+            FieldSpec defaults = new FieldSpec();
+            FieldSpec f = Field("  skylightSpacing = NaN, 3000\n  length = 1000, Infinity");
+            Assert.Equal(defaults.SkylightSpacing, f.SkylightSpacing);
+            Assert.Equal(defaults.Length, f.Length);
+        }
+
+        [Fact]
+        public void GoodFieldRangesNeedNoWarning()
+        {
+            var r = ParseText("SUBTERRA_BODY\n{\n body = Mun\n TUBE_FIELD\n {\n  name = F\n  biomes = Lowlands\n  length = 2000, 20000\n  roofDepth = 15, 120\n  skylightSpacing = 2000, 6000\n }\n}");
+            Assert.Empty(r.Warnings);
+            Assert.Equal(new Range(2000, 6000), r.Value.Fields.Single().SkylightSpacing);
+        }
+
         [Fact]
         public void DefaultPrefixIsFirstTwoLetters() => Assert.Equal("MU", ParseText("SUBTERRA_BODY\n{\n body = Mun\n}").Value.IdPrefix);
     }

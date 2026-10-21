@@ -67,6 +67,41 @@ namespace Subterra.Core.Tests.Scatter
 
         [Fact] public void CeilingProps() => Assert.NotEmpty(Place(Plane(ceiling: true), Spec(ScatterPlacement.Ceiling)));
 
+        // Hanging props are modelled below their origin along +Y: on a ceiling their up must point into
+        // the rock (like the local vertical), however much they follow the surface.
+        [Theory]
+        [InlineData(0.0)]
+        [InlineData(0.5)]
+        [InlineData(0.7)]
+        [InlineData(1.0)]
+        public void CeilingPropsHangFromTheRock(double align)
+        {
+            ScatterSpec spec = Spec(ScatterPlacement.Ceiling);
+            spec.AlignToSurface = align;
+            var placed = Place(Plane(ceiling: true), spec);
+            Assert.NotEmpty(placed);
+            Assert.All(placed, i => Assert.True(Vec3.Dot(i.Up, Up) > 0.99f, $"up {i.Up}"));
+        }
+
+        [Fact]
+        public void TiltedCeilingPropsLeanWithTheSurface()
+        {
+            // A ceiling facing down and a little sideways: aligned props lean the same way, still into the rock.
+            var tilt = new Vec3(0.3f, -1, 0).Normalized;
+            MeshData m = Plane(ceiling: true);
+            for (int i = 0; i < m.Vertices.Count; i++)
+            {
+                Vec3 v = m.Vertices[i];
+                m.Vertices[i] = new Vec3(v.X, v.X * 0.3f, v.Z);
+            }
+
+            ScatterSpec spec = Spec(ScatterPlacement.Ceiling);
+            spec.AlignToSurface = 1;
+            var placed = Place(m, spec);
+            Assert.NotEmpty(placed);
+            Assert.All(placed, i => Assert.True(Vec3.Dot(i.Up, -tilt) > 0.99f, $"up {i.Up}"));
+        }
+
         [Fact] public void ZonesFilter() => Assert.Empty(Place(Plane(), Spec(ScatterPlacement.Floor, 0, ZoneKind.FrozenVault)));
 
         [Fact] public void ThresholdOneRemovesAll() => Assert.Empty(Place(Plane(), Spec(threshold: 1)));
@@ -96,8 +131,8 @@ namespace Subterra.Core.Tests.Scatter
             var p = new Vec3(10, 20, 30);
             var s = new ScatterInstance(p, Up, new Vec3(0, 0, 1), 2);
             var merged = ScatterMerger.Merge(prop, new[] { s }, out _);
-            Vec3 expected = p + (s.Right * 1 + Up * 2 + new Vec3(0, 0, 1) * 3) * 2;
-            Assert.Equal(expected, merged.Vertices[0]);
+            // Right = Up × Forward = +X: (1, 2, 3) × 2 + (10, 20, 30).
+            Assert.Equal(new Vec3(12, 24, 36), merged.Vertices[0]);
         }
     }
 }

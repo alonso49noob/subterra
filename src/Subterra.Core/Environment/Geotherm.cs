@@ -6,7 +6,8 @@ namespace Subterra.Core.Environment
 {
     /// <summary>
     /// Rock temperature: no day/night cycle below the damping depth, then the surface mean plus each
-    /// layer's gradient over the part of it above the point; below the last layer its gradient continues.
+    /// layer's gradient over the depths above the point where it wins (see <see cref="Strata.Spans"/>);
+    /// below the last layer its gradient continues.
     /// </summary>
     public sealed class Geotherm
     {
@@ -28,25 +29,24 @@ namespace Subterra.Core.Environment
             }
 
             double t = spec.SurfaceMeanTemp;
-            IReadOnlyList<LayerSpec> column = strata.Column(biome);
-            double reached = 0;
             LayerSpec last = null;
-            foreach (LayerSpec layer in column)
+            double lastBottom = 0;
+            // Each layer only over the depths it wins, so overlapping layers are not counted twice.
+            foreach (LayerSpan span in strata.Spans(biome))
             {
-                double top = Math.Max(0, layer.Top);
-                double bottom = Math.Min(layer.Bottom, depth);
-                if (bottom > top)
+                double bottom = Math.Min(span.Bottom, depth);
+                if (bottom > span.Top)
                 {
-                    t += layer.Gradient * (bottom - top) / 1000.0;
-                    reached = Math.Max(reached, bottom);
+                    t += span.Layer.Gradient * (bottom - span.Top) / 1000.0;
                 }
 
-                last = layer;
+                last = span.Layer;
+                lastBottom = span.Bottom;
             }
 
-            if (last != null && depth > reached && reached >= last.Bottom - 1e-9)
+            if (last != null && depth > lastBottom)
             {
-                t += last.Gradient * (depth - reached) / 1000.0;
+                t += last.Gradient * (depth - lastBottom) / 1000.0;
             }
 
             return t;

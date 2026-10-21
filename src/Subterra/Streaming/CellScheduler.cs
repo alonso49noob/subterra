@@ -106,11 +106,8 @@ namespace Subterra
             {
                 try
                 {
-                    sites = new List<SiteSpec>();
-                    foreach (FieldSpec field in runtime.Spec.Fields)
-                    {
-                        sites.AddRange(FieldGenerator.Generate(field, body.bodyName, runtime.Spec.IdPrefix, catalog.Grid, cell, grid, grid));
-                    }
+                    // All fields at once: they share the per-cell cap and id counter (unique ids).
+                    sites = FieldGenerator.Generate(runtime.Spec.Fields, body.bodyName, runtime.Spec.IdPrefix, catalog.Grid, cell, grid, grid);
                 }
                 catch (Exception e)
                 {

@@ -107,13 +107,7 @@ namespace Subterra.Core.Tests.Sdf
         [Fact]
         public void NoiseBounded()
         {
-            var prims = RandomPrims(30, 5);
-            foreach (var prim in prims)
-            {
-                prim.Roughness = 3f;
-                prim.NoiseScale = 15f;
-            }
-
+            var prims = RandomPrims(30, 5, roughness: 3f, noiseScale: 15f);
             var sdf = new NetworkSdf(prims, new SpatialGrid(prims), 7);
             var rng = new Rng(6);
             for (int i = 0; i < 2000; i++)
@@ -125,7 +119,7 @@ namespace Subterra.Core.Tests.Sdf
             }
         }
 
-        private static List<Primitive> RandomPrims(int count, ulong seed)
+        private static List<Primitive> RandomPrims(int count, ulong seed, float roughness = 0f, float noiseScale = 20f)
         {
             var rng = new Rng(seed);
             var up = new Vec3(0, 1, 0);
@@ -138,13 +132,13 @@ namespace Subterra.Core.Tests.Sdf
                     case 0:
                         var b = a + new Vec3((float)rng.Range(-80, 80), (float)rng.Range(-5, 5), (float)rng.Range(-80, 80));
                         float w = (float)rng.Range(20, 60);
-                        prims.Add(new TubeSegment(a, b, up, up, w, w, w * 0.5f, w * 0.5f, 0, ZoneKind.TubeGallery));
+                        prims.Add(new TubeSegment(a, b, up, up, w, w, w * 0.5f, w * 0.5f, 0, ZoneKind.TubeGallery) { Roughness = roughness, NoiseScale = noiseScale });
                         break;
                     case 1:
-                        prims.Add(new Chamber(a, up, (float)rng.Range(20, 50), (float)rng.Range(10, 30)));
+                        prims.Add(new Chamber(a, up, (float)rng.Range(20, 50), (float)rng.Range(10, 30)) { Roughness = roughness, NoiseScale = noiseScale });
                         break;
                     default:
-                        prims.Add(new Shaft(a, up, (float)rng.Range(5, 20), (float)rng.Range(20, 80)));
+                        prims.Add(new Shaft(a, up, (float)rng.Range(5, 20), (float)rng.Range(20, 80)) { Roughness = roughness, NoiseScale = noiseScale });
                         break;
                 }
             }
@@ -159,6 +153,26 @@ namespace Subterra.Core.Tests.Sdf
 
 namespace Subterra.Core.Tests.Sdf
 {
+    public class PrimitiveImmutabilityTests
+    {
+        // Workers read primitives while meshing: nothing may change them after construction.
+        [Fact]
+        public void PublicSettersAreInitOnly()
+        {
+            foreach (var property in typeof(Primitive).GetProperties())
+            {
+                var setter = property.GetSetMethod(nonPublic: true);
+                if (setter == null || setter.IsPrivate)
+                {
+                    continue;
+                }
+
+                bool init = Array.Exists(setter.ReturnParameter.GetRequiredCustomModifiers(), m => m.Name == "IsExternalInit");
+                Assert.True(init, $"{property.Name} can be set after construction");
+            }
+        }
+    }
+
     public class MayHaveSurfaceTests
     {
         private static NetworkSdf Tube()

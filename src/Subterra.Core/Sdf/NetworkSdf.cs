@@ -8,16 +8,24 @@ namespace Subterra.Core.Sdf
     /// The void of a whole network: smooth union of its primitives (blend k = factor × the narrower
     /// width) plus fBm wall noise of the nearest primitive. Thread-safe.
     /// </summary>
-    public sealed class NetworkSdf : ISdf
+    public sealed class NetworkSdf : IBoundedSdf
     {
-        /// <summary>Value returned where no primitive is near: solid rock.</summary>
-        public const float Far = 1000f;
+        /// <summary>
+        /// Value returned where no primitive's bounds reach: solid rock. Outside every bounds box the
+        /// void is at least <see cref="Primitive.BoundsMargin"/> away, so this is a true lower bound
+        /// (vertex interpolation at coarse LODs stays right) and never a placeholder.
+        /// </summary>
+        public const float Far = Primitive.BoundsMargin;
+
+        /// <summary>Margin around a chunk's region within which <see cref="ForRegion"/> keeps primitives.</summary>
+        private const float RegionMargin = 32f;
 
         private readonly IReadOnlyList<Primitive> prims;
         private readonly SpatialGrid grid;
         private readonly ulong noiseSeed;
         private readonly int[][] noiseTables;
         private readonly float smoothFactor;
+        private readonly float maxWidth;
 
         [ThreadStatic]
         private static List<int> QueryBuffer;
@@ -29,20 +37,24 @@ namespace Subterra.Core.Sdf
             this.noiseSeed = noiseSeed;
             noiseTables = Noise.Tables(noiseSeed);
             this.smoothFactor = smoothFactor;
+            foreach (Primitive prim in prims)
+            {
+                maxWidth = Math.Max(maxWidth, prim.Width);
+            }
         }
 
         public IReadOnlyList<Primitive> Primitives => prims;
 
         public SpatialGrid Grid => grid;
 
-        public float Distance(Vec3 p) => Evaluate(p, grid.At(p), null, true, out _);
+        public float Distance(Vec3 p) => Evaluate(p, grid.At(p), true, false, out _, out _);
 
-        public float DistanceNoNoise(Vec3 p) => Evaluate(p, grid.At(p), null, false, out _);
+        public float DistanceNoNoise(Vec3 p) => Evaluate(p, grid.At(p), false, false, out _, out _);
 
         /// <summary>Index of the primitive with the smallest distance at <paramref name="p"/>, or -1 far from all.</summary>
         public int NearestPrimitive(Vec3 p)
         {
-            Evaluate(p, grid.At(p), null, false, out int nearest);
+            Evaluate(p, grid.At(p), false, false, out int nearest, out _);
             return nearest;
         }
 
@@ -50,9 +62,13 @@ namespace Subterra.Core.Sdf
         public ISdf ForRegion(Aabb region)
         {
             var list = new List<int>();
-            grid.Query(region.Expand(32f), list);
-            return new RegionSdf(this, list.ToArray());
+            Aabb kept = region.Expand(RegionMargin);
+            grid.Query(kept, list);
+            return new RegionSdf(this, list.ToArray(), kept);
         }
+
+        // The primitives missing from p's grid cell list do not overlap that cell.
+        float IBoundedSdf.SignBound(Vec3 p) => SignBound(p, grid.At(p), InsideDistance(grid.CellBox(p), p));
 
         /// <summary>
         /// Whether the cave surface may cross <paramref name="box"/>: the primitives whose bounds touch the box,
@@ -82,10 +98,43 @@ namespace Subterra.Core.Sdf
             return Math.Abs(d) <= reach + 2 * roughness + 2f;
         }
 
-        internal float Evaluate(Vec3 p, int[] indices, int[] subset, bool noise, out int nearest)
+        // See IBoundedSdf. `unlisted` is a lower bound of the distance from p to the bounds of every
+        // primitive missing from `source`.
+        private float SignBound(Vec3 p, int[] source, float unlisted)
         {
-            int[] source = subset ?? indices;
+            float value = Evaluate(p, source, true, true, out int nearest, out float skipped);
+            float reach = Math.Max(0f, Math.Min(skipped, unlisted + Primitive.BoundsMargin - BlendReach(maxWidth)));
+            if (nearest < 0)
+            {
+                // Nothing evaluated: rock, and no void closer than the skipped primitives allow.
+                return reach;
+            }
+
+            return value >= 0 ? Math.Min(value, reach) : value;
+        }
+
+        // How much the smooth union with a primitive of this width can lower the field (k / 4).
+        private float BlendReach(float width) => 0.25f * smoothFactor * width;
+
+        // Distance from p to the outside of box (0 when p is outside it).
+        private static float InsideDistance(Aabb box, Vec3 p)
+        {
+            if (!box.Contains(p))
+            {
+                return 0f;
+            }
+
+            float d = Math.Min(Math.Min(p.X - box.Min.X, box.Max.X - p.X), Math.Min(p.Y - box.Min.Y, box.Max.Y - p.Y));
+            return Math.Min(d, Math.Min(p.Z - box.Min.Z, box.Max.Z - p.Z));
+        }
+
+        // With `bound`, `skipped` is a lower bound of how far the primitives skipped by their bounds
+        // stay from turning the field negative (their bounds distance plus the margin, minus the blend);
+        // otherwise +infinity. It never changes the returned value.
+        private float Evaluate(Vec3 p, int[] source, bool noise, bool bound, out int nearest, out float skipped)
+        {
             nearest = -1;
+            skipped = float.PositiveInfinity;
             if (source.Length == 0)
             {
                 return Far;
@@ -103,6 +152,11 @@ namespace Subterra.Core.Sdf
                 // primitives in the same (ascending) order, so neighbouring chunks agree bit for bit.
                 if (!prim.Bounds.Contains(p))
                 {
+                    if (bound)
+                    {
+                        skipped = Math.Min(skipped, prim.Bounds.DistanceTo(p) + Primitive.BoundsMargin - BlendReach(prim.Width));
+                    }
+
                     continue;
                 }
 
@@ -152,18 +206,23 @@ namespace Subterra.Core.Sdf
             return result;
         }
 
-        private sealed class RegionSdf : ISdf
+        private sealed class RegionSdf : IBoundedSdf
         {
             private readonly NetworkSdf owner;
             private readonly int[] subset;
+            private readonly Aabb kept;
 
-            public RegionSdf(NetworkSdf owner, int[] subset)
+            public RegionSdf(NetworkSdf owner, int[] subset, Aabb kept)
             {
                 this.owner = owner;
                 this.subset = subset;
+                this.kept = kept;
             }
 
-            public float Distance(Vec3 p) => owner.Evaluate(p, null, subset, true, out _);
+            public float Distance(Vec3 p) => owner.Evaluate(p, subset, true, false, out _, out _);
+
+            // The primitives left out of the subset do not touch the kept box.
+            public float SignBound(Vec3 p) => owner.SignBound(p, subset, InsideDistance(kept, p));
         }
     }
 }

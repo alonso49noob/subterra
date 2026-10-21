@@ -123,6 +123,18 @@ namespace Subterra.Core.Tests.Meshing
             }
         }
 
+        [Fact]
+        public void NoVerticesForTheCellLayerPastTheChunk()
+        {
+            // Cells N (corners N .. N+1) belong to the next chunk: no emitted face uses them.
+            var m = SurfaceNets.Build(new TiltedPlane(), O, 1f, false);
+            Assert.Equal(m.Vertices.Count, m.Normals.Count);
+            Assert.All(m.Vertices, v => Assert.True(v.X <= SurfaceNets.N && v.Y <= SurfaceNets.N && v.Z <= SurfaceNets.N, $"{v}"));
+            int used = new HashSet<int>(m.Triangles).Count;
+            // Only border cells crossed solely through their outer faces stay unused.
+            Assert.True(used >= 0.98 * m.Vertices.Count, $"{used} of {m.Vertices.Count} vertices used");
+        }
+
         [Fact] public void AllRockIsEmpty() => Assert.Empty(SurfaceNets.Build(new Const(5), O, 1f, true).Triangles);
 
         [Fact]
@@ -161,6 +173,81 @@ namespace Subterra.Core.Tests.Meshing
 
             times.Sort();
             Assert.True(times[5] < 30, $"median {times[5]:F1} ms");
+        }
+
+        // Skipping far blocks must not change the mesh: compare with every corner evaluated.
+        private static int AssertSameAsExact(NetworkSdf sdf, Vec3 origin, float cellSize, string context)
+        {
+            float size = SurfaceNets.N * cellSize;
+            ISdf region = sdf.ForRegion(new Aabb(origin, origin + new Vec3(size, size, size)));
+            MeshData fast = SurfaceNets.Build(region, origin, cellSize, false);
+            MeshData exact = SurfaceNets.Build(region, origin, cellSize, false, skipFarBlocks: false);
+            Assert.True(exact.Triangles.Count == fast.Triangles.Count,
+                $"{context}: {exact.Triangles.Count / 3} triangles exact, {fast.Triangles.Count / 3} with far blocks skipped");
+            Assert.Equal(exact.Triangles, fast.Triangles);
+            Assert.Equal(exact.Vertices, fast.Vertices);
+            return exact.Triangles.Count / 3;
+        }
+
+        [Fact]
+        public void FarBlocksKeepTubeAtCoarseLods()
+        {
+            int total = 0;
+            for (int offset = 0; offset < 32; offset++)
+            {
+                // The reviewer's case: a 120 × 40 m tube in its own network, met by LOD3 chunks.
+                var tube = new TubeSegment(new Vec3(-100, offset, offset), new Vec3(500, offset, offset), new Vec3(0, 1, 0), new Vec3(0, 1, 0), 120, 120, 40, 40, 0, ZoneKind.TubeGallery);
+                var prims = new List<Primitive> { tube };
+                var sdf = new NetworkSdf(prims, new SpatialGrid(prims), 1);
+                foreach (float cellSize in new[] { 8f, 4f })
+                {
+                    float size = SurfaceNets.N * cellSize;
+                    for (int y = -1; y <= 0; y++)
+                    {
+                        for (int z = -1; z <= 0; z++)
+                        {
+                            total += AssertSameAsExact(sdf, new Vec3(0, y * size, z * size), cellSize, $"offset {offset} cell {cellSize} chunk ({y}, {z})");
+                        }
+                    }
+                }
+            }
+
+            Assert.True(total > 0);
+        }
+
+        [Fact]
+        public void FarBlocksKeepPrimitivesOutsideTheirNeighboursBounds()
+        {
+            // A diagonal tube has a huge box whose corners are far from its void; a small chamber sits
+            // in such a corner. Blocks there see only the tube (the chamber's bounds exclude them).
+            int total = 0;
+            for (int offset = 0; offset < 32; offset += 3)
+            {
+                var o = new Vec3(offset, 0, offset);
+                var tube = new TubeSegment(o, o + new Vec3(400, 0, 400), new Vec3(0, 1, 0), new Vec3(0, 1, 0), 30, 30, 15, 15, 0, ZoneKind.TubeGallery);
+                var chamber = new Chamber(o + new Vec3(380, 0, 20), new Vec3(0, 1, 0), 20, 12);
+                var prims = new List<Primitive> { tube, chamber };
+                var sdf = new NetworkSdf(prims, new SpatialGrid(prims), 2);
+                foreach (float cellSize in new[] { 8f, 4f, 2f })
+                {
+                    float size = SurfaceNets.N * cellSize;
+                    var centre = o + new Vec3(380, 0, 20);
+                    var first = new Vec3((float)Math.Floor((centre.X - 40) / size), (float)Math.Floor(-40 / size), (float)Math.Floor((centre.Z - 40) / size));
+                    var last = new Vec3((float)Math.Floor((centre.X + 40) / size), (float)Math.Floor(40 / size), (float)Math.Floor((centre.Z + 40) / size));
+                    for (float x = first.X; x <= last.X; x++)
+                    {
+                        for (float y = first.Y; y <= last.Y; y++)
+                        {
+                            for (float z = first.Z; z <= last.Z; z++)
+                            {
+                                total += AssertSameAsExact(sdf, new Vec3(x * size, y * size, z * size), cellSize, $"offset {offset} cell {cellSize} chunk ({x}, {y}, {z})");
+                            }
+                        }
+                    }
+                }
+            }
+
+            Assert.True(total > 0);
         }
 
         private sealed class TiltedPlane : ISdf

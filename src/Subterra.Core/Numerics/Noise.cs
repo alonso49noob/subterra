@@ -7,27 +7,66 @@ namespace Subterra.Core.Numerics
     public static class Noise
     {
         public const int MaxOctaves = 8;
+
+        /// <summary>
+        /// Seeds kept by each cache. Callers may use a new seed per edge or site, so the caches start
+        /// over when full; tables depend only on their seed, so results never change.
+        /// </summary>
+        public const int MaxCachedSeeds = 128;
+
         private static readonly ConcurrentDictionary<ulong, int[]> Permutations = new ConcurrentDictionary<ulong, int[]>();
         private static readonly ConcurrentDictionary<ulong, int[][]> OctaveTables = new ConcurrentDictionary<ulong, int[][]>();
+        private static readonly object CacheGate = new object();
+
+        /// <summary>The larger of the two caches' seed counts (tests).</summary>
+        internal static int CachedSeeds => Math.Max(Permutations.Count, OctaveTables.Count);
 
         /// <summary>Improved Perlin noise in [-1, 1]; 0 at integer lattice points.</summary>
-        public static float Perlin3(Vec3 p, ulong seed) => Perlin(p.X, p.Y, p.Z, Permutations.GetOrAdd(seed, BuildPermutation));
+        public static float Perlin3(Vec3 p, ulong seed) => Perlin(p.X, p.Y, p.Z, Cached(Permutations, seed, BuildPermutation));
 
         /// <summary>Fractal sum of <paramref name="octaves"/> Perlin octaves, normalized to [-1, 1].</summary>
         public static float Fbm(Vec3 p, ulong seed, int octaves, float lacunarity = 2f, float gain = 0.5f) =>
             Fbm(p, Tables(seed), octaves, lacunarity, gain);
 
         /// <summary>The per-octave permutations of a seed, to keep for hot loops (see <see cref="Fbm(Vec3, int[][], int, float, float)"/>).</summary>
-        public static int[][] Tables(ulong seed) => OctaveTables.GetOrAdd(seed, s =>
+        public static int[][] Tables(ulong seed) => Cached(OctaveTables, seed, BuildTables);
+
+        // Lock-free hits; misses take a lock so the bound holds even with many threads.
+        private static T Cached<T>(ConcurrentDictionary<ulong, T> cache, ulong seed, Func<ulong, T> build)
+        {
+            if (cache.TryGetValue(seed, out T value))
+            {
+                return value;
+            }
+
+            lock (CacheGate)
+            {
+                if (cache.TryGetValue(seed, out value))
+                {
+                    return value;
+                }
+
+                if (cache.Count >= MaxCachedSeeds)
+                {
+                    cache.Clear();
+                }
+
+                value = build(seed);
+                cache[seed] = value;
+                return value;
+            }
+        }
+
+        private static int[][] BuildTables(ulong seed)
         {
             var tables = new int[MaxOctaves][];
             for (int i = 0; i < MaxOctaves; i++)
             {
-                tables[i] = Permutations.GetOrAdd(Hash.Combine(s, (ulong)i), BuildPermutation);
+                tables[i] = BuildPermutation(Hash.Combine(seed, (ulong)i));
             }
 
             return tables;
-        });
+        }
 
         public static float Fbm(Vec3 p, int[][] tables, int octaves, float lacunarity = 2f, float gain = 0.5f)
         {

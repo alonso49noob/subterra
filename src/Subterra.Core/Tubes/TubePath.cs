@@ -145,12 +145,12 @@ namespace Subterra.Core.Tubes
             // Angular length of the spline (fine polyline) sets the number of segments.
             double chordAngle = Angle(p1, p2);
             double sinuosity = edge.Sinuosity;
-            ulong seed = Hash.Combine(Hash.Of(site.Name), (ulong)e);
+            int[][] tables = Noise.Tables(Hash.Combine(Hash.Of(site.Name), (ulong)e));
             double length = 0;
-            Vec3d previous = Point(p0, p1, p2, p3, 0, sinuosity, chordAngle, seed);
+            Vec3d previous = Point(p0, p1, p2, p3, 0, sinuosity, chordAngle, tables);
             for (int i = 1; i <= LengthSamples; i++)
             {
-                Vec3d current = Point(p0, p1, p2, p3, (double)i / LengthSamples, sinuosity, chordAngle, seed);
+                Vec3d current = Point(p0, p1, p2, p3, (double)i / LengthSamples, sinuosity, chordAngle, tables);
                 length += Angle(previous, current);
                 previous = current;
             }
@@ -160,13 +160,13 @@ namespace Subterra.Core.Tubes
             var dirs = new List<Vec3d>(segments + 1);
             for (int i = 0; i <= segments; i++)
             {
-                dirs.Add(Point(p0, p1, p2, p3, (double)i / segments, sinuosity, chordAngle, seed));
+                dirs.Add(Point(p0, p1, p2, p3, (double)i / segments, sinuosity, chordAngle, tables));
             }
 
             return dirs;
         }
 
-        private static Vec3d Point(Vec3d p0, Vec3d p1, Vec3d p2, Vec3d p3, double u, double sinuosity, double chordAngle, ulong seed)
+        private static Vec3d Point(Vec3d p0, Vec3d p1, Vec3d p2, Vec3d p3, double u, double sinuosity, double chordAngle, int[][] tables)
         {
             Vec3d dir = CatmullRom(p0, p1, p2, p3, u).Normalized;
             if (sinuosity <= 0 || u <= 0 || u >= 1)
@@ -177,7 +177,7 @@ namespace Subterra.Core.Tubes
             Vec3d ahead = CatmullRom(p0, p1, p2, p3, Math.Min(1, u + 1e-3)).Normalized;
             Vec3d behind = CatmullRom(p0, p1, p2, p3, Math.Max(0, u - 1e-3)).Normalized;
             Vec3d side = Vec3d.Cross(dir, ahead - behind).Normalized;
-            double noise = Noise.Fbm(new Vec3((float)(u * 3.0), 0.37f, 0.71f), seed, 3);
+            double noise = Noise.Fbm(new Vec3((float)(u * 3.0), 0.37f, 0.71f), tables, 3);
             double offset = sinuosity * chordAngle * 0.15 * noise * Math.Sin(Math.PI * u);
             return (dir + side * offset).Normalized;
         }

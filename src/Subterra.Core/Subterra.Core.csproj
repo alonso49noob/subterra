@@ -3,4 +3,7 @@
     <AssemblyName>Subterra.Core</AssemblyName>
     <RootNamespace>Subterra.Core</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Subterra.Core.Tests" />
+  </ItemGroup>
 </Project>

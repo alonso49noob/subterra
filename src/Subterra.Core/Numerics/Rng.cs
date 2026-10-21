@@ -27,10 +27,12 @@ namespace Subterra.Core.Numerics
         /// <summary>Uniform in [0, 1).</summary>
         public double NextDouble() => (NextULong() >> 11) * (1.0 / (1UL << 53));
 
-        /// <summary>Uniform in [min, max) (min when max ≤ min).</summary>
+        /// <summary>Uniform in [min, max) (min when max ≤ min, or when either end or the width is NaN or infinite).</summary>
         public double Range(double min, double max)
         {
-            if (max <= min)
+            // Written so NaN fails the test: the redraw loop below would never end on NaN or infinity.
+            double width = max - min;
+            if (!(width > 0) || double.IsInfinity(width))
             {
                 return min;
             }

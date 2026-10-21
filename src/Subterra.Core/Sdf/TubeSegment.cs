@@ -6,7 +6,8 @@ namespace Subterra.Core.Sdf
 {
     /// <summary>
     /// A straight piece of tube from floor centre a to floor centre b: flat floor, elliptical arch,
-    /// optional side benches (a lower central channel), flat caps at the ends.
+    /// optional side benches (a lower central channel), rounded ends (the cross-section turned about
+    /// each end point), so consecutive pieces join without seams.
     /// </summary>
     public sealed class TubeSegment : Primitive
     {

@@ -19,8 +19,8 @@ namespace Subterra.Core.Meshing
         // Corner grid: indices -1 .. N+1 → 0 .. N+2.
         private const int Corners = N + 3;
 
-        // Cell grid: cells -1 .. N → 0 .. N+1.
-        private const int Cells = N + 2;
+        // Cell grid: cells -1 .. N-1 → 0 .. N, the cells around the emitted edges (lower corners 0 .. N-1).
+        private const int Cells = N + 1;
 
         private static readonly int[,] CubeEdges =
         {
@@ -29,10 +29,16 @@ namespace Subterra.Core.Meshing
             { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 },
         };
 
-        public static MeshData Build(ISdf sdf, Vec3 origin, float cellSize, bool skirts)
+        public static MeshData Build(ISdf sdf, Vec3 origin, float cellSize, bool skirts) => Build(sdf, origin, cellSize, skirts, true);
+
+        /// <summary>
+        /// <paramref name="skipFarBlocks"/> = false evaluates every corner: the exact reference the
+        /// skipping must reproduce bit for bit (tests).
+        /// </summary>
+        internal static MeshData Build(ISdf sdf, Vec3 origin, float cellSize, bool skirts, bool skipFarBlocks)
         {
             var values = new float[Corners * Corners * Corners];
-            var known = FillFarBlocks(sdf, origin, cellSize, values);
+            var known = skipFarBlocks ? FillFarBlocks(sdf, origin, cellSize, values) : new bool[values.Length];
             bool anyVoid = false, anyRock = false;
             for (int x = 0; x < Corners; x++)
             {
@@ -160,10 +166,13 @@ namespace Subterra.Core.Meshing
         // Blocks of 4³ corners whose centre is far from the surface (the field changes by at most about
         // the distance moved) all share its sign, and so do the corners one cell around them: they get the
         // centre value without being evaluated. No crossing can touch them, so the mesh is unchanged.
+        // "Far" must be certain: a field that skips primitives by their bounds (IBoundedSdf) only
+        // vouches for its sign up to the nearest skipped primitive, not for its full value.
         private static bool[] FillFarBlocks(ISdf sdf, Vec3 origin, float cellSize, float[] values)
         {
             const int block = 4;
             var known = new bool[values.Length];
+            var bounded = sdf as IBoundedSdf;
             float halfDiagonal = 0.5f * block * cellSize * 1.7320508f;
             float safe = 2f * halfDiagonal + 2f * cellSize;
             for (int bx = 0; bx < Corners; bx += block)
@@ -176,7 +185,7 @@ namespace Subterra.Core.Meshing
                             origin.X + (bx - 1 + 0.5f * (block - 1)) * cellSize,
                             origin.Y + (by - 1 + 0.5f * (block - 1)) * cellSize,
                             origin.Z + (bz - 1 + 0.5f * (block - 1)) * cellSize);
-                        float d = sdf.Distance(centre);
+                        float d = bounded != null ? bounded.SignBound(centre) : sdf.Distance(centre);
                         if (Math.Abs(d) <= safe)
                         {
                             continue;

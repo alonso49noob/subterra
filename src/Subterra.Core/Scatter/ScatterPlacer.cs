@@ -51,6 +51,7 @@ namespace Subterra.Core.Scatter
                 bool placementOk = spec.Placement == ScatterPlacement.SkylightRubble
                     ? surface == ScatterPlacement.Floor && inRubbleZone(centroid)
                     : surface == spec.Placement;
+                Vec3 surfaceUp = surface == ScatterPlacement.Ceiling ? -n : n;
 
                 for (int k = 0; k < count; k++)
                 {
@@ -79,10 +80,13 @@ namespace Subterra.Core.Scatter
                         continue;
                     }
 
-                    Vec3 instanceUp = Vec3.Lerp(up, n, (float)spec.AlignToSurface).Normalized;
+                    // A prop's up follows the surface towards `surfaceUp`: the face normal (into the void),
+                    // except on ceilings, where props hang below their origin and up points into the rock
+                    // like the local vertical (lerping towards the normal there would pass through zero).
+                    Vec3 instanceUp = Vec3.Lerp(up, surfaceUp, (float)spec.AlignToSurface).Normalized;
                     if (instanceUp.LengthSquared == 0)
                     {
-                        instanceUp = n;
+                        instanceUp = surfaceUp;
                     }
 
                     Vec3 helper = Math.Abs(instanceUp.Y) < 0.9f ? new Vec3(0, 1, 0) : new Vec3(1, 0, 0);

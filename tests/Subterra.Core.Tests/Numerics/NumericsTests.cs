@@ -51,6 +51,19 @@ namespace Subterra.Core.Tests.Numerics
             for (int i = 0; i < 1000; i++) Assert.Equal(a.NextUInt(), b.NextUInt());
         }
 
+        [Theory]
+        [InlineData(double.NaN, double.NaN)]
+        [InlineData(0, double.NaN)]
+        [InlineData(0, double.PositiveInfinity)]
+        [InlineData(double.NegativeInfinity, 0)]
+        [InlineData(-1e308, 1e308)]
+        public async System.Threading.Tasks.Task RngRangeNonFiniteReturnsMin(double min, double max)
+        {
+            var run = System.Threading.Tasks.Task.Run(() => new Rng(5).Range(min, max));
+            Assert.Same(run, await System.Threading.Tasks.Task.WhenAny(run, System.Threading.Tasks.Task.Delay(5000)));
+            Assert.Equal(min, await run);
+        }
+
         [Fact]
         public void RngRangeBounds()
         {
@@ -85,6 +98,21 @@ namespace Subterra.Core.Tests.Numerics
                 Assert.InRange(v, -1f, 1f);
                 Assert.Equal(v, Noise.Fbm(p, 99, 4));
             }
+        }
+
+        [Fact]
+        public void TableCacheStaysBoundedAndDeterministic()
+        {
+            var p = new Vec3(1.3f, 2.7f, 0.4f);
+            float before = Noise.Fbm(p, 12345, 3);
+            for (ulong seed = 1; seed <= 2000; seed++)
+            {
+                Noise.Fbm(p, seed * 7919, 3);
+                Noise.Perlin3(p, seed * 7919);
+                Assert.True(Noise.CachedSeeds <= Noise.MaxCachedSeeds, $"{Noise.CachedSeeds} seeds cached");
+            }
+
+            Assert.Equal(before, Noise.Fbm(p, 12345, 3));
         }
 
         [Fact] public void NoiseSeedMatters() => Assert.NotEqual(Noise.Perlin3(new Vec3(1.3f, 2.7f, 0.4f), 1), Noise.Perlin3(new Vec3(1.3f, 2.7f, 0.4f), 2));

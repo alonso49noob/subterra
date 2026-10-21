@@ -17,6 +17,13 @@ namespace Subterra.Core.Config
         public const double MinHeight = 5;
         public const double MaxHeight = 300;
 
+        /// <summary>TUBE_FIELD limits (m): a trunk of at least one generator step, a real roof, skylights not crowding.</summary>
+        public const double MinFieldLength = 400;
+        public const double MinRoofDepth = 1;
+        public const double MaxRoofDepth = 5000;
+        public const double MinSkylightSpacing = 500;
+        public const double MaxFieldDistance = 100000;
+
         public static ParseResult<BodySpec> Parse(CfgNode node)
         {
             var warnings = new List<string>();
@@ -308,9 +315,9 @@ namespace Subterra.Core.Config
             field.NetworksPer10k = Math.Max(0, r.Double(node, "networksPer10k", field.NetworksPer10k));
             field.Width = r.Range(node, "width", field.Width);
             field.Width = new Range(Math.Max(MinWidth, field.Width.Min), Math.Min(MaxWidth, Math.Max(MinWidth, field.Width.Max)));
-            field.Length = r.Range(node, "length", field.Length);
-            field.RoofDepth = r.Range(node, "roofDepth", field.RoofDepth);
-            field.SkylightSpacing = r.Range(node, "skylightSpacing", field.SkylightSpacing);
+            field.Length = ClampRange(r.Range(node, "length", field.Length), field.Length, MinFieldLength, MaxFieldDistance, r, "length");
+            field.RoofDepth = ClampRange(r.Range(node, "roofDepth", field.RoofDepth), field.RoofDepth, MinRoofDepth, MaxRoofDepth, r, "roofDepth");
+            field.SkylightSpacing = ClampRange(r.Range(node, "skylightSpacing", field.SkylightSpacing), field.SkylightSpacing, MinSkylightSpacing, MaxFieldDistance, r, "skylightSpacing");
             field.BranchChance = Clamp(r.Double(node, "branchChance", field.BranchChance), 0, 1, r, "branchChance");
             field.ChamberChance = Clamp(r.Double(node, "chamberChance", field.ChamberChance), 0, 1, r, "chamberChance");
             field.Seed = r.ULong(node, "seed", field.Seed);
@@ -421,6 +428,27 @@ namespace Subterra.Core.Config
             {
                 double clamped = Math.Max(min, Math.Min(max, value));
                 r.Warn($"'{key}' = {Inv(value)} outside [{Inv(min)}, {Inv(max)}]; using {Inv(clamped)}");
+                return clamped;
+            }
+
+            return value;
+        }
+
+        // Both ends finite (else the default) and inside [min, max], with max >= min.
+        private static Range ClampRange(Range value, Range fallback, double min, double max, Reader r, string key)
+        {
+            if (double.IsNaN(value.Min) || double.IsNaN(value.Max) || double.IsInfinity(value.Min) || double.IsInfinity(value.Max))
+            {
+                r.Warn($"'{key}' = {value} is not finite; using {fallback}");
+                return fallback;
+            }
+
+            double low = Math.Max(min, Math.Min(max, value.Min));
+            double high = Math.Max(low, Math.Min(max, value.Max));
+            if (low != value.Min || high != value.Max)
+            {
+                var clamped = new Range(low, high);
+                r.Warn($"'{key}' = {value} outside [{Inv(min)}, {Inv(max)}]; using {clamped}");
                 return clamped;
             }
 

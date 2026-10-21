@@ -118,5 +118,53 @@ namespace Subterra.Core.Tests.Procedural
         [Fact] public void IdFormat() { foreach (var s in Gen()) Assert.Matches(@"^MN-\d{4}$", s.Name); }
 
         [Fact] public void ZeroDensityNoNetworks() => Assert.Empty(Gen(density: 0));
+
+        [Fact]
+        public void SeveralFieldsShareIdsAndCap()
+        {
+            var fields = new[]
+            {
+                new FieldSpec { Name = "MunMaria", Biomes = { "Lowlands" }, NetworksPer10k = 1000 },
+                new FieldSpec { Name = "MunMariaWest", Biomes = { "Lowlands" }, NetworksPer10k = 1000, Seed = 7 },
+            };
+            List<SiteSpec> sites = FieldGenerator.Generate(fields, "Mun", "MN", Grid, Cell, Terrain, Terrain);
+            Assert.NotEmpty(sites);
+            Assert.True(sites.Count <= FieldGenerator.MaxNetworksPerCell, $"{sites.Count} networks in one cell");
+            Assert.Equal(sites.Count, sites.Select(s => s.Name).Distinct().Count());
+        }
+
+        [Fact]
+        public void SecondFieldGetsWhatTheFirstLeaves()
+        {
+            var sparse = new FieldSpec { Name = "MunMaria", Biomes = { "Lowlands" }, NetworksPer10k = 40 };
+            var dense = new FieldSpec { Name = "MunMariaWest", Biomes = { "Lowlands" }, NetworksPer10k = 1000, Seed = 7 };
+            List<SiteSpec> first = FieldGenerator.Generate(sparse, "Mun", "MN", Grid, Cell, Terrain, Terrain);
+            List<SiteSpec> both = FieldGenerator.Generate(new[] { sparse, dense }, "Mun", "MN", Grid, Cell, Terrain, Terrain);
+            // The first field is unchanged by the second; the second fills the rest of the cap.
+            Assert.Equal(Ser(first), Ser(both.Take(first.Count).ToList()));
+            Assert.True(both.Count > first.Count);
+            Assert.Equal(both.Count, both.Select(s => s.Name).Distinct().Count());
+        }
+
+        // A FieldSpec built in code skips the parser's checks: the generator must still finish.
+        [Theory]
+        [InlineData(0, 0, 2000, 20000)]
+        [InlineData(-3000, -10, 2000, 20000)]
+        [InlineData(double.NaN, double.NaN, 2000, 20000)]
+        [InlineData(2000, 6000, 2000, double.PositiveInfinity)]
+        public async System.Threading.Tasks.Task BadFieldSpecStillTerminates(double spacingMin, double spacingMax, double lengthMin, double lengthMax)
+        {
+            var spec = new FieldSpec
+            {
+                Name = "MunMaria",
+                Biomes = { "Lowlands" },
+                NetworksPer10k = 40,
+                SkylightSpacing = new Range(spacingMin, spacingMax),
+                Length = new Range(lengthMin, lengthMax),
+            };
+            var run = System.Threading.Tasks.Task.Run(() => FieldGenerator.Generate(spec, "Mun", "MN", Grid, Cell, Terrain, Terrain));
+            Assert.Same(run, await System.Threading.Tasks.Task.WhenAny(run, System.Threading.Tasks.Task.Delay(TimeSpan.FromSeconds(20))));
+            Assert.NotEmpty(await run);
+        }
     }
 }
