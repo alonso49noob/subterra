@@ -166,5 +166,50 @@ namespace Subterra.Core.Tests.Procedural
             Assert.Same(run, await System.Threading.Tasks.Task.WhenAny(run, System.Threading.Tasks.Task.Delay(TimeSpan.FromSeconds(20))));
             Assert.NotEmpty(await run);
         }
+
+        // Networks are the same in every save and for every player (Lucas's ruling: maps must stay valid),
+        // so the generator's output is pinned. If this fails, a change moved existing networks: undo it, or,
+        // if it is deliberate, note it in the CHANGELOG and update the fingerprint.
+        private const string Fingerprint = "CB289CE3CD3E38BA";
+
+        [Fact]
+        public void OutputIsPinned()
+        {
+            var spec = new FieldSpec { Name = "MunMaria", Biomes = { "Lowlands" } };
+            var text = new StringBuilder();
+            var seen = new HashSet<CellId>();
+            for (double lat = -80; lat <= 80; lat += 8)
+            for (double lon = -180; lon < 180; lon += 8)
+            {
+                CellId cell = Grid.CellOf(BodyFrame.Direction(lat, lon));
+                if (!seen.Add(cell))
+                {
+                    continue;
+                }
+
+                foreach (SiteSpec s in FieldGenerator.Generate(spec, "Mun", "MN", Grid, cell, Terrain, Terrain))
+                {
+                    text.Append(s.Name).Append(':');
+                    foreach (NodeSpec n in s.Nodes)
+                    {
+                        text.Append(FormattableString.Invariant($"{n.Lat:F6},{n.Lon:F6},{n.Width:F3},{n.Height:F3},{n.Depth:F3},{n.Feature};"));
+                    }
+
+                    foreach (EdgeSpec e in s.Edges)
+                    {
+                        text.Append(e.From).Append('-').Append(e.To).Append(';');
+                    }
+
+                    text.Append('\n');
+                }
+            }
+
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+            {
+                string hash = BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(text.ToString()))).Replace("-", string.Empty).Substring(0, 16);
+                Assert.True(text.Length > 0);
+                Assert.Equal(Fingerprint, hash);
+            }
+        }
     }
 }
