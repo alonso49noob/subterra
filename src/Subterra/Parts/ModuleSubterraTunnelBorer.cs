@@ -197,7 +197,12 @@ namespace Subterra
             // opens in front of the vessel, never under its wheels, as a ramp the vessel then drives down.
             Vec3d start = floor + dir * (radius + StartMargin);
             BodyFrame.ToLatLon(start.Normalized, out double startLat, out double startLon);
-            start = start.Normalized * (KspSampler.SurfaceRadius(body, startLat, startLon) - 0.3);
+            double ground = KspSampler.SurfaceRadius(body, startLat, startLon);
+            if (Math.Abs(ground - start.Length) < radius + 2)
+            {
+                // From the surface (not from a cave floor, far under it).
+                start = start.Normalized * (ground - 0.3);
+            }
             Vec3d face = tunnel == null ? start : tunnel.ToBody(tunnel.Points[tunnel.Points.Count - 1]);
             if (tunnel != null && Vec3d.Dot(face - floor, dir) > radius + StartMargin + Reach)
             {

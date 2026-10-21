@@ -74,6 +74,13 @@ namespace Subterra
             List<KeyValuePair<string, double>> yields = layer == null
                 ? new List<KeyValuePair<string, double>>()
                 : layer.Yields.Where(y => PartResourceLibrary.Instance.GetDefinition(y.Key) != null).ToList();
+            // Gas a drill struck comes up too, until the pocket is empty.
+            bool gas = drill != null && drill.gasLeft > 0 && PartResourceLibrary.Instance.GetDefinition(drill.gasResource) != null;
+            if (gas)
+            {
+                yields.Add(new KeyValuePair<string, double>(drill.gasResource, GasRate));
+            }
+
             uiOutput = yields.Count == 0 ? "-" : string.Join(", ", yields.Select(y => $"{y.Key} {y.Value * pumpRate:F3}/s"));
             if (!pumping)
             {
@@ -97,11 +104,20 @@ namespace Subterra
 
             foreach (KeyValuePair<string, double> y in yields)
             {
-                part.RequestResource(y.Key, -y.Value * pumpRate * dt);
+                double units = y.Value * pumpRate * dt;
+                if (gas && y.Key == drill.gasResource && y.Value == GasRate)
+                {
+                    units = drill.DrawGas(units);
+                }
+
+                part.RequestResource(y.Key, -units);
             }
 
             uiStatus = Localizer.Format("#Subterra_Pump_Pumping");
         }
+
+        /// <summary>Units per second (times pumpRate) drawn from a gas pocket (decidido por Claude, revisar).</summary>
+        private const double GasRate = 0.5;
 
         private void UpdateEvents()
         {

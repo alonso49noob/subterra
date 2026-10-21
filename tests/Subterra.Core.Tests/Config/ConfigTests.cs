@@ -107,7 +107,10 @@ SUBTERRA_BODY
             Assert.All(b.Sites, s => Assert.Equal(NodeFeature.Skylight, s.Nodes[0].Feature));
             Assert.Equal(5, b.Sites.Single(s => s.Name == "KermanChain").Nodes.Count(n => n.Feature == NodeFeature.Skylight));
             Assert.Equal(new[] { "MunMaria", "MunHighlands" }, b.Fields.Select(f => f.Name));
-            Assert.Equal(6, b.Scatters.Count);
+            Assert.Equal(4, b.Scatters.Count);
+            ScatterSpec boulders = b.Scatters.Single(s => s.Name == "BreakdownBoulders");
+            Assert.Equal(3, boulders.ScalePower, 6);
+            Assert.Equal(0.3, boulders.Sink, 6);
         }
 
         [Fact]

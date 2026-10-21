@@ -28,6 +28,12 @@ namespace Subterra.Core.Model
 
         public Range Scale { get; set; } = new Range(1, 1);
 
+        /// <summary>Bias of sizes towards the small end: scale = min + (max − min)·u^power (1 = even; 3 = mostly small, a few big).</summary>
+        public double ScalePower { get; set; } = 1;
+
+        /// <summary>How far a prop sits sunk into its surface, as a fraction of its scale (rocks half buried, not perched).</summary>
+        public double Sink { get; set; }
+
         /// <summary>0 = upright, 1 = follows the surface normal.</summary>
         public double AlignToSurface { get; set; }
 

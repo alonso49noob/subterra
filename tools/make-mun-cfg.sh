@@ -28,10 +28,14 @@ layer() { printf '\t\tLAYER\n\t\t{\n\t\t\tname = %s\n\t\t\tdisplayName = #Subter
   # Optional 9th argument "Resource:rate": what a well pump draws from the layer.
   if [ -n "${9:-}" ]; then printf '\t\t\tYIELD\n\t\t\t{\n\t\t\t\tresource = %s\n\t\t\t\trate = %s\n\t\t\t}\n' "${9%%:*}" "${9#*:}"; fi
   printf '\t\t}\n'; }
-scatter() { # name models placement zones density scale align collide [lod]
+# Optional 9th–12th: noise mask frequency and threshold (clusters), scalePower (mostly small sizes), sink.
+scatter() { # name models placement zones density scale align collide [noiseFreq noiseThreshold scalePower sink]
   printf '\tCAVE_SCATTER\n\t{\n\t\tname = %s\n\t\tmodel = %s\n\t\tplacement = %s\n' "$1" "$2" "$3"
   [ -n "$4" ] && printf '\t\tzones = %s\n' "$4"
-  printf '\t\tdensity = %s\n\t\tscale = %s\n\t\talignToSurface = %s\n\t\tnoiseMask\n\t\t{\n\t\t\tfrequency = 0.02\n\t\t\tthreshold = 0.35\n\t\t}\n\t\tlodDistances = 100, 400\n\t\tcollide = %s\n\t}\n' "$5" "$6" "$7" "$8"
+  printf '\t\tdensity = %s\n\t\tscale = %s\n' "$5" "$6"
+  [ -n "${11:-}" ] && printf '\t\tscalePower = %s\n' "${11}"
+  [ -n "${12:-}" ] && printf '\t\tsink = %s\n' "${12}"
+  printf '\t\talignToSurface = %s\n\t\tnoiseMask\n\t\t{\n\t\t\tfrequency = %s\n\t\t\tthreshold = %s\n\t\t}\n\t\tlodDistances = 100, 400\n\t\tcollide = %s\n\t}\n' "$7" "${9:-0.02}" "${10:-0.35}" "$8"
 }
 rule() { printf '\tENRICHMENT\n\t{\n\t\tresource = %s\n' "$1"; [ -n "$2" ] && printf '\t\tzone = %s\n' "$2"; [ -n "$3" ] && printf '\t\tlayer = %s\n' "$3"; [ -n "$4" ] && printf '\t\tmultiplier = %s\n' "$4"; [ -n "$5" ] && printf '\t\tminAbundance = %s\n' "$5"; printf '\t}\n'; }
 
@@ -132,12 +136,11 @@ cat <<'EOF'
 		seed = 2
 	}
 EOF
-scatter BreakdownBoulders "Subterra/Props/Boulder01, Subterra/Props/Boulder02, Subterra/Props/Boulder03" floor "TubeGallery, TubeChamber, TubeBranch" 0.6 "0.5, 3.5" 0.7 true
-scatter SkylightRubble "Subterra/Props/RubbleCone01, Subterra/Props/Boulder03" skylightRubble "" 2.5 "1.0, 4.0" 0.5 true
+# Breakdown piles: clusters where the roof shed blocks, mostly small rocks and a few big ones, half sunk; clear floor between.
+scatter BreakdownBoulders "Subterra/Props/Boulder01, Subterra/Props/Boulder02, Subterra/Props/Boulder03" floor "TubeGallery, TubeChamber, TubeBranch" 1.4 "0.3, 4.5" 0.6 true 0.035 0.62 3 0.3
+scatter SkylightRubble "Subterra/Props/RubbleCone01, Subterra/Props/Boulder03" skylightRubble "" 2.5 "0.6, 4.5" 0.5 true 0.02 0.3 2.5 0.25
 scatter Lavacicles "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 0.4 "0.5, 1.5" 1 false
-scatter PahoehoeSlabs "Subterra/Props/PahoehoeSlab01" floor "TubeGallery, TubeBranch" 0.3 "1.0, 3.0" 0.95 false
-scatter IceCrystals "Subterra/Props/IceCluster01" floor "FrozenVault" 0.8 "0.4, 1.6" 0.8 false
-scatter WallBoulders "Subterra/Props/Boulder02" wall "TubeChamber" 0.15 "0.5, 2.0" 0.9 false
+scatter IceCrystals "Subterra/Props/IceCluster01" floor "FrozenVault" 0.8 "0.4, 1.6" 0.8 false 0.02 0.35 1.5 0.15
 rule Ore TubeGallery "" 1.5 ""
 rule Ore TubeChamber "" 2 ""
 rule Ore "" MareBasalt 2.5 ""

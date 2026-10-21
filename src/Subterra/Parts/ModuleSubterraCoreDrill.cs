@@ -46,6 +46,11 @@ namespace Subterra
 
         [KSPField(isPersistant = true)] public bool drilling;
         [KSPField(isPersistant = true)] public double depth = -1;
+
+        // Layers of this hole already checked for gas ("|name|"), and the gas struck (resource, units left) for the pump.
+        [KSPField(isPersistant = true)] public string gasChecked = "";
+        [KSPField(isPersistant = true)] public string gasResource = "";
+        [KSPField(isPersistant = true)] public double gasLeft;
         [KSPField(isPersistant = true)] public double holeLat;
         [KSPField(isPersistant = true)] public double holeLon;
         [KSPField(isPersistant = true)] public string holeBody = "";
@@ -150,6 +155,9 @@ namespace Subterra
         [KSPField(isPersistant = true)] public string armedBlastId = "";
 
         /// <summary>Loads the hole with explosive (charges per layer, none across caves, stemming on top) and leaves it armed.</summary>
+        [KSPEvent(guiActive = true, guiName = "#Subterra_Profile_Show")]
+        public void ShowProfile() => ProfileWindow.Toggle(this);
+
         [KSPEvent(guiActive = true, guiName = "#Subterra_Drill_Load")]
         public void LoadCharges()
         {
@@ -185,6 +193,7 @@ namespace Subterra
             part.RequestResource("Explosive", design.TotalKg);
             ExcavationService.ArmedBlast blast = ExcavationService.Arm(runtime, holeLat, holeLon, design);
             armedBlastId = blast.Id;
+            BlastRings.Show(blast);
             (double destroy, double damage) = BlastSafety.Radii(blast.TopDeckKg, true);
             ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_Loaded", design.Decks.Count, design.TotalKg.ToString("F0"),
                 destroy.ToString("F0"), damage.ToString("F0")), 8f, ScreenMessageStyle.UPPER_CENTER);
@@ -226,6 +235,7 @@ namespace Subterra
             }
 
             ExcavationService.Detonate(runtime, blast);
+            BlastRings.Hide(blast.Id);
         }
 
         // Depth spans along the hole that lie inside a cave or tunnel (never loaded).
@@ -260,6 +270,10 @@ namespace Subterra
         public override void OnStart(StartState state)
         {
             UpdateEvents();
+            if (HighLogic.LoadedSceneIsFlight && !string.IsNullOrEmpty(armedBlastId) && ExcavationService.FindBlast(armedBlastId) is ExcavationService.ArmedBlast armed)
+            {
+                BlastRings.Show(armed);
+            }
         }
 
         public override void OnSave(ConfigNode node)
@@ -321,6 +335,9 @@ namespace Subterra
                 holeLat = lat;
                 holeLon = lon;
                 reachedCaves = "";
+                gasChecked = "";
+                gasResource = "";
+                gasLeft = 0;
                 UndergroundState state = UndergroundTracker.For(vessel);
                 depth = state.Inside ? state.Depth : 0;
             }
@@ -344,6 +361,7 @@ namespace Subterra
             Borehole.Progress p = Borehole.Advance(depth, dt * Settings.Current.DigSpeed, baseRate, maxRockTemp, maxDepth, runtime.Strata, runtime.Geotherm, biome);
             depth = p.Depth;
             CheckCaves(runtime, body, lat, lon, before, depth);
+            CheckGas(body, lat, lon, p.Layer);
             if (p.Blocked)
             {
                 drilling = false;
@@ -356,6 +374,45 @@ namespace Subterra
 
             working = true;
             Show(p, "#Subterra_Drill_Drilling");
+        }
+
+        // Entering a layer with gas may strike a pocket (fixed per place): a burst of heat and a kick on the part, and gas
+        // the pump can draw.
+        private void CheckGas(CelestialBody body, double lat, double lon, LayerSpec layer)
+        {
+            if (layer == null || gasChecked.Contains("|" + layer.Name + "|"))
+            {
+                return;
+            }
+
+            gasChecked += "|" + layer.Name + "|";
+            if (!GasPocket.Hit(body.bodyName, lat, lon, layer) || PartResourceLibrary.Instance.GetDefinition(layer.GasResource) == null)
+            {
+                return;
+            }
+
+            gasResource = layer.GasResource;
+            gasLeft = GasPocket.Units;
+            part.temperature += GasHeat;
+            if (part.Rigidbody != null)
+            {
+                Vector3 up = (part.transform.position - body.position).normalized;
+                part.Rigidbody.AddForce(up * (float)(part.Rigidbody.mass * GasKick), ForceMode.Impulse);
+            }
+
+            ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_Gas", layer.GasResource), 6f, ScreenMessageStyle.UPPER_CENTER);
+            Log.Info($"Core drill on {vessel.GetDisplayName()} struck {layer.GasResource} in {layer.Name} at {depth:F0} m");
+        }
+
+        /// <summary>Kelvin a gas strike adds to the drill, and its kick (m/s) (decidido por Claude, revisar).</summary>
+        private const double GasHeat = 120, GasKick = 1.5;
+
+        /// <summary>Draws up to <paramref name="units"/> of the struck gas; returns what there was.</summary>
+        public double DrawGas(double units)
+        {
+            double taken = Math.Min(units, gasLeft);
+            gasLeft -= taken;
+            return taken;
         }
 
         // A cave crossed by the hole between two depths is discovered (once per hole).

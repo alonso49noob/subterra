@@ -57,7 +57,7 @@ namespace Subterra.Core.Scatter
                 {
                     // Always consume the same draws per instance (determinism across filters).
                     double r1 = rng.NextDouble(), r2 = rng.NextDouble(), angle = rng.Range(0, 2 * Math.PI);
-                    double scale = rng.Range(spec.Scale.Min, Math.Max(spec.Scale.Min + 1e-9, spec.Scale.Max));
+                    double scale = spec.Scale.Min + (Math.Max(spec.Scale.Min, spec.Scale.Max) - spec.Scale.Min) * Math.Pow(rng.NextDouble(), spec.ScalePower);
                     if (!placementOk)
                     {
                         continue;
@@ -93,7 +93,8 @@ namespace Subterra.Core.Scatter
                     Vec3 t1 = Vec3.Cross(instanceUp, helper).Normalized;
                     Vec3 t2 = Vec3.Cross(t1, instanceUp);
                     Vec3 forward = (t1 * (float)Math.Cos(angle) + t2 * (float)Math.Sin(angle)).Normalized;
-                    result.Add(new ScatterInstance(p, instanceUp, forward, (float)scale));
+                    Vec3 seat = p - instanceUp * (float)(spec.Sink * scale);
+                    result.Add(new ScatterInstance(seat, instanceUp, forward, (float)scale));
                 }
             }
 

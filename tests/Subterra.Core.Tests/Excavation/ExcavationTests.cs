@@ -323,3 +323,34 @@ namespace Subterra.Core.Tests.Excavation
             node.Name + "\n{\n" + string.Concat(node.Values.Select(v => v.Key + " = " + v.Value + "\n")) + "}\n";
     }
 }
+
+namespace Subterra.Core.Tests.Excavation
+{
+    public class GasPocketTests
+    {
+        private static LayerSpec Layer(double chance) => new LayerSpec { Name = "Basalt", GasChance = chance, GasResource = "Explodium" };
+
+        [Fact]
+        public void NoChanceOrNoResourceNeverHits()
+        {
+            Assert.False(GasPocket.Hit("Eve", 1, 2, Layer(0)));
+            Assert.False(GasPocket.Hit("Eve", 1, 2, new LayerSpec { Name = "Basalt", GasChance = 1 }));
+            Assert.True(GasPocket.Hit("Eve", 1, 2, Layer(1)));
+        }
+
+        [Fact]
+        public void SamePlaceSameAnswerAndRoughlyTheChance()
+        {
+            int hits = 0;
+            for (int i = 0; i < 2000; i++)
+            {
+                double lat = i * 0.013, lon = -i * 0.007;
+                bool hit = GasPocket.Hit("Eve", lat, lon, Layer(0.3));
+                Assert.Equal(hit, GasPocket.Hit("Eve", lat, lon, Layer(0.3)));
+                hits += hit ? 1 : 0;
+            }
+
+            Assert.InRange(hits, 500, 700);
+        }
+    }
+}

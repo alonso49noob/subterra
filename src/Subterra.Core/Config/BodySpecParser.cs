@@ -364,6 +364,8 @@ namespace Subterra.Core.Config
                 Placement = r.Enum(node, "placement", ScatterPlacement.Floor),
                 Density = Math.Max(0, r.Double(node, "density", 0.5)),
                 Scale = r.Range(node, "scale", new Range(1, 1)),
+                ScalePower = Math.Max(0.1, r.Double(node, "scalePower", 1)),
+                Sink = Clamp(r.Double(node, "sink", 0), 0, 1, r, "sink"),
                 AlignToSurface = Clamp(r.Double(node, "alignToSurface", 0), 0, 1, r, "alignToSurface"),
                 Collide = r.Bool(node, "collide", false),
             };
