@@ -52,7 +52,7 @@ site_head SerenitySkylight
 node "${SERENITY[0]}" "${SERENITY[1]}" 95 180 60 skylight 50
 node "$(lerp ${SERENITY[0]} ${SERENITY[2]} 0.5)" "$(lerp ${SERENITY[1]} ${SERENITY[3]} 0.5)" 105 200 65
 node "${SERENITY[2]}" "${SERENITY[3]}" 110 160 55 end
-edge 0 1 0.2 0.05 0.15; edge 1 2 0.3 0.05 0.15
+edge 0 1 0.2 0.05; edge 1 2 0.3 0.05
 printf '\t}\n'
 
 # Great Gallery: a 500 m chamber between two short tubes, one skylight on the way in.
@@ -70,7 +70,7 @@ for i in 0 1 2 3 4 5 6 7 8 9 10; do
   if [ $((i % 2)) -eq 0 ] && [ $i -le 8 ]; then node "$(lerp ${CHAIN[0]} ${CHAIN[2]} $t)" "$(lerp ${CHAIN[1]} ${CHAIN[3]} $t)" 40 120 45 skylight 30
   else node "$(lerp ${CHAIN[0]} ${CHAIN[2]} $t)" "$(lerp ${CHAIN[1]} ${CHAIN[3]} $t)" 55 140 50; fi
 done
-for i in 0 1 2 3 4 5 6 7 8 9; do edge $i $((i + 1)) 0.35 0.05 0.1; done
+for i in 0 1 2 3 4 5 6 7 8 9; do edge $i $((i + 1)) 0.35 0.05; done
 printf '\t}\n'
 
 # Frostvault: a polar tube far from its single skylight, always dark, with water ice.

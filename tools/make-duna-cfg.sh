@@ -59,7 +59,7 @@ for i in 0 1 2 3 4 5 6 7 8 9 10; do
   if [ $((i % 2)) -eq 1 ]; then node "$(lerp ${CATENA[0]} ${CATENA[2]} $t)" "$(lerp ${CATENA[1]} ${CATENA[3]} $t)" 35 90 40 skylight 25
   else node "$(lerp ${CATENA[0]} ${CATENA[2]} $t)" "$(lerp ${CATENA[1]} ${CATENA[3]} $t)" 50 110 45; fi
 done
-for i in 0 1 2 3 4 5 6 7 8 9; do edge $i $((i + 1)) 0.15 0.05 0.1; done
+for i in 0 1 2 3 4 5 6 7 8 9; do edge $i $((i + 1)) 0.15 0.05; done
 printf '\t}\n'
 
 # Volcano Tubes: tubes running down the flank of a dormant shield volcano, with a big chamber halfway.
@@ -67,7 +67,7 @@ site_head DunaVolcanoTubes
 node "${VOLCANO[0]}" "${VOLCANO[1]}" 40 70 30 skylight 20
 node "$(lerp ${VOLCANO[0]} ${VOLCANO[2]} 0.5)" "$(lerp ${VOLCANO[1]} ${VOLCANO[3]} 0.5)" 90 220 80 chamber
 node "${VOLCANO[2]}" "${VOLCANO[3]}" 70 90 35 skylight 18
-edge 0 1 0.3 0.06 0.15; edge 1 2 0.3 0.06 0.15
+edge 0 1 0.3 0.06; edge 1 2 0.3 0.06
 printf '\t}\n'
 
 # Polar Ice Cave: a dark tube under the north polar cap, ice on the walls (old air trapped in it).
