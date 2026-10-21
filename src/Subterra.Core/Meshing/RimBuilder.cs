@@ -17,8 +17,26 @@ namespace Subterra.Core.Meshing
         public const float MaxBump = 1.5f;
 
         /// <param name="heights">Terrain height over the centre's plane at [ring × segments + segment].</param>
-        public static MeshData Build(float innerRadius, float outerRadius, int segments, int rings, float[] heights, ulong seed)
+        public static MeshData Build(float innerRadius, float outerRadius, int segments, int rings, float[] heights, ulong seed, bool smooth = false)
         {
+            if (rings < 2)
+            {
+                throw new ArgumentException("needs rings ≥ 2");
+            }
+
+            var radii = new float[rings];
+            for (int r = 0; r < rings; r++)
+            {
+                radii[r] = innerRadius + (outerRadius - innerRadius) * r / (rings - 1);
+            }
+
+            return Build(radii, segments, heights, seed, smooth);
+        }
+
+        /// <summary>The same with rings at the given radii (increasing): finer where the rim must follow an edge.</summary>
+        public static MeshData Build(float[] radii, int segments, float[] heights, ulong seed, bool smooth = false)
+        {
+            int rings = radii.Length;
             if (rings < 2 || segments < 3 || heights.Length != rings * segments)
             {
                 throw new ArgumentException("needs rings ≥ 2, segments ≥ 3 and rings × segments heights");
@@ -28,8 +46,8 @@ namespace Subterra.Core.Meshing
             int[][] tables = Noise.Tables(seed);
             for (int r = 0; r < rings; r++)
             {
-                float t = (float)r / (rings - 1);
-                float radius = innerRadius + (outerRadius - innerRadius) * t;
+                float radius = radii[r];
+                float t = (radius - radii[0]) / Math.Max(1e-6f, radii[rings - 1] - radii[0]);
                 for (int s = 0; s < segments; s++)
                 {
                     double angle = 2 * Math.PI * s / segments;
@@ -37,16 +55,18 @@ namespace Subterra.Core.Meshing
                     float y = heights[r * segments + s];
                     if (r == 0)
                     {
-                        y -= LipDrop;
+                        // A smooth rim (tunnel mouth) is a flat disc just over the ground: no lip, no debris bumps.
+                        y += smooth ? 0.03f : -LipDrop;
                     }
                     else if (r == rings - 1)
                     {
-                        y += OuterLift;
+                        // Just above the terrain (no z-fighting); a smooth rim stays almost flush (a vehicle drives over it).
+                        y += smooth ? 0.03f : OuterLift;
                     }
                     else
                     {
                         float bump = (Noise.Fbm(new Vec3(x * 0.15f, 0.5f, z * 0.15f), tables, 3) + 1) * 0.5f;
-                        y += MaxBump * (1 - t) * bump;
+                        y += smooth ? 0.03f : MaxBump * (1 - t) * bump;
                     }
 
                     mesh.Vertices.Add(new Vec3(x, y, z));
@@ -74,6 +94,25 @@ namespace Subterra.Core.Meshing
                     int a = r * segments + s, b = r * segments + s1, c = (r + 1) * segments + s, d = (r + 1) * segments + s1;
                     // Cross(b - a, c - a) must point up: a → b (around) → c (outwards).
                     mesh.Triangles.AddRange(new[] { a, b, c, b, d, c });
+                }
+            }
+
+            // Normals from the surface itself (lit like the terrain around it, not like a flat plate).
+            var sums = new Vec3[rings * segments];
+            for (int i = 0; i < mesh.Triangles.Count; i += 3)
+            {
+                int a = mesh.Triangles[i], b = mesh.Triangles[i + 1], c = mesh.Triangles[i + 2];
+                Vec3 n = Vec3.Cross(mesh.Vertices[b] - mesh.Vertices[a], mesh.Vertices[c] - mesh.Vertices[a]);
+                sums[a] += n;
+                sums[b] += n;
+                sums[c] += n;
+            }
+
+            for (int i = 0; i < sums.Length; i++)
+            {
+                if (sums[i].Length > 1e-6f)
+                {
+                    mesh.Normals[i] = sums[i].Normalized;
                 }
             }
 

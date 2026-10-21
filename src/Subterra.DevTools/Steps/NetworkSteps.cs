@@ -71,7 +71,15 @@ namespace Subterra.DevTools
             OrbitPhysicsManager.HoldVesselUnpack(2);
             vessel.GoOnRails();
             vessel.Landed = true;
-            vessel.SetPosition(Frames.ToWorld(body, target));
+            // Keep the vessel's attitude to the local vertical (it lands upright, not as it stood on the other side).
+            Vector3d world = Frames.ToWorld(body, target);
+            Vector3 before = (vessel.transform.position - body.position).normalized;
+            string axes = Invariant($"up·vertical {Vector3.Dot(vessel.transform.up, before):F2}, forward·vertical {Vector3.Dot(vessel.transform.forward, before):F2}");
+            // upright = true: wheels down whatever it did before (an SPH craft's top is its root's -forward).
+            Vector3 newUp = (world - body.position).normalized;
+            Vector3 oldUp = node.ArgBool("upright", false) ? -vessel.transform.forward : (vessel.transform.position - body.position).normalized;
+            vessel.SetRotation(Quaternion.FromToRotation(oldUp, newUp) * vessel.transform.rotation);
+            vessel.SetPosition(world);
             body.GetLatLonAlt(vessel.transform.position, out vessel.latitude, out vessel.longitude, out vessel.altitude);
             TestContext.RestOrbitHere(vessel);
             vessel.Landed = true;
@@ -81,7 +89,7 @@ namespace Subterra.DevTools
                 ctx.Hold(vessel);
             }
 
-            ctx.Pass(Invariant($"{net.Id} node {index} {(inside ? "inside" : "above")} {offsetUp} m: altitude {vessel.altitude:F1} m{(hold ? ", held" : "")}"));
+            ctx.Pass(Invariant($"{net.Id} node {index} {(inside ? "inside" : "above")} {offsetUp} m: altitude {vessel.altitude:F1} m{(hold ? ", held" : "")} (before: {axes})"));
         }
     }
 }

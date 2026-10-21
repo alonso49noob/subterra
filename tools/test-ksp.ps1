@@ -248,6 +248,13 @@ Update-KspSettings $settingsFile
 Sync-Directory (Join-Path $RefDir 'KSP_x64_Data') (Join-Path $TestDir 'KSP_x64_Data') @('/XF', 'lib_burst_generated.*')
 Sync-Directory (Join-Path $RefDir 'MonoBleedingEdge') (Join-Path $TestDir 'MonoBleedingEdge')
 Sync-Directory (Join-Path $RefDir 'Ships') (Join-Path $TestDir 'Ships')
+# Test craft from the repo (vessels with Subterra's parts), on top of the stock ones.
+$CraftSource = Join-Path $RepoRoot 'tests\ksp\crafts'
+if (Test-Path -LiteralPath $CraftSource) {
+    Get-ChildItem -LiteralPath $CraftSource -Filter '*.craft' | ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $TestDir 'Ships\SPH') -Force
+    }
+}
 New-Item -ItemType Directory -Force -Path (Join-Path $TestDir 'saves') | Out-Null
 
 # --- 4. GameData for the profile ------------------------------------------------------------

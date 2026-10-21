@@ -435,8 +435,18 @@ namespace Subterra.DevTools
             }
 
             camera.SetDistanceImmediate((float)node.ArgDouble("distance", 20));
+            if (node.HasValue("pitch"))
+            {
+                camera.camPitch = (float)(node.ArgDouble("pitch", 0) * Math.PI / 180);
+            }
+
+            if (node.HasValue("heading"))
+            {
+                camera.camHdg = (float)(node.ArgDouble("heading", 0) * Math.PI / 180);
+            }
+
             yield return null;
-            ctx.Pass(Invariant($"distance {camera.Distance:F1} m"));
+            ctx.Pass(Invariant($"distance {camera.Distance:F1} m, pitch {camera.camPitch * 180 / Math.PI:F0}, heading {camera.camHdg * 180 / Math.PI:F0}"));
         }
 
         // screenshot name = smoke — the frame as shown, UI included, to <ResultsDir>/<name>.png.
@@ -446,6 +456,13 @@ namespace Subterra.DevTools
             if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
             {
                 throw new ArgumentException($"'{name}' is not a valid file name");
+            }
+
+            bool hideUi = node.ArgBool("hideUi", false);
+            if (hideUi)
+            {
+                GameEvents.onHideUI.Fire();
+                yield return null;
             }
 
             yield return new WaitForEndOfFrame();
@@ -461,6 +478,10 @@ namespace Subterra.DevTools
             finally
             {
                 UnityEngine.Object.Destroy(texture);
+                if (hideUi)
+                {
+                    GameEvents.onShowUI.Fire();
+                }
             }
 
             ctx.Pass($"{name}.png {width}x{height}");

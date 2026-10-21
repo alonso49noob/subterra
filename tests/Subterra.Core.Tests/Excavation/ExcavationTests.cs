@@ -243,3 +243,83 @@ namespace Subterra.Core.Tests.Excavation
         }
     }
 }
+
+namespace Subterra.Core.Tests.Excavation
+{
+    public class BlastTests
+    {
+        private static readonly Strata Rock = new Strata(new System.Collections.Generic.List<LayerSpec>
+        {
+            new LayerSpec { Name = "Regolith", Top = 0, Bottom = 8, Hardness = 0.15, Density = 1.6 },
+            new LayerSpec { Name = "Basalt", Top = 8, Bottom = 1500, Hardness = 0.6, Density = 3.1 },
+        });
+
+        [Fact]
+        public void DecksAlternateWithGapsBelowTheStemming()
+        {
+            BlastDesign d = BlastDesign.Plan(0, 40, 3, Rock, "Lowlands", null);
+            Assert.Equal(3, d.Stemming);
+            Assert.NotEmpty(d.Decks);
+            Assert.All(d.Decks, deck => Assert.True(deck.Top >= d.HoleTop + d.Stemming - 1e-9 && deck.Bottom <= 40));
+            for (int i = 1; i < d.Decks.Count; i++)
+            {
+                Assert.True(d.Decks[i - 1].Top - d.Decks[i].Bottom >= BlastDesign.DeckGap - 1e-9, "decks overlap or touch");
+            }
+        }
+
+        [Fact]
+        public void HardRockGetsMoreExplosive()
+        {
+            BlastDesign d = BlastDesign.Plan(0, 40, 3, Rock, "Lowlands", null);
+            double soft = d.Decks.First(x => x.Layer == "Regolith").Kg, hard = d.Decks.First(x => x.Layer == "Basalt").Kg;
+            Assert.True(hard > soft * 2, $"basalt {hard:F0} kg vs regolith {soft:F0} kg");
+        }
+
+        [Fact]
+        public void NothingWhereTheHoleCrossesACave()
+        {
+            BlastDesign d = BlastDesign.Plan(0, 80, 3, Rock, "Lowlands", new[] { (30.0, 55.0) });
+            Assert.DoesNotContain(d.Decks, deck => deck.Top < 55 && deck.Bottom > 30);
+            Assert.Contains(d.Decks, deck => deck.Bottom > 55);
+            Assert.Contains(d.Decks, deck => deck.Top < 30);
+        }
+
+        [Fact]
+        public void ConfinementShrinksTheDangerZone()
+        {
+            var open = BlastSafety.Radii(100, false);
+            var buried = BlastSafety.Radii(100, true);
+            Assert.InRange(open.destroy, 13.5, 14.5);
+            Assert.True(buried.damage < open.damage * 0.4);
+            Assert.True(open.destroy < open.damage);
+            Assert.Equal((0.0, 0.0), BlastSafety.Radii(0, true));
+        }
+    }
+}
+
+namespace Subterra.Core.Tests.Excavation
+{
+    public class BlastShaftTests
+    {
+        private const double R = 200000;
+
+        [Fact]
+        public void ABlastShaftIsAVerticalVoidThatRoundTrips()
+        {
+            var shaft = new ExcavationSpec("XP-Test-3", "Test", new Vec3d(0, R - 40, 0), 3f) { Shape = ExcavationShape.Shaft };
+            shaft.Points.Add(new Vec3(0, 0, 0));
+            shaft.Points.Add(new Vec3(0, 40, 0));
+            Assert.IsType<Shaft>(shaft.Piece(0, shaft.Anchor));
+            TubeNetwork net = TubeNetwork.ForExcavation(shaft, new[] { new Vec3d(0, 1, 0) }, new[] { R }, null);
+            Assert.True(net.IsInside(new Vec3(0, 20, 0)));
+            Assert.False(net.IsInside(new Vec3(5, 20, 0)));
+            Assert.Equal(ZoneKind.Excavation, net.ZoneAt(new Vec3(0, 20, 0)).Kind);
+
+            ExcavationSpec back = ExcavationSpec.FromCfg(CfgText.Parse(Cfg(shaft.ToCfg()))[0], new List<string>());
+            Assert.Equal(ExcavationShape.Shaft, back.Shape);
+        }
+
+        private static string Cfg(CfgNode node) =>
+            node.Name + "\n{\n" + string.Concat(node.Values.Select(v => v.Key + " = " + v.Value + "\n")) + "}\n";
+    }
+}

@@ -24,7 +24,10 @@ node() { # lat lon depth width height [feature [radius]]
 }
 edge() { printf '\t\tEDGE\n\t\t{\n\t\t\tfrom = %s\n\t\t\tto = %s\n\t\t\tsinuosity = %s\n\t\t\troughness = %s\n\t\t\tbench = %s\n\t\t}\n' "$1" "$2" "$3" "$4" "${5:-0}"; }
 site_head() { printf '\tTUBE_SITE\n\t{\n\t\tname = %s\n\t\tdisplayName = #Subterra_Site_%s\n' "$1" "$1"; }
-layer() { printf '\t\tLAYER\n\t\t{\n\t\t\tname = %s\n\t\t\tdisplayName = #Subterra_Layer_%s\n\t\t\ttop = %s\n\t\t\tbottom = %s\n\t\t\thardness = %s\n\t\t\tdensity = %s\n\t\t\tgradient = %s\n\t\t\ttint = %s\n' "$1" "$1" "$2" "$3" "$4" "$5" "$6" "$7"; [ -n "${8:-}" ] && printf '\t\t\twhere = %s\n' "$8"; printf '\t\t}\n'; }
+layer() { printf '\t\tLAYER\n\t\t{\n\t\t\tname = %s\n\t\t\tdisplayName = #Subterra_Layer_%s\n\t\t\ttop = %s\n\t\t\tbottom = %s\n\t\t\thardness = %s\n\t\t\tdensity = %s\n\t\t\tgradient = %s\n\t\t\ttint = %s\n' "$1" "$1" "$2" "$3" "$4" "$5" "$6" "$7"; [ -n "${8:-}" ] && printf '\t\t\twhere = %s\n' "$8"
+  # Optional 9th argument "Resource:rate": what a well pump draws from the layer.
+  if [ -n "${9:-}" ]; then printf '\t\t\tYIELD\n\t\t\t{\n\t\t\t\tresource = %s\n\t\t\t\trate = %s\n\t\t\t}\n' "${9%%:*}" "${9#*:}"; fi
+  printf '\t\t}\n'; }
 scatter() { # name models placement zones density scale align collide [lod]
   printf '\tCAVE_SCATTER\n\t{\n\t\tname = %s\n\t\tmodel = %s\n\t\tplacement = %s\n' "$1" "$2" "$3"
   [ -n "$4" ] && printf '\t\tzones = %s\n' "$4"
@@ -52,6 +55,8 @@ SUBTERRA_BODY
 	{
 EOF
 layer Regolith 0 8 0.15 1.6 4 "0.55,0.53,0.50"
+# Water ice in the cold, dark polar ground (with CommunityResourcePack a well pump draws Water from it).
+layer PolarIce 8 200 0.35 1.4 3 "0.70,0.74,0.78" "Poles, Polar Crater, Polar Lowlands" "Water:0.02"
 layer MareBasalt 8 1500 0.6 3.1 4 "0.36,0.35,0.34" "Lowlands, Northern Basin, Midlands, Polar Lowlands"
 layer AnorthositeBreccia 8 1500 0.55 2.8 3 "0.62,0.61,0.58" "*"
 layer Megaregolith 1500 3000 0.65 2.9 3 "0.50,0.48,0.45"

@@ -15,13 +15,35 @@ namespace Subterra
     /// The tunnel is real geometry (ExcavationService), saved with the game, and joins the cave it reaches.
     /// Part of the rock comes out as Ore.
     /// </summary>
-    public sealed class ModuleSubterraTunnelBorer : PartModule
+    public sealed class ModuleSubterraTunnelBorer : PartModule, IAnimatedModule
     {
+        // IAnimatedModule: the part's ModuleAnimationGroup spins the head while ModuleIsActive and blocks the
+        // work while it is retracted.
+        private bool working;
+        private bool retracted;
+
+        public void EnableModule() => retracted = false;
+
+        public void DisableModule() => retracted = true;
+
+        public bool ModuleIsActive() => working;
+
+        public bool IsSituationValid() => true;
+
         /// <summary>Metres dug per step (one call to ExcavationService.Dig).</summary>
         private const double Step = 1;
 
-        /// <summary>The face stops advancing when it is this far ahead of the head (drive forward to dig on).</summary>
+        /// <summary>The face stops advancing when it is this far beyond where a new tunnel would start (drive forward to dig on).</summary>
         private const double Reach = 3;
+
+        /// <summary>Metres beyond the tunnel's radius, ahead of the head, where a new tunnel starts.</summary>
+        private const double StartMargin = 1.5;
+
+        /// <summary>
+        /// Least descent (degrees) while the roof is not yet under the terrain: a portal goes down as a ramp and is soon
+        /// covered, instead of a trench running along the surface (decidido por Claude, revisar).
+        /// </summary>
+        private const double PortalSlope = 15;
 
         [KSPField] public float radius = 2.5f;
         [KSPField] public float baseRate = 0.15f;
@@ -60,6 +82,14 @@ namespace Subterra
         public void StartDigging()
         {
             digging = true;
+            ModuleAnimationGroup group = part.FindModuleImplementing<ModuleAnimationGroup>();
+            if (group != null && !group.isDeployed)
+            {
+                group.DeployModule();
+            }
+
+            SetArmSolid(false);
+
             UpdateEvents();
         }
 
@@ -67,6 +97,7 @@ namespace Subterra
         public void StopDigging()
         {
             digging = false;
+            SetArmSolid(true);
             UpdateEvents();
         }
 
@@ -80,7 +111,22 @@ namespace Subterra
 
         public override void OnStart(StartState state)
         {
+            if (HighLogic.LoadedSceneIsFlight)
+            {
+                SetArmSolid(!digging);
+            }
+
             UpdateEvents();
+        }
+
+        // The deployed arm reaches into the ground in front of the vessel (the stock model is made to drill under
+        // a lander): solid, it would jack a rover up and tip it over. Its colliders are triggers while it digs.
+        private void SetArmSolid(bool solid)
+        {
+            foreach (Collider collider in part.GetComponentsInChildren<Collider>(true))
+            {
+                collider.isTrigger = !solid;
+            }
         }
 
         public override string GetInfo() =>
@@ -107,7 +153,8 @@ namespace Subterra
 
         private void Dig(double dt)
         {
-            if (!digging)
+            working = false;
+            if (!digging || retracted)
             {
                 uiStatus = Localizer.Format("#Subterra_Drill_Idle");
                 return;
@@ -146,8 +193,13 @@ namespace Subterra
                 tunnel = null;
             }
 
-            Vec3d face = tunnel == null ? floor : tunnel.ToBody(tunnel.Points[tunnel.Points.Count - 1]);
-            if (tunnel != null && Vec3d.Dot(face - floor, dir) > Reach)
+            // A new tunnel starts ahead of the head (by its radius and a margin), its floor on the ground: the mouth
+            // opens in front of the vessel, never under its wheels, as a ramp the vessel then drives down.
+            Vec3d start = floor + dir * (radius + StartMargin);
+            BodyFrame.ToLatLon(start.Normalized, out double startLat, out double startLon);
+            start = start.Normalized * (KspSampler.SurfaceRadius(body, startLat, startLon) - 0.3);
+            Vec3d face = tunnel == null ? start : tunnel.ToBody(tunnel.Points[tunnel.Points.Count - 1]);
+            if (tunnel != null && Vec3d.Dot(face - floor, dir) > radius + StartMargin + Reach)
             {
                 uiStatus = Localizer.Format("#Subterra_Borer_DriveOn");
                 return;
@@ -156,6 +208,11 @@ namespace Subterra
             BodyFrame.ToLatLon(face.Normalized, out double lat, out double lon);
             double surface = KspSampler.SurfaceRadius(body, lat, lon);
             double depth = Math.Max(0, surface - face.Length);
+            if (depth < 2 * radius + 0.5)
+            {
+                dir = Descending(dir, face.Normalized, PortalSlope);
+            }
+
             string biome = KspSampler.Biome(body, lat, lon);
             LayerSpec layer = runtime.Strata.LayerAt(depth, biome);
             double limit = DrillMath.VoidLimit(Settings.Current.VoidStrengthMPa, layer?.Density ?? 2.7, body.gravParameter / (body.Radius * body.Radius));
@@ -190,6 +247,7 @@ namespace Subterra
             }
 
             progress += rate * dt;
+            working = true;
             uiStatus = Localizer.Format("#Subterra_Borer_Digging");
             if (progress < Step)
             {
@@ -199,7 +257,7 @@ namespace Subterra
             progress -= Step;
             if (tunnel == null)
             {
-                tunnel = ExcavationService.Start(runtime, floor, radius);
+                tunnel = ExcavationService.Start(runtime, start, radius);
                 excavationId = tunnel.Id;
                 Log.Info($"Tunnel {tunnel.Id} started by {vessel.GetDisplayName()}");
             }
@@ -210,6 +268,25 @@ namespace Subterra
             // Spoil: part of the rock dug out comes back as Ore (density in t/m³, Ore 0.01 t/unit).
             double tonnes = Math.PI * radius * radius * Step * (layer?.Density ?? 2.7) * spoilOre;
             part.RequestResource("Ore", -tonnes / 0.01);
+        }
+
+        // <paramref name="dir"/> turned down (about the horizontal across it) to at least <paramref name="degrees"/> of descent.
+        private static Vec3d Descending(Vec3d dir, Vec3d up, double degrees)
+        {
+            double sin = Vec3d.Dot(dir, up);
+            double least = -Math.Sin(degrees * Math.PI / 180);
+            if (sin <= least)
+            {
+                return dir;
+            }
+
+            Vec3d level = dir - up * sin;
+            if (level.Length < 1e-6)
+            {
+                return dir;
+            }
+
+            return (level.Normalized * Math.Cos(degrees * Math.PI / 180) + up * least).Normalized;
         }
 
         private static float TunnelLength(ExcavationSpec t)

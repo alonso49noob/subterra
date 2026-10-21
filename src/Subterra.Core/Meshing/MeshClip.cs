@@ -11,7 +11,11 @@ namespace Subterra.Core.Meshing
     /// </summary>
     public static class MeshClip
     {
-        /// <summary>Removes the triangles whose centroid is less than <paramref name="below"/> m under the terrain.</summary>
+        /// <summary>
+        /// Clips the mesh <paramref name="below"/> m under the terrain: triangles wholly above that level are
+        /// removed, and the vertices above it of the triangles crossing it are pulled down onto it (a clean
+        /// edge along the ground instead of a saw of whole triangles).
+        /// </summary>
         public static MeshData DropAboveSurface(MeshData mesh, TubeNetwork net, float below = 1f)
         {
             if (mesh.IsEmpty || !NearSurface(mesh, net, below))
@@ -19,10 +23,18 @@ namespace Subterra.Core.Meshing
                 return mesh;
             }
 
+            // Metres each vertex is over the clip level (≤ 0: under it).
+            var over = new float[mesh.Vertices.Count];
+            for (int i = 0; i < over.Length; i++)
+            {
+                over[i] = (float)net.AboveSurface(mesh.Vertices[i]) + below;
+            }
+
             var result = new MeshData();
             result.Vertices.AddRange(mesh.Vertices);
             result.Normals.AddRange(mesh.Normals);
             result.Uvs.AddRange(mesh.Uvs);
+            var pull = new bool[over.Length];
             int skirtStart = -1;
             for (int i = 0; i < mesh.Triangles.Count; i += 3)
             {
@@ -31,15 +43,31 @@ namespace Subterra.Core.Meshing
                     skirtStart = result.Triangles.Count;
                 }
 
-                Vec3 c = (mesh.Vertices[mesh.Triangles[i]] + mesh.Vertices[mesh.Triangles[i + 1]] + mesh.Vertices[mesh.Triangles[i + 2]]) / 3f;
-                if (net.AboveSurface(c) > -below)
+                int a = mesh.Triangles[i], b = mesh.Triangles[i + 1], c = mesh.Triangles[i + 2];
+                int up = (over[a] > 0 ? 1 : 0) + (over[b] > 0 ? 1 : 0) + (over[c] > 0 ? 1 : 0);
+                if (up == 3)
                 {
                     continue;
                 }
 
-                result.Triangles.Add(mesh.Triangles[i]);
-                result.Triangles.Add(mesh.Triangles[i + 1]);
-                result.Triangles.Add(mesh.Triangles[i + 2]);
+                if (up > 0)
+                {
+                    pull[a] |= over[a] > 0;
+                    pull[b] |= over[b] > 0;
+                    pull[c] |= over[c] > 0;
+                }
+
+                result.Triangles.Add(a);
+                result.Triangles.Add(b);
+                result.Triangles.Add(c);
+            }
+
+            for (int i = 0; i < pull.Length; i++)
+            {
+                if (pull[i])
+                {
+                    result.Vertices[i] = mesh.Vertices[i] - net.UpAt(mesh.Vertices[i]) * over[i];
+                }
             }
 
             result.SkirtTriangleStart = skirtStart < 0 ? result.Triangles.Count : skirtStart;

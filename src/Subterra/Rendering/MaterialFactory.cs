@@ -29,18 +29,79 @@ namespace Subterra
 
         public static RockShaderMode Mode => RockShaderMode.BumpedSpecularBoxUv;
 
-        public static Material ForLayer(LayerSpec layer)
+        /// <summary>
+        /// Rock of a layer. With <paramref name="body"/>, the body's own terrain textures (its cliff texture, as
+        /// the stock PQS uses on steep ground) tinted by the layer, so caves look like the same ground as the
+        /// surface; without, or when the terrain has none, the procedural rock.
+        /// </summary>
+        public static Material ForLayer(LayerSpec layer, CelestialBody body = null)
         {
-            string key = layer?.Name ?? "";
+            string key = (body?.bodyName ?? "") + "/" + (layer?.Name ?? "");
             if (ByLayer.TryGetValue(key, out Material material) && material != null)
             {
                 return material;
             }
 
             float[] tint = layer?.Tint ?? new[] { 0.5f, 0.5f, 0.5f };
-            material = Create("Rock_d", "Rock_n", new Color(tint[0], tint[1], tint[2]) * 1.6f);
+            var colour = new Color(tint[0], tint[1], tint[2]);
+            material = FromTerrain(body, "_steepTex", "_steepBumpMap", colour * TerrainTint)
+                ?? Create("Rock_d", "Rock_n", colour * 1.6f);
             material.name = "Subterra rock " + key;
             ByLayer[key] = material;
+            return material;
+        }
+
+        /// <summary>The body's ground (its flat-terrain texture, untinted): for the rims around holes, so they blend into the terrain.</summary>
+        public static Material ForSurface(CelestialBody body)
+        {
+            string key = (body?.bodyName ?? "") + "/#surface";
+            if (ByLayer.TryGetValue(key, out Material material) && material != null)
+            {
+                return material;
+            }
+
+            // The terrain gets its colour from vertex colours this mesh has not got: a grey close to the surface's.
+            material = FromTerrain(body, "_midTex", "_midBumpMap", SurfaceGrey) ?? ForLayer(null, body);
+            ByLayer[key] = material;
+            return material;
+        }
+
+        /// <summary>Layer tints are absolute greys around 0.5; the terrain textures already have the body's colour.</summary>
+        private const float TerrainTint = 2f;
+
+        /// <summary>Tint of the terrain's flat texture on rims (the PQS adds its colour per vertex).</summary>
+        private static readonly Color SurfaceGrey = new Color(0.52f, 0.515f, 0.53f);
+
+        /// <summary>Metres per tile of the terrain textures on cave meshes (the meshes' UVs are 4 m per tile).</summary>
+        private const float TerrainMetersPerTile = 8f;
+
+        // A Bumped Specular material from two textures of the body's PQS material, or null if it has not got them.
+        private static Material FromTerrain(CelestialBody body, string albedoProperty, string normalProperty, Color tint)
+        {
+            Material terrain = body?.pqsController?.surfaceMaterial;
+            if (terrain == null || !terrain.HasProperty(albedoProperty) || !(terrain.GetTexture(albedoProperty) is Texture albedo))
+            {
+                return null;
+            }
+
+            var material = new Material(Shader.Find("KSP/Bumped Specular"));
+            material.SetTexture("_MainTex", albedo);
+            if (terrain.HasProperty(normalProperty) && terrain.GetTexture(normalProperty) is Texture normal)
+            {
+                material.SetTexture("_BumpMap", normal);
+            }
+            else
+            {
+                material.SetTexture("_BumpMap", Texture("Rock_n", true));
+            }
+
+            var scale = new Vector2(MetersPerUv / TerrainMetersPerTile, MetersPerUv / TerrainMetersPerTile);
+            material.SetTextureScale("_MainTex", scale);
+            material.SetTextureScale("_BumpMap", scale);
+            material.SetColor("_Color", tint);
+            material.SetColor("_SpecColor", new Color(0.06f, 0.06f, 0.06f));
+            material.SetFloat("_Shininess", 0.06f);
+            material.enableInstancing = true;
             return material;
         }
 

@@ -27,5 +27,11 @@ namespace Subterra.Core.Tubes
 
         /// <summary>Index of the skylight within its network.</summary>
         public int Index { get; set; }
+
+        /// <summary>Who the opening belongs to when it is not the network's own (a dug tunnel's mouth): keeps one rim when the tunnel joins a cave.</summary>
+        public string Owner { get; set; }
+
+        /// <summary>A smooth rim (a tunnel mouth a vehicle drives over) instead of a debris rim.</summary>
+        public bool Smooth { get; set; }
     }
 }

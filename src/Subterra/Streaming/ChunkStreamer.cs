@@ -807,7 +807,7 @@ namespace Subterra
             Core.Geo.BodyFrame.ToLatLon(bodyPos, out double lat, out double lon);
             double depth = net.SurfaceRadiusNear(centre) - bodyPos.Length;
             LayerSpec layer = runtime.Strata.LayerAt(Math.Max(0, depth), KspSampler.Biome(body, lat, lon));
-            return MaterialFactory.ForLayer(layer);
+            return MaterialFactory.ForLayer(layer, body);
         }
     }
 }

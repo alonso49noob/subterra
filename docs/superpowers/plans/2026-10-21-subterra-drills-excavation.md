@@ -36,3 +36,13 @@ Spec: `docs/superpowers/specs/2026-10-21-subterra-drills-excavation-design.md`. 
 15. Escenarios: `drill` (100 m, dos testigos), `tunnel` (20 m desde la superficie + rover dentro), `tunnel-save`
     (F5/F9), `tunnel-join` (unión con DevTube), coste por frame al excavar; `full` para las piezas.
 16. CHANGELOG, README.
+
+## Pendiente visual (observación de Lucas, 2026-10-21)
+
+La roca de cuevas y túneles (textura generada por código, tinte por capa) contrasta con el terreno de KSP y con
+Parallax, sobre todo en la boca de un túnel. Pasada visual, junto con los materiales nuevos del sub-proyecto 3:
+
+1. Texturas del propio cuerpo (las del PQS) en la roca, con el tinte de la capa encima.
+2. El borde de las bocas con el material del terreno.
+3. Con Parallax, sus texturas en esas zonas (comprobar su licencia antes).
+4. Fundido en los primeros metros del túnel, del aspecto del terreno al de la capa.

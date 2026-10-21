@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using KSP.Localization;
 using KSP.UI.Screens.Flight.Dialogs;
 using Subterra.Core.Excavation;
@@ -17,8 +18,21 @@ namespace Subterra
     /// sample per layer (science subject: body + layer) and reports caves the hole breaks into.
     /// The hole has no geometry; it is lost if the vessel moves away. Drills only while the vessel is loaded.
     /// </summary>
-    public sealed class ModuleSubterraCoreDrill : PartModule, IScienceDataContainer
+    public sealed class ModuleSubterraCoreDrill : PartModule, IScienceDataContainer, IAnimatedModule
     {
+        // IAnimatedModule: the part's ModuleAnimationGroup plays its "drilling" animation while ModuleIsActive,
+        // and blocks the work while the drill is retracted.
+        private bool working;
+        private bool retracted;
+
+        public void EnableModule() => retracted = false;
+
+        public void DisableModule() => retracted = true;
+
+        public bool ModuleIsActive() => working;
+
+        public bool IsSituationValid() => true;
+
         public const string ExperimentId = "subterraCoreSample";
 
         /// <summary>Metres the vessel may move before the hole is lost.</summary>
@@ -70,6 +84,12 @@ namespace Subterra
             }
 
             drilling = true;
+            ModuleAnimationGroup group = part.FindModuleImplementing<ModuleAnimationGroup>();
+            if (group != null && !group.isDeployed)
+            {
+                group.DeployModule();
+            }
+
             UpdateEvents();
         }
 
@@ -77,6 +97,13 @@ namespace Subterra
         public void StopDrilling()
         {
             drilling = false;
+            // Pull the rod out: a deployed rod left in the ground can jack a low-mounted rover up and tip it.
+            ModuleAnimationGroup group = part.FindModuleImplementing<ModuleAnimationGroup>();
+            if (group != null && group.isDeployed)
+            {
+                group.RetractModule();
+            }
+
             UpdateEvents();
         }
 
@@ -111,6 +138,123 @@ namespace Subterra
 
             data.Add(new ScienceData(experiment.baseValue * experiment.dataScale, transmitValue, 0f, subject.id, subject.title, false, part.flightID));
             ReviewData();
+        }
+
+        /// <summary>Radius (m) of the shaft a loaded hole opens.</summary>
+        [KSPField] public float blastRadius = 3f;
+
+        /// <summary>Seconds between "detonate" and the blast.</summary>
+        [KSPField] public float fuseSeconds = 10f;
+
+        /// <summary>The hole this drill loaded and has not fired yet (ExcavationService), or empty.</summary>
+        [KSPField(isPersistant = true)] public string armedBlastId = "";
+
+        /// <summary>Loads the hole with explosive (charges per layer, none across caves, stemming on top) and leaves it armed.</summary>
+        [KSPEvent(guiActive = true, guiName = "#Subterra_Drill_Load")]
+        public void LoadCharges()
+        {
+            if (!BodyRegistry.Instance.TryGet(vessel.mainBody, out BodyRuntime runtime) || depth <= 0)
+            {
+                ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_NoLayer"), 4f);
+                return;
+            }
+
+            CelestialBody body = vessel.mainBody;
+            string biome = KspSampler.Biome(body, holeLat, holeLon);
+            double top = 0;
+            UndergroundState state = UndergroundTracker.For(vessel);
+            if (state.Inside)
+            {
+                top = state.Depth;
+            }
+
+            BlastDesign design = BlastDesign.Plan(top, depth, blastRadius, runtime.Strata, biome, Voids(runtime, body, top, depth));
+            if (design.Decks.Count == 0)
+            {
+                ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_TooShallow"), 5f);
+                return;
+            }
+
+            double have = vessel.parts.Sum(p => p.Resources.Cast<PartResource>().Where(r => r.resourceName == "Explosive").Sum(r => r.amount));
+            if (have < design.TotalKg)
+            {
+                ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_NeedExplosive", design.TotalKg.ToString("F0"), have.ToString("F0")), 6f);
+                return;
+            }
+
+            part.RequestResource("Explosive", design.TotalKg);
+            ExcavationService.ArmedBlast blast = ExcavationService.Arm(runtime, holeLat, holeLon, design);
+            armedBlastId = blast.Id;
+            (double destroy, double damage) = BlastSafety.Radii(blast.TopDeckKg, true);
+            ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_Loaded", design.Decks.Count, design.TotalKg.ToString("F0"),
+                destroy.ToString("F0"), damage.ToString("F0")), 8f, ScreenMessageStyle.UPPER_CENTER);
+            drilling = false;
+            UpdateEvents();
+        }
+
+        /// <summary>Fires the armed hole after the fuse, warning about vessels within the danger radius.</summary>
+        [KSPEvent(guiActive = true, guiName = "#Subterra_Drill_Detonate")]
+        public void Detonate()
+        {
+            ExcavationService.ArmedBlast blast = ExcavationService.FindBlast(armedBlastId);
+            if (blast == null || !BodyRegistry.Instance.TryGet(FlightGlobals.GetBodyByName(blast.Body), out BodyRuntime runtime))
+            {
+                armedBlastId = "";
+                UpdateEvents();
+                return;
+            }
+
+            CelestialBody body = runtime.Body;
+            Vector3d top = Frames.ToWorld(body, BodyFrame.Direction(blast.Lat, blast.Lon) * KspSampler.SurfaceRadius(body, blast.Lat, blast.Lon));
+            List<Vessel> inDanger = ExcavationService.VesselsInDanger(top, blast.TopDeckKg, true);
+            if (inDanger.Count > 0)
+            {
+                ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_Danger", string.Join(", ", inDanger.Select(v => v.GetDisplayName()))), 6f, ScreenMessageStyle.UPPER_CENTER);
+            }
+
+            armedBlastId = "";
+            UpdateEvents();
+            StartCoroutine(Fuse(runtime, blast));
+        }
+
+        private System.Collections.IEnumerator Fuse(BodyRuntime runtime, ExcavationService.ArmedBlast blast)
+        {
+            for (int s = Mathf.CeilToInt(fuseSeconds); s > 0; s--)
+            {
+                ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_Countdown", s), 1f, ScreenMessageStyle.UPPER_CENTER);
+                yield return new WaitForSeconds(1f);
+            }
+
+            ExcavationService.Detonate(runtime, blast);
+        }
+
+        // Depth spans along the hole that lie inside a cave or tunnel (never loaded).
+        private List<(double top, double bottom)> Voids(BodyRuntime runtime, CelestialBody body, double from, double to)
+        {
+            var spans = new List<(double top, double bottom)>();
+            Vec3d dir = BodyFrame.Direction(holeLat, holeLon);
+            double surface = KspSampler.SurfaceRadius(body, holeLat, holeLon);
+            double? start = null;
+            for (double d = from; d <= to + 0.5; d += 0.5)
+            {
+                bool inside = runtime.Catalog.FindContaining(dir * (surface - d)) != null;
+                if (inside && start == null)
+                {
+                    start = d;
+                }
+                else if (!inside && start != null)
+                {
+                    spans.Add((start.Value - 1, d + 1));
+                    start = null;
+                }
+            }
+
+            if (start != null)
+            {
+                spans.Add((start.Value - 1, to + 1));
+            }
+
+            return spans;
         }
 
         public override void OnStart(StartState state)
@@ -158,6 +302,7 @@ namespace Subterra
 
         private void Drill(double dt)
         {
+            working = false;
             if (!BodyRegistry.Instance.TryGet(vessel.mainBody, out BodyRuntime runtime))
             {
                 uiStatus = Localizer.Format("#Subterra_Drill_NoStrata");
@@ -180,7 +325,7 @@ namespace Subterra
                 depth = state.Inside ? state.Depth : 0;
             }
 
-            if (!drilling || !vessel.Landed)
+            if (!drilling || !vessel.Landed || retracted)
             {
                 Show(Borehole.Advance(depth, 0, baseRate, maxRockTemp, maxDepth, runtime.Strata, runtime.Geotherm, biome),
                     drilling ? "#Subterra_Drill_NotLanded" : "#Subterra_Drill_Idle");
@@ -209,6 +354,7 @@ namespace Subterra
                 return;
             }
 
+            working = true;
             Show(p, "#Subterra_Drill_Drilling");
         }
 
@@ -246,6 +392,7 @@ namespace Subterra
         {
             Events[nameof(StartDrilling)].active = !drilling;
             Events[nameof(StopDrilling)].active = drilling;
+            Events[nameof(Detonate)].active = !string.IsNullOrEmpty(armedBlastId);
         }
 
         private static double Distance(CelestialBody body, double lat0, double lon0, double lat1, double lon1)

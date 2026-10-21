@@ -17,6 +17,10 @@ namespace Subterra.DevTools
         {
             StepRegistry.Register("addModule", AddModule);
             StepRegistry.Register("moduleEvent", ModuleEvent);
+            StepRegistry.Register("addResource", AddResource);
+            StepRegistry.Register("setField", SetField);
+            StepRegistry.Register("teleportIntoTunnel", TeleportIntoTunnel);
+            StepRegistry.RegisterAssertion("resourceAtLeast", ResourceAtLeast);
             StepRegistry.RegisterAssertion("partExists", PartExists);
             StepRegistry.RegisterAssertion("drillDepthAtLeast", DrillDepthAtLeast);
             StepRegistry.RegisterAssertion("drillLayer", DrillLayer);
@@ -71,6 +75,92 @@ namespace Subterra.DevTools
             e.Invoke();
             yield return null;
             ctx.Pass($"{module.moduleName}.{name}");
+        }
+
+        // addResource name = Water max = 50 amount = 0 — a tank of that resource on the tracked vessel's root part.
+        private static IEnumerator AddResource(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+            string name = node.RequireArg("name");
+            if (PartResourceLibrary.Instance.GetDefinition(name) == null)
+            {
+                throw new ArgumentException($"no resource {name} in this game");
+            }
+
+            var resource = new ConfigNode("RESOURCE");
+            resource.AddValue("name", name);
+            resource.AddValue("amount", node.ArgDouble("amount", 0));
+            resource.AddValue("maxAmount", node.ArgDouble("max", 50));
+            vessel.rootPart.AddResource(resource);
+            vessel.UpdateResourceSets();
+            yield return null;
+            ctx.Pass($"{name} tank on {vessel.rootPart.partInfo.title}");
+        }
+
+        // resourceAtLeast name = Water min = 0.1 — the tracked vessel holds at least that much.
+        private static bool ResourceAtLeast(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+            string name = node.RequireArg("name");
+            double amount = vessel.parts.SelectMany(p => p.Resources.Cast<PartResource>()).Where(r => r.resourceName == name).Sum(r => r.amount);
+            var pump = vessel.parts.SelectMany(p => p.Modules.Cast<PartModule>()).OfType<ModuleSubterraWellPump>().FirstOrDefault();
+            ctx.Detail = Invariant($"{name} {amount:F3}{(pump == null ? "" : $"; pump: {pump.uiStatus}, output {pump.uiOutput}")}");
+            return amount >= node.ArgDouble("min", 0.1);
+        }
+
+        // setField module = ModuleSubterraTunnelBorer field = baseRate value = 5 — sets a KSPField of a module on the tracked vessel.
+        private static IEnumerator SetField(ConfigNode node, TestContext ctx)
+        {
+            PartModule module = Find(ctx, node.RequireArg("module"));
+            string field = node.RequireArg("field"), value = node.RequireArg("value");
+            var values = new ConfigNode("MODULE");
+            values.AddValue(field, value);
+            module.Fields.Load(values);
+            yield return null;
+            ctx.Pass($"{module.moduleName}.{field} = {module.Fields[field]?.GetValue(module)}");
+        }
+
+        // teleportIntoTunnel along = 0.6 up = 1.5 — puts the tracked vessel inside the borer's tunnel, at that fraction
+        // of its length, up metres over its floor, upright and facing along it (no roll: wheels on the floor).
+        private static IEnumerator TeleportIntoTunnel(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+            var borer = (ModuleSubterraTunnelBorer)Find(ctx, nameof(ModuleSubterraTunnelBorer));
+            ExcavationSpec tunnel = borer.Tunnel ?? throw new InvalidOperationException("the borer has no tunnel yet");
+            double along = node.ArgDouble("along", 0.6), up = node.ArgDouble("up", 1.5);
+            Core.Numerics.Vec3 first = tunnel.Points[0], last = tunnel.Points[tunnel.Points.Count - 1];
+            float length = (last - first).Length;
+            if (node.HasValue("back"))
+            {
+                // back = metres short of the face (a vehicle as long as the rover must not reach into the rock).
+                along = Math.Max(0, 1 - node.ArgDouble("back", 6) / Math.Max(1e-3, length));
+            }
+
+            Core.Numerics.Vec3d floor = tunnel.ToBody(Core.Numerics.Vec3.Lerp(first, last, (float)along));
+            Core.Numerics.Vec3d target = floor + floor.Normalized * up;
+            CelestialBody body = vessel.mainBody;
+
+            ctx.Release();
+            OrbitPhysicsManager.HoldVesselUnpack(2);
+            vessel.GoOnRails();
+            vessel.Landed = true;
+            Vector3d world = Frames.ToWorld(body, target);
+            Vector3 ahead = (Vector3)(Frames.ToWorld(body, tunnel.ToBody(last)) - Frames.ToWorld(body, tunnel.ToBody(first)));
+            Vector3 vertical = (world - body.position).normalized;
+
+            // Yaw about the local vertical so the borer's head points the tunnel's way, then pitch to the tunnel's slope.
+            Vector3 head = borer.part.transform.TransformDirection(borer.digAxis.normalized);
+            Vector3 headLevel = Vector3.ProjectOnPlane(head, vertical), aheadLevel = Vector3.ProjectOnPlane(ahead, vertical);
+            Quaternion yaw = Quaternion.AngleAxis(Vector3.SignedAngle(headLevel, aheadLevel, vertical), vertical);
+            Vector3 side = Vector3.Cross(vertical, aheadLevel).normalized;
+            float slope = Vector3.SignedAngle(aheadLevel, ahead, side);
+            Quaternion pitch = Quaternion.AngleAxis(slope, side);
+            vessel.SetRotation(pitch * yaw * vessel.transform.rotation);
+            vessel.SetPosition(world);
+            body.GetLatLonAlt(vessel.transform.position, out vessel.latitude, out vessel.longitude, out vessel.altitude);
+            TestContext.RestOrbitHere(vessel);
+            yield return null;
+            ctx.Pass(Invariant($"{vessel.GetDisplayName()} in {tunnel.Id} at {along:P0} of its {length:F1} m (slope {slope:F0}°), altitude {vessel.altitude:F1} m"));
         }
 
         // partExists name = SubterraCoreDrill — the part was loaded (its cfg and modules parse).

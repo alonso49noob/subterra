@@ -8,6 +8,13 @@ using Subterra.Core.Sdf;
 
 namespace Subterra.Core.Excavation
 {
+    /// <summary>What a dug space is: a tunnel of round pieces, or a vertical shaft opened by a blast.</summary>
+    public enum ExcavationShape
+    {
+        Tunnel,
+        Shaft,
+    }
+
     /// <summary>
     /// A tunnel dug by the player: straight pieces of one radius, in a local frame (body axes moved to
     /// <see cref="Anchor"/>, like a network's). Points are the tunnel's floor centre. Saved per game.
@@ -36,6 +43,9 @@ namespace Subterra.Core.Excavation
         public Vec3d Anchor { get; }
 
         public float Radius { get; }
+
+        /// <summary>Tunnel (pieces between consecutive points) or Shaft (Points[0] = bottom centre, Points[1] = top centre).</summary>
+        public ExcavationShape Shape { get; set; } = ExcavationShape.Tunnel;
 
         /// <summary>Floor-centre points; piece i goes from Points[i] to Points[i + 1].</summary>
         public List<Vec3> Points { get; } = new List<Vec3>();
@@ -86,9 +96,21 @@ namespace Subterra.Core.Excavation
         }
 
         /// <summary>The piece as a tube primitive (round section of <see cref="Radius"/>, smooth walls), in <paramref name="frame"/>'s coordinates.</summary>
-        public TubeSegment Piece(int index, Vec3d frame)
+        public Primitive Piece(int index, Vec3d frame)
         {
             Vec3 offset = (Anchor - frame).ToVec3();
+            if (Shape == ExcavationShape.Shaft)
+            {
+                Vec3 bottom = Points[0] + offset, top = Points[1] + offset;
+                return new Shaft(bottom, top - bottom, Radius, (top - bottom).Length)
+                {
+                    Zone = ZoneKind.Excavation,
+                    Roughness = 0.4f,
+                    NoiseScale = 2f,
+                    Source = index,
+                };
+            }
+
             Vec3 a = Points[index] + offset, b = Points[index + 1] + offset;
             Vec3 upA = ToBody(Points[index]).Normalized.ToVec3(), upB = ToBody(Points[index + 1]).Normalized.ToVec3();
             float d = 2 * Radius;
@@ -122,6 +144,10 @@ namespace Subterra.Core.Excavation
             node.AddValue("body", Body);
             node.AddValue("anchor", Format(Anchor.X, Anchor.Y, Anchor.Z));
             node.AddValue("radius", Radius.ToString("R", CultureInfo.InvariantCulture));
+            if (Shape != ExcavationShape.Tunnel)
+            {
+                node.AddValue("shape", Shape.ToString());
+            }
             if (JoinedTo != null)
             {
                 node.AddValue("joinedTo", JoinedTo);
@@ -147,6 +173,10 @@ namespace Subterra.Core.Excavation
             }
 
             var spec = new ExcavationSpec(id, body, new Vec3d(anchor[0], anchor[1], anchor[2]), radius) { JoinedTo = node.GetValue("joinedTo") };
+            if (Enum.TryParse(node.GetValue("shape") ?? "Tunnel", true, out ExcavationShape shape))
+            {
+                spec.Shape = shape;
+            }
             foreach (string value in node.GetValues("point"))
             {
                 if (TryParse(value, out double[] p))
