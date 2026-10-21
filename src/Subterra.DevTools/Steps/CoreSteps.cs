@@ -361,17 +361,20 @@ namespace Subterra.DevTools
             TimeWarp.SetRate(index, true, false);
             yield return null;
             float actual = TimeWarp.CurrentRate;
+            double startUT = Planetarium.GetUniversalTime();
             if (Mathf.Approximately(actual, rate))
             {
                 yield return new WaitForSecondsRealtime((float)seconds);
             }
 
+            float endRate = TimeWarp.CurrentRate;
+            double elapsed = Planetarium.GetUniversalTime() - startUT;
             TimeWarp.SetRate(0, true, false);
             warp.Mode = previousMode;
             yield return null;
             if (Mathf.Approximately(actual, rate))
             {
-                ctx.Pass(Invariant($"{(mode == TimeWarp.Modes.LOW ? "physics" : "on-rails")} warp x{rate} for {seconds} s"));
+                ctx.Pass(Invariant($"{(mode == TimeWarp.Modes.LOW ? "physics" : "on-rails")} warp x{rate} for {seconds} s: {elapsed:F0} s of game time, x{endRate} at the end"));
             }
             else
             {

@@ -18,6 +18,7 @@ namespace Subterra.DevTools
             StepRegistry.RegisterAssertion("partTempNear", PartTempNear);
             StepRegistry.RegisterAssertion("partTempSnapshot", PartTempSnapshot);
             StepRegistry.RegisterAssertion("partTempRise", PartTempRise);
+            StepRegistry.RegisterAssertion("partTempAway", PartTempAway);
         }
 
         // setNoon body = Mun lon = 0 — moves the clock until the sun is within 2° of the zenith at (0, lon).
@@ -89,6 +90,17 @@ namespace Subterra.DevTools
 
         private static double MeanSkinTemp(Vessel v) => v.parts.Average(p => p.skinTemperature);
 
+        // What the FlightIntegrator is doing with the vessel's heat, for the failure details.
+        private static string ThermalInfo(Vessel v)
+        {
+            FlightIntegrator fi = v.GetComponent<FlightIntegrator>();
+            string integrator = fi == null
+                ? "no FlightIntegrator"
+                : Invariant($"analytic {fi.isAnalytical}, solar {fi.solarFlux:F0} W/m², bg {fi.backgroundRadiationTemp:F1}/{fi.backgroundRadiationTempExposed:F1} K, body flux {fi.bodyEmissiveFlux:F0}+{fi.bodyAlbedoFlux:F0}");
+            return Invariant(
+                $"UT {Planetarium.GetUniversalTime():F0}, packed {v.packed}, {integrator}; skin {v.parts.Min(p => p.skinTemperature):F1}..{v.parts.Max(p => p.skinTemperature):F1} K, internal {v.parts.Min(p => p.temperature):F1}..{v.parts.Max(p => p.temperature):F1} K, mean skin mass {v.parts.Average(p => p.skinThermalMass):F1} kJ/K, radiative area {v.parts.Sum(p => p.radiativeArea):F2} m², exposed {v.parts.Sum(p => p.exposedArea):F2} m², drag cube area {v.parts.Sum(p => p.DragCubes.Area):F2} ({v.parts.Count(p => p.DragCubes.Area <= 0)} at zero) m²");
+        }
+
         // partTempNear k = 250.3 tol = 5 — every part's skin and internal temperature within tol of k.
         private static bool PartTempNear(ConfigNode node, TestContext ctx)
         {
@@ -101,7 +113,7 @@ namespace Subterra.DevTools
 
             double k = node.ArgDouble("k", 250), tol = node.ArgDouble("tol", 5);
             double worst = v.parts.Max(p => Math.Max(Math.Abs(p.skinTemperature - k), Math.Abs(p.temperature - k)));
-            ctx.Detail = Invariant($"mean skin {MeanSkinTemp(v):F1} K, worst deviation {worst:F1} K from {k} (rock {UndergroundTracker.For(v).RockTemp:F1} K, sun {v.directSunlight})");
+            ctx.Detail = Invariant($"mean skin {MeanSkinTemp(v):F1} K, worst deviation {worst:F1} K from {k} (rock {UndergroundTracker.For(v).RockTemp:F1} K, sun {v.directSunlight}); {ThermalInfo(v)}");
             return worst <= tol;
         }
 
@@ -115,8 +127,24 @@ namespace Subterra.DevTools
             }
 
             TempSnapshots[node.RequireArg("name")] = MeanSkinTemp(v);
-            ctx.Detail = Invariant($"mean skin {MeanSkinTemp(v):F1} K");
+            ctx.Detail = Invariant($"mean skin {MeanSkinTemp(v):F1} K; {ThermalInfo(v)}");
             return true;
+        }
+
+        // partTempAway k = 250.3 min = 20 — the mean skin temperature is at least min K away from k (outside the
+        // cave KSP's own thermal model applies again).
+        private static bool PartTempAway(ConfigNode node, TestContext ctx)
+        {
+            Vessel v = ctx.TrackedVessel;
+            if (v == null)
+            {
+                ctx.Detail = "no vessel";
+                return false;
+            }
+
+            double k = node.ArgDouble("k", 250), mean = MeanSkinTemp(v);
+            ctx.Detail = Invariant($"mean skin {mean:F1} K vs {k} (sun {v.directSunlight}); {ThermalInfo(v)}");
+            return Math.Abs(mean - k) >= node.ArgDouble("min", 20);
         }
 
         // partTempRise ref = cave min = 20 — the mean skin temperature rose at least min K since the snapshot.
@@ -136,7 +164,7 @@ namespace Subterra.DevTools
             }
 
             double rise = MeanSkinTemp(v) - before;
-            ctx.Detail = Invariant($"mean skin {before:F1} → {MeanSkinTemp(v):F1} K (+{rise:F1}), sun {v.directSunlight}");
+            ctx.Detail = Invariant($"mean skin {before:F1} → {MeanSkinTemp(v):F1} K (+{rise:F1}), sun {v.directSunlight}; {ThermalInfo(v)}");
             return rise >= node.ArgDouble("min", 20);
         }
     }
