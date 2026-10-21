@@ -97,6 +97,22 @@ SUBTERRA_BODY
 
         // The Mun.cfg that ships (Task 36): four named sites, each starting at a skylight, one field, no warnings.
         [Fact]
+        public void ParsesShippedDunaAndIke()
+        {
+            var duna = Parse("Data/shipped-Duna.cfg");
+            Assert.Empty(duna.Warnings);
+            Assert.Equal("Duna", duna.Value.Body);
+            Assert.Equal(new[] { "DunaCatena", "DunaVolcanoTubes", "DunaPolarIce", "DunaCanyonCaves" }, duna.Value.Sites.Select(s => s.Name));
+            Assert.Equal(5, duna.Value.Sites.Single(s => s.Name == "DunaCatena").Nodes.Count(n => n.Feature == NodeFeature.Skylight));
+            Assert.Equal(new[] { "DunaPlains", "DunaHighlands" }, duna.Value.Fields.Select(f => f.Name));
+
+            var ike = Parse("Data/shipped-Ike.cfg");
+            Assert.Empty(ike.Warnings);
+            Assert.Equal(new[] { "IkeTrench" }, ike.Value.Sites.Select(s => s.Name));
+            Assert.Equal(new[] { "IkePlains" }, ike.Value.Fields.Select(f => f.Name));
+        }
+
+        [Fact]
         public void ParsesShippedMun()
         {
             var r = Parse("Data/shipped-Mun.cfg");

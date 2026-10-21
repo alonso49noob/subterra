@@ -88,7 +88,7 @@ namespace Subterra.DevTools
                 report.AppendLine(Invariant($"  {pair.Key}: {pair.Value}"));
             }
 
-            File.WriteAllText(Path.Combine(ctx.ResultsDir, "networks.txt"), report.ToString());
+            File.AppendAllText(Path.Combine(ctx.ResultsDir, "networks.txt"), report.ToString());
             ctx.Pass(report.ToString().Split('\n')[0].Trim());
         }
 

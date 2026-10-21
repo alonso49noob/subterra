@@ -12,9 +12,19 @@ namespace Subterra.DevTools
         internal static void Register()
         {
             StepRegistry.RegisterAssertion("vesselAlive", VesselAlive);
+            StepRegistry.RegisterAssertion("airBetween", AirBetween);
             StepRegistry.RegisterAssertion("vesselLanded", VesselLanded);
             StepRegistry.RegisterAssertion("logContains", LogContains);
             StepRegistry.RegisterAssertion("noSubterraExceptions", NoSubterraExceptions);
+        }
+
+        // airBetween minKPa = 1 maxKPa = 10 — static pressure where the tracked vessel is (and the air temperature, reported).
+        private static bool AirBetween(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+            double kPa = vessel.staticPressurekPa;
+            ctx.Detail = Invariant($"{kPa:F2} kPa, air {vessel.externalTemperature:F0} K, altitude {vessel.altitude:F0} m on {vessel.mainBody.bodyName}");
+            return kPa >= node.ArgDouble("minKPa", 0) && kPa <= node.ArgDouble("maxKPa", double.MaxValue);
         }
 
         // vesselAlive — the tracked vessel still exists, is not dead and has all the parts it had

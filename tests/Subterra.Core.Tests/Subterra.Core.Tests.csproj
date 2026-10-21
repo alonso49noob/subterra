@@ -12,6 +12,8 @@
     <None Include="Data\**" CopyToOutputDirectory="PreserveNewest" />
     <!-- The Mun.cfg that ships in the release (written by tools/make-mun-cfg.sh). -->
     <None Include="..\..\GameData\Subterra\Bodies\Mun\Mun.cfg" Link="Data\shipped-Mun.cfg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\GameData\Subterra\Bodies\Duna\Duna.cfg" Link="Data\shipped-Duna.cfg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\GameData\Subterra\Bodies\Ike\Ike.cfg" Link="Data\shipped-Ike.cfg" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Subterra.Core\Subterra.Core.csproj" />
