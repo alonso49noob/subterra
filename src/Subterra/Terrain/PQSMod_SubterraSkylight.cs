@@ -31,9 +31,18 @@ namespace Subterra
         public float CutReach => (float)(VertexSpacing * Math.Sqrt(2) * 1.2);
 
         /// <summary>Adds a hole (centre and up in body coordinates) and cuts the quads already built; returns its index.</summary>
-        public int AddHole(Vector3d centre, Vector3 up, float radius)
+        public int AddHole(Vector3d centre, Vector3 up, float radius) => AddHoles(new[] { (centre, up, radius) })[0];
+
+        /// <summary>Adds several holes and cuts the quads already built in one pass; returns their indices.</summary>
+        public int[] AddHoles(IList<(Vector3d centre, Vector3 up, float radius)> added)
         {
-            holes.Add(new Hole { Centre = centre, Up = up.normalized, Radius = radius, Quads = new HashSet<PQ>() });
+            var indices = new int[added.Count];
+            for (int i = 0; i < added.Count; i++)
+            {
+                holes.Add(new Hole { Centre = added[i].centre, Up = added[i].up.normalized, Radius = added[i].radius, Quads = new HashSet<PQ>() });
+                indices[i] = holes.Count - 1;
+            }
+
             if (sphere != null && sphere.quads != null)
             {
                 foreach (PQ root in sphere.quads)
@@ -42,7 +51,7 @@ namespace Subterra
                 }
             }
 
-            return holes.Count - 1;
+            return indices;
         }
 
         /// <summary>True while a cut quad of that hole is on screen (the terrain is open there).</summary>
@@ -66,7 +75,10 @@ namespace Subterra
 
         public override void OnQuadBuilt(PQ quad)
         {
-            Cut(quad);
+            using (SubterraClock.Measure("PqsHole"))
+            {
+                Cut(quad);
+            }
         }
 
         public override void OnQuadDestroy(PQ quad)

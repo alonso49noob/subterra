@@ -7,7 +7,21 @@ namespace Subterra
     /// <summary>User settings from <c>SUBTERRA_SETTINGS</c> (GameData/Subterra/Settings.cfg).</summary>
     public sealed class Settings
     {
-        public static Settings Current { get; private set; } = new Settings();
+        private static Settings current;
+
+        /// <summary>The settings, read from the game database the first time they are needed.</summary>
+        public static Settings Current
+        {
+            get
+            {
+                if (current == null)
+                {
+                    Load();
+                }
+
+                return current;
+            }
+        }
 
         public int MemoryCapMB = 300;
         public float MainThreadBudgetMs = 2;
@@ -23,7 +37,7 @@ namespace Subterra
         public static void Load()
         {
             var settings = new Settings();
-            ConfigNode[] nodes = GameDatabase.Instance.GetConfigNodes("SUBTERRA_SETTINGS");
+            ConfigNode[] nodes = GameDatabase.Instance != null ? GameDatabase.Instance.GetConfigNodes("SUBTERRA_SETTINGS") : new ConfigNode[0];
             if (nodes.Length > 0)
             {
                 ConfigNode n = nodes[0];
@@ -46,7 +60,7 @@ namespace Subterra
                 }
             }
 
-            Current = settings;
+            current = settings;
         }
 
         private static double Read(ConfigNode n, string key, double fallback)

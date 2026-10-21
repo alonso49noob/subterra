@@ -64,7 +64,8 @@ namespace Subterra
                         Instances = subset.Count - dropped,
                         Placed = subset,
                     };
-                    if (spec.Collide && PropLibrary.TryGet(spec.Models[m], 1, out MeshData lod1))
+                    // Prop colliders only on LOD0 chunks (LOD0 and LOD1 chunks place props differently).
+                    if (spec.Collide && key.Lod == 0 && PropLibrary.TryGet(spec.Models[m], 1, out MeshData lod1))
                     {
                         scatter.Collider = ScatterMerger.Merge(lod1, subset, out _);
                     }

@@ -77,14 +77,19 @@ namespace Subterra
             }
 
             Clear();
+            Destroy(capMesh);
+            Destroy(capMaterial);
         }
 
         private void Clear()
         {
             foreach (Entry e in entries.Values)
             {
+                // A rim still being built sees this and throws its result away.
+                e.Cancelled = true;
                 if (e.Rim != null)
                 {
+                    Destroy(e.Rim.GetComponent<MeshFilter>().sharedMesh);
                     Destroy(e.Rim);
                 }
 
@@ -134,11 +139,6 @@ namespace Subterra
                     if (distance < settings.VisualRange && e.Rim == null && !e.Building)
                     {
                         StartCoroutine(BuildRim(runtime, e));
-                    }
-
-                    if (e.Rim != null)
-                    {
-                        e.Rim.transform.SetPositionAndRotation(e.World, rotation);
                     }
 
                     bool open = SkylightInjector.IsOpen(body, e.Net, e.Skylight);
@@ -225,7 +225,16 @@ namespace Subterra
             }
 
             e.CapHeight = max;
+            if (e.Cancelled || body == null || body.pqsController == null)
+            {
+                yield break;
+            }
+
+            // A child of the PQS: it moves with the terrain, in step with physics (it has a collider).
             var go = new GameObject($"SubterraRim {e.Net.Id} {e.Skylight.Index}") { layer = ChunkObject.Layer };
+            go.transform.SetParent(body.pqsController.transform, false);
+            go.transform.localPosition = e.Net.ToBody(e.Skylight.SurfaceCenter).ToKsp();
+            go.transform.localRotation = e.LocalRotation;
             Mesh mesh = MeshUploader.Upload(data, go.name);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var renderer = go.AddComponent<MeshRenderer>();
@@ -283,6 +292,7 @@ namespace Subterra
             public GameObject Cap;
             public float CapHeight;
             public bool Building;
+            public bool Cancelled;
         }
     }
 }

@@ -56,6 +56,11 @@ namespace Subterra.DevTools
             }
 
             string name = KSPUtil.SanitizeString(node.Arg("name", "SubterraTest"), '_', true);
+            if (name.Contains("..") || name.IndexOfAny(new[] { '/', '\\' }) >= 0)
+            {
+                throw new ArgumentException("save name must not contain path separators or '..'");
+            }
+
             string saveDir = Path.Combine(KSPUtil.ApplicationRootPath, "saves", name);
             if (Directory.Exists(saveDir))
             {
@@ -181,7 +186,19 @@ namespace Subterra.DevTools
             {
                 ctx.Detail = null;
                 float elapsed = Time.realtimeSinceStartup - start;
-                if (check(node, ctx))
+                bool met;
+                try
+                {
+                    met = check(node, ctx);
+                }
+                catch (Exception e)
+                {
+                    // Scene changes briefly leave KSP objects null: an assertion that throws is just not met yet.
+                    met = false;
+                    ctx.Detail = e.GetType().Name + ": " + e.Message;
+                }
+
+                if (met)
                 {
                     ctx.Pass(Invariant($"{what} after {elapsed:0.0} s") + DetailSuffix(ctx));
                     yield break;

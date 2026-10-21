@@ -54,7 +54,8 @@ namespace Subterra.DevTools
         private static bool LogContains(ConfigNode node, TestContext ctx)
         {
             string text = node.RequireArg("text");
-            bool found = LogCapture.FindAll(entry => entry.Message.Contains(text)).Count > 0;
+            // The runner's own lines (which quote assertions and their texts) do not count.
+            bool found = LogCapture.FindAll(entry => entry.Message.Contains(text) && !entry.Message.StartsWith("[Subterra.DevTools]")).Count > 0;
             ctx.Detail = found ? null : $"no log message contains \"{text}\"";
             return found;
         }

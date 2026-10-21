@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using Subterra.Core.Meshing;
 using Subterra.Core.Model;
@@ -11,9 +13,10 @@ namespace Subterra
 {
     /// <summary>
     /// Loads cave chunks around the camera (visual, octree LODs) and around loaded vessels (LOD0
-    /// colliders). Meshing and collider baking run on the worker pool; uploads use the main-thread
-    /// budget. Network roots are placed in world space every frame in double precision (a float child
-    /// 200 km from the body centre would be off by centimetres).
+    /// colliders). Meshing runs on the worker pool; the main thread only uploads, in small steps
+    /// within its budget. Collider meshes (without skirts, props included) are baked on the pool
+    /// before they are assigned. Network roots are children of the body's PQS, so cave colliders move
+    /// with the terrain in step with physics.
     /// </summary>
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public sealed class ChunkStreamer : MonoBehaviour
@@ -26,13 +29,20 @@ namespace Subterra
         private readonly HashSet<ChunkKey> pending = new HashSet<ChunkKey>();
         private readonly HashSet<ChunkKey> desiredVisual = new HashSet<ChunkKey>();
         private readonly HashSet<ChunkKey> desiredColliders = new HashSet<ChunkKey>();
+        private readonly HashSet<ChunkKey> missingVisual = new HashSet<ChunkKey>();
+        private readonly HashSet<ChunkKey> collidersOn = new HashSet<ChunkKey>();
+        private readonly List<ChunkKey> wanted = new List<ChunkKey>();
+        private readonly ConcurrentQueue<Action> fromWorkers = new ConcurrentQueue<Action>();
+        private readonly Queue<Action> steps = new Queue<Action>();
         private ChunkCache<ChunkObject> cache;
         private CelestialBody body;
         private BodyRuntime runtime;
         private float nextPlan;
         private long frame;
-        private bool visibilityDirty = true;
-        private bool issueDirty = true;
+        private int generation;
+        private int wantedIndex;
+        private bool planned;
+        private bool visibilityDirty;
 
         public static ChunkStreamer Instance { get; private set; }
 
@@ -40,21 +50,46 @@ namespace Subterra
 
         public int PendingJobs => pending.Count;
 
+        public int PendingSteps => steps.Count;
+
         public int CachedChunks => cache?.Count ?? 0;
 
         public long CachedBytes => cache?.Bytes ?? 0;
 
-        public IEnumerable<ChunkObject> Chunks => cache == null ? Enumerable.Empty<ChunkObject>() : cache.Keys.Select(k => cache.TryGet(k, out ChunkObject c) ? c : null).Where(c => c != null);
+        public IEnumerable<ChunkObject> Chunks
+        {
+            get
+            {
+                if (cache == null)
+                {
+                    yield break;
+                }
+
+                foreach (ChunkKey key in cache.Keys)
+                {
+                    if (cache.TryGet(key, out ChunkObject c))
+                    {
+                        yield return c;
+                    }
+                }
+            }
+        }
 
         /// <summary>
         /// True when every LOD0 chunk with cave surface within <paramref name="radius"/> of the world
-        /// point has its collider (or the point is far from all networks).
+        /// point is loaded with its colliders on, or the body has no caves. False while this body's
+        /// chunks have not been planned yet (e.g. right after a scene load).
         /// </summary>
-        public bool CollidersReady(Vector3d worldPos, float radius)
+        public bool CollidersReady(CelestialBody vesselBody, Vector3d worldPos, float radius)
         {
-            if (runtime == null)
+            if (!BodyRegistry.Instance.TryGet(vesselBody, out BodyRuntime bodyRuntime))
             {
                 return true;
+            }
+
+            if (vesselBody != body || runtime != bodyRuntime || !planned)
+            {
+                return false;
             }
 
             Vec3d bodyPos = Frames.ToBody(body, worldPos);
@@ -88,6 +123,13 @@ namespace Subterra
                 Instance = null;
             }
 
+            Clear();
+        }
+
+        // Drops everything (scene end or another body); late worker results see a new generation.
+        private void Clear()
+        {
+            generation++;
             foreach (ChunkKey key in cache.Keys.ToList())
             {
                 if (cache.Remove(key, out ChunkObject chunk))
@@ -103,6 +145,21 @@ namespace Subterra
                     Destroy(root.gameObject);
                 }
             }
+
+            roots.Clear();
+            networks.Clear();
+            pending.Clear();
+            desiredVisual.Clear();
+            desiredColliders.Clear();
+            missingVisual.Clear();
+            collidersOn.Clear();
+            wanted.Clear();
+            steps.Clear();
+            while (fromWorkers.TryDequeue(out _))
+            {
+            }
+
+            planned = false;
         }
 
         private void Update()
@@ -121,25 +178,28 @@ namespace Subterra
                     return;
                 }
 
-                PlaceRoots();
                 if (Time.realtimeSinceStartup >= nextPlan)
                 {
                     nextPlan = Time.realtimeSinceStartup + PlanInterval;
                     Plan();
                 }
 
-                Issue();
-                Apply();
-            }
-        }
-
-        private void LateUpdate()
-        {
-            if (runtime != null)
-            {
-                using (SubterraClock.Measure("ChunkStreamer.Roots"))
+                while (fromWorkers.TryDequeue(out Action action))
                 {
-                    PlaceRoots();
+                    action();
+                }
+
+                Issue();
+                RunSteps(Settings.Current.MainThreadBudgetMs * 0.5f);
+                Colliders();
+                if (visibilityDirty)
+                {
+                    UpdateVisibility();
+                }
+
+                if (cache.OverBudget)
+                {
+                    Evict();
                 }
             }
         }
@@ -151,35 +211,13 @@ namespace Subterra
                 return;
             }
 
-            OnDestroy();
-            Instance = this;
-            roots.Clear();
-            networks.Clear();
-            pending.Clear();
-            desiredVisual.Clear();
-            desiredColliders.Clear();
+            Clear();
             body = current;
-            runtime = BodyRegistry.Instance.TryGet(current, out BodyRuntime r) ? r : null;
-        }
-
-        private void PlaceRoots()
-        {
-            Quaternion rotation = body.pqsController.transform.rotation;
-            foreach (var pair in roots)
-            {
-                Transform root = pair.Value;
-                Vector3 position = Frames.ToWorld(body, networks[pair.Key].Anchor);
-                if ((root.position - position).sqrMagnitude > 1e-8f || root.rotation != rotation)
-                {
-                    root.SetPositionAndRotation(position, rotation);
-                }
-            }
+            runtime = BodyRegistry.Instance.TryGet(current, out BodyRuntime r) && current.pqsController != null ? r : null;
         }
 
         private void Plan()
         {
-            visibilityDirty = true;
-            issueDirty = true;
             desiredVisual.Clear();
             desiredColliders.Clear();
             Settings settings = Settings.Current;
@@ -208,6 +246,44 @@ namespace Subterra
                 ChunkPlanner.Desired(net.Id, net.Bounds, net.ToLocal(camera), net.Sdf.MayHaveSurface, desiredVisual);
                 ChunkPlanner.Colliders(net.Id, vessels.Select(net.ToLocal), settings.ColliderRadius, net.Sdf.MayHaveSurface, desiredColliders);
             }
+
+            // What to mesh, colliders first, then by LOD and distance; Issue walks this list.
+            missingVisual.Clear();
+            wanted.Clear();
+            foreach (ChunkKey key in desiredColliders.Concat(desiredVisual))
+            {
+                if (cache.TryGet(key, out _))
+                {
+                    cache.Touch(key, frame);
+                }
+                else
+                {
+                    if (desiredVisual.Contains(key))
+                    {
+                        missingVisual.Add(key);
+                    }
+
+                    if (!pending.Contains(key))
+                    {
+                        wanted.Add(key);
+                    }
+                }
+            }
+
+            wanted.Sort((a, b) =>
+            {
+                int byCollider = desiredColliders.Contains(b).CompareTo(desiredColliders.Contains(a));
+                if (byCollider != 0)
+                {
+                    return byCollider;
+                }
+
+                int byLod = a.Lod.CompareTo(b.Lod);
+                return byLod != 0 ? byLod : a.Bounds.DistanceTo(networks[a.NetworkId].ToLocal(camera)).CompareTo(b.Bounds.DistanceTo(networks[b.NetworkId].ToLocal(camera)));
+            });
+            wantedIndex = 0;
+            visibilityDirty = true;
+            planned = true;
         }
 
         private void EnsureRoot(TubeNetwork net)
@@ -218,152 +294,275 @@ namespace Subterra
             }
 
             var go = new GameObject("SubterraNet " + net.Id) { layer = ChunkObject.Layer };
+            go.transform.SetParent(body.pqsController.transform, false);
+            go.transform.localPosition = net.Anchor.ToKsp();
+            go.transform.localRotation = Quaternion.identity;
             roots[net.Id] = go.transform;
             networks[net.Id] = net;
-            go.transform.SetPositionAndRotation(Frames.ToWorld(body, net.Anchor), body.pqsController.transform.rotation);
         }
 
-        // Starts meshing for wanted chunks that are neither cached nor in progress (nearest first).
+        // Starts meshing jobs for wanted chunks, in plan order, up to the job limit.
         private void Issue()
         {
-            // Only after a new plan or a finished job: sorting the wanted set every frame is wasted work.
-            if (!issueDirty || pending.Count >= MaxPendingJobs)
+            int jobGeneration = generation;
+            while (pending.Count < MaxPendingJobs && wantedIndex < wanted.Count)
             {
-                return;
-            }
-
-            issueDirty = false;
-
-            Vec3d camera = Frames.ToBody(body, FlightCamera.fetch.mainCamera.transform.position);
-            IEnumerable<ChunkKey> wanted = desiredColliders.Concat(desiredVisual)
-                .Where(k => !pending.Contains(k) && !cache.TryGet(k, out _))
-                .OrderBy(k => k.Lod)
-                .ThenBy(k => k.Bounds.DistanceTo(networks[k.NetworkId].ToLocal(camera)))
-                .Take(MaxPendingJobs - pending.Count)
-                .ToList();
-            foreach (ChunkKey key in wanted)
-            {
-                pending.Add(key);
-                TubeNetwork net = networks[key.NetworkId];
-                CelestialBody jobBody = body;
-                IReadOnlyList<ScatterSpec> scatterSpecs = runtime.Spec.Scatters;
-                WorkerPool.Shared.Enqueue(() =>
-                {
-                    MeshData data = MeshClip.DropAboveSurface(SurfaceNets.Build(net.Sdf.ForRegion(key.Bounds), key.Origin, key.CellSize, skirts: true), net);
-                    List<ScatterMesh> scatters = ScatterBuilder.Build(data, key, net, scatterSpecs);
-                    if (!data.IsEmpty && MaterialFactory.Mode == RockShaderMode.BumpedSpecularBoxUv)
-                    {
-                        data = UvProjector.Project(data, MaterialFactory.MetersPerUv);
-                    }
-
-                    WorkerPool.Shared.RunOnMain(() => Uploaded(jobBody, net, key, data, scatters));
-                });
-            }
-        }
-
-        private void Uploaded(CelestialBody jobBody, TubeNetwork net, ChunkKey key, MeshData data, List<ScatterMesh> scatters)
-        {
-            if (jobBody != body || !roots.TryGetValue(net.Id, out Transform root) || root == null)
-            {
-                return;
-            }
-
-            pending.Remove(key);
-            visibilityDirty = true;
-            issueDirty = true;
-            Mesh mesh = data.IsEmpty ? null : MeshUploader.Upload(data, key.ToString());
-            long bytes = data.ByteSize;
-            var chunk = new ChunkObject(key, mesh, MaterialFor(net, key), root, bytes);
-            foreach (ScatterMesh scatter in scatters)
-            {
-                chunk.AddScatter(scatter, PropLibrary.MaterialFor(scatter.Model));
-                bytes += scatter.Visual.ByteSize + (scatter.Collider?.ByteSize ?? 0);
-            }
-
-            cache.Put(key, chunk, bytes);
-        }
-
-        // Visibility (keeping replaced chunks until their replacements are in), colliders, eviction.
-        private void Apply()
-        {
-            bool updateVisibility = visibilityDirty;
-            visibilityDirty = false;
-            int active = 0;
-            // The keep set is only needed to evict, i.e. when over the memory budget.
-            HashSet<ChunkKey> keep = null;
-            if (cache.OverBudget)
-            {
-                keep = new HashSet<ChunkKey>(desiredVisual);
-                keep.UnionWith(desiredColliders);
-            }
-
-            foreach (ChunkKey key in cache.Keys.ToList())
-            {
-                cache.TryGet(key, out ChunkObject chunk);
-                if (updateVisibility)
-                {
-                    chunk.Visible = desiredVisual.Contains(key) || StillCovering(key);
-                }
-
-                if (chunk.Visible)
-                {
-                    keep?.Add(key);
-                    cache.Touch(key, frame);
-                    active++;
-                }
-
-                if (desiredColliders.Contains(key))
-                {
-                    cache.Touch(key, frame);
-                    if (!chunk.ColliderReady && !chunk.BakeRequested && chunk.Mesh != null)
-                    {
-                        chunk.BakeRequested = true;
-                        int meshId = chunk.Mesh.GetInstanceID();
-                        WorkerPool.Shared.Enqueue(() =>
-                        {
-                            Physics.BakeMesh(meshId, false);
-                            WorkerPool.Shared.RunOnMain(() =>
-                            {
-                                if (chunk.GameObject != null)
-                                {
-                                    chunk.EnableCollider();
-                                }
-                            });
-                        });
-                    }
-                    else if (chunk.Collider != null && !chunk.Collider.enabled && chunk.BakeRequested)
-                    {
-                        chunk.EnableCollider();
-                    }
-                }
-                else
-                {
-                    chunk.DisableCollider();
-                }
-            }
-
-            ActiveChunks = active;
-            if (keep != null)
-            {
-                foreach (var evicted in cache.EvictOver(keep))
-                {
-                    evicted.Value.Destroy();
-                }
-            }
-        }
-
-        // An unwanted chunk stays visible while any wanted chunk overlapping it is not uploaded yet.
-        private bool StillCovering(ChunkKey key)
-        {
-            Aabb box = key.Bounds;
-            foreach (ChunkKey wanted in desiredVisual)
-            {
-                if (wanted.NetworkId != key.NetworkId || !Overlap(wanted.Bounds, box))
+                ChunkKey key = wanted[wantedIndex++];
+                if (pending.Contains(key) || cache.TryGet(key, out _))
                 {
                     continue;
                 }
 
-                if (!cache.TryGet(wanted, out _))
+                pending.Add(key);
+                TubeNetwork net = networks[key.NetworkId];
+                IReadOnlyList<ScatterSpec> scatterSpecs = runtime.Spec.Scatters;
+                WorkerPool.Shared.Enqueue(() =>
+                {
+                    try
+                    {
+                        MeshData data = MeshClip.DropAboveSurface(SurfaceNets.Build(net.Sdf.ForRegion(key.Bounds), key.Origin, key.CellSize, skirts: true), net);
+                        MeshData collider = key.Lod == 0 && !data.IsEmpty ? WithoutSkirts(data) : null;
+                        List<ScatterMesh> scatters = ScatterBuilder.Build(data, key, net, scatterSpecs);
+                        if (!data.IsEmpty && MaterialFactory.Mode == RockShaderMode.BumpedSpecularBoxUv)
+                        {
+                            data = UvProjector.Project(data, MaterialFactory.MetersPerUv);
+                        }
+
+                        fromWorkers.Enqueue(() => Meshed(jobGeneration, net, key, data, collider, scatters));
+                    }
+                    catch (Exception e)
+                    {
+                        fromWorkers.Enqueue(() =>
+                        {
+                            if (jobGeneration == generation)
+                            {
+                                pending.Remove(key);
+                            }
+
+                            Log.Error($"Meshing {key} failed: {e}");
+                        });
+                    }
+                });
+            }
+        }
+
+        // A finished job becomes upload steps: the chunk mesh, then one step per scatter, then the cache entry.
+        private void Meshed(int jobGeneration, TubeNetwork net, ChunkKey key, MeshData data, MeshData colliderData, List<ScatterMesh> scatters)
+        {
+            if (jobGeneration != generation)
+            {
+                return;
+            }
+
+            var chunk = new ChunkObject(key, data.ByteSize + (colliderData?.ByteSize ?? 0)) { ColliderData = colliderData };
+            if (data.IsEmpty)
+            {
+                Finish(chunk);
+                return;
+            }
+
+            steps.Enqueue(() =>
+            {
+                if (!roots.TryGetValue(net.Id, out Transform root) || root == null)
+                {
+                    pending.Remove(key);
+                    return;
+                }
+
+                chunk.Create(MeshUploader.Upload(data, key.ToString(), readable: false), MaterialFor(net, key), root);
+            });
+            foreach (ScatterMesh scatter in scatters)
+            {
+                steps.Enqueue(() =>
+                {
+                    if (chunk.IsEmpty)
+                    {
+                        return;
+                    }
+
+                    chunk.AddScatter(scatter, MeshUploader.Upload(scatter.Visual, chunk.Key + " " + scatter.Model, readable: false), PropLibrary.MaterialFor(scatter.Model));
+                    chunk.Bytes += scatter.Visual.ByteSize + (scatter.Collider?.ByteSize ?? 0);
+                });
+            }
+
+            steps.Enqueue(() =>
+            {
+                if (chunk.IsEmpty)
+                {
+                    pending.Remove(key);
+                    return;
+                }
+
+                Finish(chunk);
+            });
+        }
+
+        private void Finish(ChunkObject chunk)
+        {
+            pending.Remove(chunk.Key);
+            if (cache.TryGet(chunk.Key, out ChunkObject old) && old != chunk)
+            {
+                cache.Remove(chunk.Key, out _);
+                old.Destroy();
+            }
+
+            cache.Put(chunk.Key, chunk, chunk.Bytes);
+            cache.Touch(chunk.Key, frame);
+            missingVisual.Remove(chunk.Key);
+            visibilityDirty = true;
+        }
+
+        private void RunSteps(float budgetMs)
+        {
+            var watch = Stopwatch.StartNew();
+            while (steps.Count > 0 && watch.Elapsed.TotalMilliseconds < budgetMs)
+            {
+                Action step = steps.Dequeue();
+                try
+                {
+                    step();
+                }
+                catch (Exception e)
+                {
+                    Log.Error($"Chunk upload step failed: {e}");
+                }
+            }
+        }
+
+        // LOD0 chunks near vessels get colliders: collider meshes uploaded, baked on the pool, then assigned.
+        private void Colliders()
+        {
+            foreach (ChunkKey key in desiredColliders)
+            {
+                if (!cache.TryGet(key, out ChunkObject chunk) || chunk.IsEmpty || chunk.BakeInFlight)
+                {
+                    continue;
+                }
+
+                if (chunk.Baked)
+                {
+                    if (collidersOn.Add(key))
+                    {
+                        chunk.EnableCollider();
+                    }
+
+                    continue;
+                }
+
+                StartBake(chunk);
+            }
+
+            if (collidersOn.Count > 0)
+            {
+                List<ChunkKey> off = null;
+                foreach (ChunkKey key in collidersOn)
+                {
+                    if (!desiredColliders.Contains(key))
+                    {
+                        (off ?? (off = new List<ChunkKey>())).Add(key);
+                    }
+                }
+
+                if (off != null)
+                {
+                    foreach (ChunkKey key in off)
+                    {
+                        collidersOn.Remove(key);
+                        if (cache.TryGet(key, out ChunkObject chunk))
+                        {
+                            chunk.DisableCollider();
+                        }
+                    }
+                }
+            }
+        }
+
+        private void StartBake(ChunkObject chunk)
+        {
+            if (chunk.ColliderData == null)
+            {
+                return;
+            }
+
+            chunk.ColliderMesh = MeshUploader.Upload(chunk.ColliderData, chunk.Key + " collider", readable: true);
+            var ids = new List<int> { chunk.ColliderMesh.GetInstanceID() };
+            foreach (ChunkObject.ScatterPart part in chunk.Scatters)
+            {
+                if (part.Data.Collider != null && !part.Data.Collider.IsEmpty)
+                {
+                    part.ColliderMesh = MeshUploader.Upload(part.Data.Collider, chunk.Key + " " + part.Data.Model + " collider", readable: true);
+                    ids.Add(part.ColliderMesh.GetInstanceID());
+                }
+            }
+
+            chunk.BakeInFlight = true;
+            int bakeGeneration = generation;
+            WorkerPool.Shared.Enqueue(() =>
+            {
+                Exception error = null;
+                try
+                {
+                    foreach (int id in ids)
+                    {
+                        Physics.BakeMesh(id, false);
+                    }
+                }
+                catch (Exception e)
+                {
+                    error = e;
+                }
+
+                fromWorkers.Enqueue(() =>
+                {
+                    chunk.BakeInFlight = false;
+                    if (bakeGeneration != generation)
+                    {
+                        chunk.Destroy();
+                        return;
+                    }
+
+                    if (error != null)
+                    {
+                        Log.Error($"Baking {chunk.Key} failed: {error.Message}");
+                    }
+
+                    // Assigning an unbaked mesh still works, it is just cooked here instead.
+                    chunk.Baked = true;
+                    chunk.ColliderData = null;
+                });
+            });
+        }
+
+        // Wanted chunks are shown; an unwanted one stays while a wanted chunk over it is still missing.
+        private void UpdateVisibility()
+        {
+            visibilityDirty = false;
+            int active = 0;
+            foreach (ChunkKey key in cache.Keys)
+            {
+                cache.TryGet(key, out ChunkObject chunk);
+                bool visible = desiredVisual.Contains(key) || StillCovering(key);
+                chunk.SetVisible(visible);
+                if (visible && !chunk.IsEmpty)
+                {
+                    active++;
+                }
+            }
+
+            ActiveChunks = active;
+        }
+
+        private bool StillCovering(ChunkKey key)
+        {
+            if (missingVisual.Count == 0)
+            {
+                return false;
+            }
+
+            Aabb box = key.Bounds;
+            foreach (ChunkKey missing in missingVisual)
+            {
+                if (missing.NetworkId == key.NetworkId && Overlap(missing.Bounds, box))
                 {
                     return true;
                 }
@@ -372,20 +571,50 @@ namespace Subterra
             return false;
         }
 
+        private void Evict()
+        {
+            var keep = new HashSet<ChunkKey>(desiredVisual);
+            keep.UnionWith(desiredColliders);
+            foreach (ChunkKey key in cache.Keys)
+            {
+                if (cache.TryGet(key, out ChunkObject chunk) && (chunk.Visible || chunk.BakeInFlight))
+                {
+                    keep.Add(key);
+                }
+            }
+
+            foreach (var evicted in cache.EvictOver(keep))
+            {
+                collidersOn.Remove(evicted.Key);
+                evicted.Value.Destroy();
+            }
+        }
+
         private static bool Overlap(Aabb a, Aabb b) =>
             a.Min.X < b.Max.X && a.Max.X > b.Min.X && a.Min.Y < b.Max.Y && a.Max.Y > b.Min.Y && a.Min.Z < b.Max.Z && a.Max.Z > b.Min.Z;
+
+        private static MeshData WithoutSkirts(MeshData data)
+        {
+            var result = new MeshData();
+            result.Vertices.AddRange(data.Vertices);
+            result.Normals.AddRange(data.Normals);
+            for (int i = 0; i < data.SkirtTriangleStart; i++)
+            {
+                result.Triangles.Add(data.Triangles[i]);
+            }
+
+            result.SkirtTriangleStart = result.Triangles.Count;
+            return result;
+        }
 
         private Material MaterialFor(TubeNetwork net, ChunkKey key)
         {
             Vec3 centre = key.Bounds.Center;
             Vec3d bodyPos = net.ToBody(centre);
-            BodyFrameLatLon(bodyPos, out double lat, out double lon);
+            Core.Geo.BodyFrame.ToLatLon(bodyPos, out double lat, out double lon);
             double depth = net.SurfaceRadiusNear(centre) - bodyPos.Length;
             LayerSpec layer = runtime.Strata.LayerAt(Math.Max(0, depth), KspSampler.Biome(body, lat, lon));
             return MaterialFactory.ForLayer(layer);
         }
-
-        private static void BodyFrameLatLon(Vec3d bodyPos, out double lat, out double lon) =>
-            Core.Geo.BodyFrame.ToLatLon(bodyPos, out lat, out lon);
     }
 }

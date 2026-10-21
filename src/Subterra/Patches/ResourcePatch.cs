@@ -78,7 +78,14 @@ namespace Subterra
 
         private static void Postfix(AbundanceRequest request, ref float __result)
         {
-            __result = (float)Enrich(request, __result);
+            try
+            {
+                __result = (float)Enrich(request, __result);
+            }
+            catch (Exception e)
+            {
+                PatchManager.Fault(Id, e);
+            }
         }
     }
 }

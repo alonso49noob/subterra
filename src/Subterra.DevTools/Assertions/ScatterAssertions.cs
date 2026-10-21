@@ -48,16 +48,16 @@ namespace Subterra.DevTools
             float bestDistance = float.MaxValue;
             foreach (ChunkObject chunk in ChunkStreamer.Instance.Chunks)
             {
-                foreach (var (data, go) in chunk.Scatters)
+                foreach (ChunkObject.ScatterPart part in chunk.Scatters)
                 {
-                    if (data.Collider == null || !go.activeInHierarchy)
+                    if (part.Collider == null || !part.Collider.enabled)
                     {
                         continue;
                     }
 
-                    foreach (var instance in data.Placed)
+                    foreach (var instance in part.Data.Placed)
                     {
-                        Vector3 world = go.transform.TransformPoint(instance.Position.ToUnity());
+                        Vector3 world = part.Object.transform.TransformPoint(instance.Position.ToUnity());
                         float d = (world - here).sqrMagnitude;
                         if (d < bestDistance)
                         {
@@ -70,7 +70,7 @@ namespace Subterra.DevTools
 
             if (bestDistance == float.MaxValue)
             {
-                ctx.Detail = "no colliding prop shown";
+                ctx.Detail = "no prop with its collider on";
                 return false;
             }
 

@@ -28,7 +28,7 @@ namespace Subterra
                 return new List<Waypoint>();
             }
 
-            string prefix = networkId + " Skylight ";
+            string prefix = networkId + " ";
             return manager.Waypoints.Where(w => w.name != null && w.name.StartsWith(prefix)).ToList();
         }
 
@@ -77,7 +77,7 @@ namespace Subterra
             var discovery = new SubterraScenario.Discovery { Id = net.Id, Body = vessel.mainBody.bodyName, Name = name };
             foreach (Skylight s in net.Skylights)
             {
-                discovery.Waypoints.Add(new SubterraScenario.WaypointInfo { Name = $"{net.Id} Skylight {s.Index + 1}", Lat = s.Lat, Lon = s.Lon });
+                discovery.Waypoints.Add(new SubterraScenario.WaypointInfo { Name = Localizer.Format("#Subterra_Waypoint", net.Id, s.Index + 1), Lat = s.Lat, Lon = s.Lon });
             }
 
             SubterraScenario.Instance.Discover(discovery);

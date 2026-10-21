@@ -19,6 +19,7 @@ namespace Subterra
         private Vector2 scroll;
         private bool visible;
         private bool wireframe;
+        private bool coloured;
         private string confirmSite;
         private ApplicationLauncherButton button;
 
@@ -161,11 +162,13 @@ namespace Subterra
         // "Wireframe": chunks drawn in flat colours per LOD (red LOD0 … blue LOD3) to see the chunk layout.
         private void LateUpdate()
         {
-            if (ChunkStreamer.Instance == null)
+            // Nothing to do unless the colours are on, or were on last frame (to put the rock back).
+            if (ChunkStreamer.Instance == null || !wireframe && !coloured)
             {
                 return;
             }
 
+            coloured = wireframe;
             foreach (ChunkObject chunk in ChunkStreamer.Instance.Chunks)
             {
                 chunk.DebugMaterial(wireframe ? LodMaterial(chunk.Key.Lod) : null);

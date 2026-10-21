@@ -17,7 +17,14 @@ namespace Subterra.DevTools
             bool open = node.ArgBool("open", true);
             DebugWindow.Open = open;
             yield return null;
-            ctx.Pass(DebugWindow.Open == open ? (open ? "open" : "closed") : "no debug window in this scene");
+            if (DebugWindow.Open == open)
+            {
+                ctx.Pass(open ? "open" : "closed");
+            }
+            else
+            {
+                ctx.Fail("no debug window in this scene");
+            }
         }
     }
 }

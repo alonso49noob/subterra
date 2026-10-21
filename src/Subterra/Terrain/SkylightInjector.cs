@@ -24,19 +24,10 @@ namespace Subterra
             if (!subscribed)
             {
                 subscribed = true;
-                CellScheduler.NetworksAdded += (r, nets) =>
-                {
-                    foreach (TubeNetwork net in nets)
-                    {
-                        AddNetwork(r, net);
-                    }
-                };
+                CellScheduler.NetworksAdded += AddNetworks;
             }
 
-            foreach (TubeNetwork net in runtime.Catalog.Named)
-            {
-                AddNetwork(runtime, net);
-            }
+            AddNetworks(runtime, runtime.Catalog.Named);
         }
 
         /// <summary>True while the terrain over that skylight is cut and on screen.</summary>
@@ -48,26 +39,37 @@ namespace Subterra
 
         public static PQSMod_SubterraSkylight ModFor(PQS pqs) => pqs != null && Mods.TryGetValue(pqs, out PQSMod_SubterraSkylight mod) ? mod : null;
 
-        private static void AddNetwork(BodyRuntime runtime, TubeNetwork net)
+        // All new skylights of a batch of networks (a cell, or the named sites) cut in one pass over the quads.
+        private static void AddNetworks(BodyRuntime runtime, IEnumerable<TubeNetwork> nets)
         {
-            if (net.Skylights.Count == 0 || !Added.Add(runtime.Body.bodyName + "/" + net.Id))
-            {
-                return;
-            }
-
             using (SubterraClock.Measure("SkylightInjector"))
             {
-                AddHoles(runtime, net);
-            }
-        }
+                var added = new List<(Vector3d, Vector3, float)>();
+                var keys = new List<(string, int)>();
+                foreach (TubeNetwork net in nets)
+                {
+                    if (net.Skylights.Count == 0 || !Added.Add(runtime.Body.bodyName + "/" + net.Id))
+                    {
+                        continue;
+                    }
 
-        private static void AddHoles(BodyRuntime runtime, TubeNetwork net)
-        {
-            PQSMod_SubterraSkylight mod = Ensure(runtime.Body.pqsController);
-            foreach (Skylight skylight in net.Skylights)
-            {
-                int index = mod.AddHole(net.ToBody(skylight.SurfaceCenter).ToKsp(), skylight.Up.ToUnity(), skylight.Radius);
-                HoleIndex[(net.Id, skylight.Index)] = index;
+                    foreach (Skylight skylight in net.Skylights)
+                    {
+                        added.Add((net.ToBody(skylight.SurfaceCenter).ToKsp(), skylight.Up.ToUnity(), skylight.Radius));
+                        keys.Add((net.Id, skylight.Index));
+                    }
+                }
+
+                if (added.Count == 0)
+                {
+                    return;
+                }
+
+                int[] indices = Ensure(runtime.Body.pqsController).AddHoles(added);
+                for (int i = 0; i < keys.Count; i++)
+                {
+                    HoleIndex[keys[i]] = indices[i];
+                }
             }
         }
 

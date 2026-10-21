@@ -9,7 +9,8 @@ namespace Subterra
     /// <summary>MeshData (worker thread) → Unity Mesh (main thread).</summary>
     public static class MeshUploader
     {
-        public static Mesh Upload(MeshData data, string name)
+        /// <param name="readable">False for render-only meshes: the CPU copy is freed after the upload.</param>
+        public static Mesh Upload(MeshData data, string name, bool readable = true)
         {
             var mesh = new Mesh { name = name };
             int count = data.Vertices.Count;
@@ -51,6 +52,11 @@ namespace Subterra
             if (data.Normals.Count != count)
             {
                 mesh.RecalculateNormals();
+            }
+
+            if (!readable)
+            {
+                mesh.UploadMeshData(true);
             }
 
             return mesh;

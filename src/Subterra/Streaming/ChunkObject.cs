@@ -1,60 +1,62 @@
-using Subterra.Core.Meshing;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace Subterra
 {
-    /// <summary>One uploaded chunk: a layer-15 GameObject under its network's root, with an optional collider.</summary>
+    /// <summary>
+    /// One loaded chunk. Empty chunks (no cave surface) are bare markers without a GameObject. A
+    /// non-empty chunk is a layer-15 GameObject under its network's root with a render mesh, and for
+    /// LOD0 chunks near vessels a collider mesh (no skirts) baked on a worker before it is assigned.
+    /// Colliding props get their own baked collider, enabled together with the chunk's.
+    /// </summary>
     public sealed class ChunkObject
     {
         public const int Layer = 15;
 
-        public ChunkObject(ChunkKey key, Mesh mesh, Material material, Transform parent, long bytes)
-        {
-            Key = key;
-            Mesh = mesh;
-            Bytes = bytes;
-            GameObject = new GameObject("SubterraChunk " + key) { layer = Layer };
-            GameObject.transform.SetParent(parent, false);
-            GameObject.AddComponent<MeshFilter>().sharedMesh = mesh;
-            Renderer = GameObject.AddComponent<MeshRenderer>();
-            Renderer.sharedMaterial = material;
-            Renderer.shadowCastingMode = ShadowCastingMode.TwoSided;
-            Renderer.receiveShadows = true;
-            Renderer.enabled = false;
-        }
-
         private Material rockMaterial;
 
-        public ChunkKey Key { get; }
+        public ChunkObject(Core.Meshing.ChunkKey key, long bytes)
+        {
+            Key = key;
+            Bytes = bytes;
+        }
 
-        public GameObject GameObject { get; }
+        public Core.Meshing.ChunkKey Key { get; }
 
-        public Mesh Mesh { get; }
+        public long Bytes { get; set; }
 
-        public MeshRenderer Renderer { get; }
+        /// <summary>Null for an empty chunk.</summary>
+        public GameObject GameObject { get; private set; }
+
+        public Mesh Mesh { get; private set; }
+
+        public MeshRenderer Renderer { get; private set; }
+
+        public bool IsEmpty => GameObject == null;
+
+        /// <summary>Collider geometry kept until the collider mesh is baked (LOD0 chunks only).</summary>
+        public Core.Meshing.MeshData ColliderData { get; set; }
+
+        /// <summary>Collider mesh (render mesh without skirts); null until requested.</summary>
+        public Mesh ColliderMesh { get; set; }
 
         public MeshCollider Collider { get; private set; }
 
-        public long Bytes { get; }
+        /// <summary>A worker is baking this chunk's collider meshes: it must not be destroyed meanwhile.</summary>
+        public bool BakeInFlight { get; set; }
 
-        public bool IsEmpty => Mesh == null || Mesh.vertexCount == 0;
+        public bool Baked { get; set; }
 
-        /// <summary>The collider was assigned (or there is nothing to collide with).</summary>
-        public bool ColliderReady => IsEmpty || Collider != null && Collider.enabled && Collider.sharedMesh != null;
-
-        public bool BakeRequested { get; set; }
-
-        /// <summary>Props merged on this chunk (children with their own renderers and, for collide scatters, colliders).</summary>
-        public List<(ScatterMesh Data, GameObject Object)> Scatters { get; } = new List<(ScatterMesh, GameObject)>();
+        /// <summary>Props merged on this chunk.</summary>
+        public List<ScatterPart> Scatters { get; } = new List<ScatterPart>();
 
         public int ScatterInstances
         {
             get
             {
                 int n = 0;
-                foreach (var s in Scatters)
+                foreach (ScatterPart s in Scatters)
                 {
                     n += s.Data.Instances;
                 }
@@ -63,49 +65,70 @@ namespace Subterra
             }
         }
 
-        public void AddScatter(ScatterMesh scatter, Material material)
+        /// <summary>The chunk can be stood on: empty, or its (and its props') colliders are on.</summary>
+        public bool ColliderReady => IsEmpty || Collider != null && Collider.enabled;
+
+        public bool Visible { get; private set; }
+
+        /// <summary>Creates the GameObject and render mesh (main thread).</summary>
+        public void Create(Mesh mesh, Material material, Transform parent)
+        {
+            Mesh = mesh;
+            GameObject = new GameObject("SubterraChunk " + Key) { layer = Layer };
+            GameObject.transform.SetParent(parent, false);
+            GameObject.AddComponent<MeshFilter>().sharedMesh = mesh;
+            Renderer = GameObject.AddComponent<MeshRenderer>();
+            Renderer.sharedMaterial = material;
+            Renderer.shadowCastingMode = ShadowCastingMode.TwoSided;
+            Renderer.receiveShadows = true;
+            Renderer.enabled = Visible;
+        }
+
+        public void AddScatter(ScatterMesh scatter, Mesh visual, Material material)
         {
             var go = new GameObject("SubterraScatter " + scatter.Scatter) { layer = Layer };
             go.transform.SetParent(GameObject.transform, false);
-            Mesh visual = MeshUploader.Upload(scatter.Visual, go.name);
             go.AddComponent<MeshFilter>().sharedMesh = visual;
             var renderer = go.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = material;
             renderer.shadowCastingMode = ShadowCastingMode.On;
-            if (scatter.Collider != null && !scatter.Collider.IsEmpty)
-            {
-                go.AddComponent<MeshCollider>().sharedMesh = MeshUploader.Upload(scatter.Collider, go.name + " collider");
-            }
-
-            go.SetActive(Renderer.enabled);
-            Scatters.Add((scatter, go));
+            renderer.enabled = Visible;
+            Scatters.Add(new ScatterPart { Data = scatter, Object = go, Renderer = renderer, Visual = visual });
         }
 
-        public bool Visible
+        public void SetVisible(bool visible)
         {
-            get => Renderer.enabled;
-            set
+            Visible = visible;
+            if (Renderer != null && Renderer.enabled != visible)
             {
-                bool on = value && !IsEmpty;
-                if (Renderer.enabled == on)
+                Renderer.enabled = visible;
+                foreach (ScatterPart s in Scatters)
                 {
-                    return;
-                }
-
-                Renderer.enabled = on;
-                foreach (var s in Scatters)
-                {
-                    s.Object.SetActive(on);
+                    s.Renderer.enabled = visible;
                 }
             }
         }
 
-        /// <summary>Assigns the (already baked) mesh to a MeshCollider.</summary>
+        /// <summary>Assigns the baked collider meshes (chunk and props).</summary>
         public void EnableCollider()
         {
-            if (IsEmpty)
+            if (IsEmpty || ColliderMesh == null)
             {
                 return;
+            }
+
+            foreach (ScatterPart s in Scatters)
+            {
+                if (s.ColliderMesh != null)
+                {
+                    if (s.Collider == null)
+                    {
+                        s.Collider = s.Object.AddComponent<MeshCollider>();
+                    }
+
+                    s.Collider.sharedMesh = s.ColliderMesh;
+                    s.Collider.enabled = true;
+                }
             }
 
             if (Collider == null)
@@ -113,21 +136,37 @@ namespace Subterra
                 Collider = GameObject.AddComponent<MeshCollider>();
             }
 
-            Collider.sharedMesh = Mesh;
+            if (Collider.sharedMesh != ColliderMesh)
+            {
+                Collider.sharedMesh = ColliderMesh;
+            }
+
             Collider.enabled = true;
         }
 
         public void DisableCollider()
         {
-            if (Collider != null)
+            if (Collider != null && Collider.enabled)
             {
                 Collider.enabled = false;
+                foreach (ScatterPart s in Scatters)
+                {
+                    if (s.Collider != null)
+                    {
+                        s.Collider.enabled = false;
+                    }
+                }
             }
         }
 
         /// <summary>Debug view: another material instead of the rock (null restores the rock).</summary>
         public void DebugMaterial(Material debug)
         {
+            if (Renderer == null)
+            {
+                return;
+            }
+
             if (debug != null)
             {
                 if (rockMaterial == null)
@@ -146,21 +185,35 @@ namespace Subterra
 
         public void Destroy()
         {
-            foreach (var s in Scatters)
+            foreach (ScatterPart s in Scatters)
             {
-                Object.Destroy(s.Object.GetComponent<MeshFilter>().sharedMesh);
-                MeshCollider collider = s.Object.GetComponent<MeshCollider>();
-                if (collider != null)
-                {
-                    Object.Destroy(collider.sharedMesh);
-                }
+                DestroyObject(s.Visual);
+                DestroyObject(s.ColliderMesh);
             }
 
-            Object.Destroy(GameObject);
-            if (Mesh != null)
+            DestroyObject(GameObject);
+            DestroyObject(Mesh);
+            DestroyObject(ColliderMesh);
+            Scatters.Clear();
+            GameObject = null;
+        }
+
+        private static void DestroyObject(Object o)
+        {
+            if (o != null)
             {
-                Object.Destroy(Mesh);
+                Object.Destroy(o);
             }
+        }
+
+        public sealed class ScatterPart
+        {
+            public ScatterMesh Data;
+            public GameObject Object;
+            public MeshRenderer Renderer;
+            public Mesh Visual;
+            public Mesh ColliderMesh;
+            public MeshCollider Collider;
         }
     }
 }

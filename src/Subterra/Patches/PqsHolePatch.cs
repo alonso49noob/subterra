@@ -19,10 +19,17 @@ namespace Subterra
 
         private static void Postfix(PQ __instance)
         {
-            PQSMod_SubterraSkylight mod = SkylightInjector.ModFor(__instance.sphereRoot);
-            if (mod != null)
+            try
             {
-                mod.AfterVisibilityUpdate(__instance);
+                PQSMod_SubterraSkylight mod = SkylightInjector.ModFor(__instance.sphereRoot);
+                if (mod != null)
+                {
+                    mod.AfterVisibilityUpdate(__instance);
+                }
+            }
+            catch (System.Exception e)
+            {
+                PatchManager.Fault(Id, e);
             }
         }
     }

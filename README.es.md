@@ -28,7 +28,7 @@ largo que se pueden explorar con módulos de aterrizaje, róveres y kerbals en E
 - ModuleManager
 - Harmony (HarmonyKSP, `000_Harmony`)
 
-Opcionales: SCANsat, CommunityResourcePack, Parallax, Kopernicus (se detectan solos).
+Opcionales (se detectan solos): SCANsat, Kerbalism, CommunityResourcePack, Parallax. Funciona con Kopernicus.
 
 ## Instalación
 

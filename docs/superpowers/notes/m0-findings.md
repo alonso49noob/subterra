@@ -81,5 +81,6 @@ rounded tube ends, flat floors, plain-min joins within a tube, Surface Nets norm
 placed in world space each frame in double precision (instead of PQS children), cave mesh clipped above the terrain.
 
 None of these changes what the mod does (spec §1); they are the spec's own alternatives or implementation details.
-Python is not installed on this PC: props are generated procedurally in C# (`PropGenerator`) and textures in code; the
-`.mu`/DDS tool chain of Task 33 waits for the user's decision.
+Props and textures are generated in C# at load (`PropGenerator`, `TextureGenerator`) instead of the Python `.mu`/DDS tool
+chain of Task 33 (the user left the choice to us; no Python on the second PC). GameData `.mu` models and textures still
+take precedence when present.

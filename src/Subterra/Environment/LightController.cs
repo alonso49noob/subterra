@@ -48,13 +48,25 @@ namespace Subterra
                 {
                     savedAmbient = RenderSettings.ambientLight;
                     sun = Sun();
-                    savedSun = sun != null ? sun.intensity : (float?)null;
                 }
 
                 RenderSettings.ambientLight = savedAmbient.Value * Mathf.Clamp01(camera.Sky);
-                if (sun != null && savedSun.HasValue)
+
+                // The sun is only touched while it is switched off; near an opening KSP keeps control of it.
+                bool off = sun != null && FarFromOpenings(camera);
+                if (off && !savedSun.HasValue)
                 {
-                    sun.intensity = FarFromOpenings(camera) ? 0f : savedSun.Value;
+                    savedSun = sun.intensity;
+                }
+
+                if (off)
+                {
+                    sun.intensity = 0f;
+                }
+                else if (savedSun.HasValue)
+                {
+                    sun.intensity = savedSun.Value;
+                    savedSun = null;
                 }
             }
         }

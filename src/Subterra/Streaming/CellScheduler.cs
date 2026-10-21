@@ -90,78 +90,119 @@ namespace Subterra
             NetworkCatalog catalog = runtime.Catalog;
             var key = (body.bodyName, cell);
 
+            // Captured for the workers: no KSP objects are touched off the main thread.
+            string bodyName = body.bodyName;
+            double bodyRadius = body.Radius;
+            string idPrefix = runtime.Spec.IdPrefix;
+            List<FieldSpec> fields = runtime.Spec.Fields;
+            var job = new CellJob();
+
             // 1. The cell's sample grid (+10 km), on the main thread.
             var rect = catalog.Grid.GridRect(cell, FieldGenerator.CellMargin);
             IReadOnlyList<(double lat, double lon)> points = catalog.Grid.SampleGrid(cell, GridSize, FieldGenerator.CellMargin);
             var radius = new double[points.Count];
             var biome = new string[points.Count];
-            yield return KspSampler.Fill(body, points, (i, r, b) => { radius[i] = r; biome[i] = b; }, SampleBudgetMs);
-            var grid = new GridSamples(rect.latMin, rect.latMax, rect.lonMin, rect.lonMax, GridSize, radius, biome);
+            yield return Guarded(KspSampler.Fill(body, points, (i, r, b) => { radius[i] = r; biome[i] = b; }, SampleBudgetMs), job);
 
             // 2. Generation on the pool.
             List<SiteSpec> sites = null;
-            Exception error = null;
-            bool done = false;
-            WorkerPool.Shared.Enqueue(() =>
+            if (job.Error == null)
             {
-                try
+                var grid = new GridSamples(rect.latMin, rect.latMax, rect.lonMin, rect.lonMax, GridSize, radius, biome);
+                job.Done = false;
+                WorkerPool.Shared.Enqueue(() =>
                 {
-                    // All fields at once: they share the per-cell cap and id counter (unique ids).
-                    sites = FieldGenerator.Generate(runtime.Spec.Fields, body.bodyName, runtime.Spec.IdPrefix, catalog.Grid, cell, grid, grid);
-                }
-                catch (Exception e)
-                {
-                    error = e;
-                }
+                    try
+                    {
+                        // All fields at once: they share the per-cell cap and id counter (unique ids).
+                        sites = FieldGenerator.Generate(fields, bodyName, idPrefix, catalog.Grid, cell, grid, grid);
+                    }
+                    catch (Exception e)
+                    {
+                        job.Error = e;
+                    }
 
-                done = true;
-            });
-            yield return new WaitUntil(() => done);
+                    job.Done = true;
+                });
+                yield return new WaitUntil(() => job.Done);
+            }
 
             // 3. Exact heights for the networks' paths, on the main thread.
             var samples = new PrecomputedSamples();
-            if (error == null)
+            if (job.Error == null)
             {
-                var needed = sites.SelectMany(s => NetworkCompiler.RequiredSamples(s, body.Radius)).ToList();
-                yield return KspSampler.Fill(body, needed, (i, r, b) => samples.Add(needed[i].lat, needed[i].lon, r, b), SampleBudgetMs);
+                var needed = sites.SelectMany(s => NetworkCompiler.RequiredSamples(s, bodyRadius)).ToList();
+                yield return Guarded(KspSampler.Fill(body, needed, (i, r, b) => samples.Add(needed[i].lat, needed[i].lon, r, b), SampleBudgetMs), job);
             }
 
             // 4. Compilation on the pool.
             var networks = new List<TubeNetwork>();
-            done = false;
-            if (error == null)
+            if (job.Error == null)
             {
+                job.Done = false;
                 WorkerPool.Shared.Enqueue(() =>
                 {
                     try
                     {
                         foreach (SiteSpec site in sites)
                         {
-                            networks.Add(NetworkCompiler.Compile(site, body.bodyName, body.Radius, samples, null));
+                            networks.Add(NetworkCompiler.Compile(site, bodyName, bodyRadius, samples, null));
                         }
                     }
                     catch (Exception e)
                     {
-                        error = e;
+                        job.Error = e;
                     }
 
-                    done = true;
+                    job.Done = true;
                 });
-                yield return new WaitUntil(() => done);
+                yield return new WaitUntil(() => job.Done);
             }
 
             // 5. Publish on the main thread (an error leaves the cell empty rather than retrying forever).
-            if (error != null)
+            inProgress.Remove(key);
+            if (job.Error != null)
             {
-                Log.Error($"{cell} on {body.bodyName} failed: {error}");
+                Log.Error($"{cell} on {bodyName} failed: {job.Error}");
                 networks.Clear();
             }
 
             catalog.AddCell(cell, networks);
-            inProgress.Remove(key);
             CellsGenerated++;
-            Log.Info($"{cell} on {body.bodyName}: {networks.Count} networks{(networks.Count > 0 ? " (" + string.Join(", ", networks.Select(n => n.Id)) + ")" : "")}");
+            Log.Info($"{cell} on {bodyName}: {networks.Count} networks{(networks.Count > 0 ? " (" + string.Join(", ", networks.Select(n => n.Id)) + ")" : "")}");
             NetworksAdded?.Invoke(runtime, networks);
+        }
+
+        // Runs a nested coroutine, turning an exception into job.Error instead of killing the caller.
+        private static IEnumerator Guarded(IEnumerator inner, CellJob job)
+        {
+            while (true)
+            {
+                object current;
+                try
+                {
+                    if (!inner.MoveNext())
+                    {
+                        yield break;
+                    }
+
+                    current = inner.Current;
+                }
+                catch (Exception e)
+                {
+                    job.Error = e;
+                    yield break;
+                }
+
+                yield return current;
+            }
+        }
+
+        private sealed class CellJob
+        {
+            public volatile bool Done;
+            public volatile Exception Error;
+
         }
 
         /// <summary>Raised on the main thread when a cell's networks join the catalog.</summary>

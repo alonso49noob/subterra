@@ -177,6 +177,9 @@ if (-not $ModProfiles.ContainsKey($Profile)) {
 $RefDir = [System.IO.Path]::GetFullPath((Get-BuildProperty 'KSPRefDir')).TrimEnd('\')
 $TestDir = [System.IO.Path]::GetFullPath((Get-BuildProperty 'KSPTestDir')).TrimEnd('\')
 if ($TestDir -eq $RefDir) { throw "KSPTestDir must differ from KSPRefDir ($RefDir)" }
+if ($TestDir.StartsWith($RefDir + '\', [StringComparison]::OrdinalIgnoreCase) -or $RefDir.StartsWith($TestDir + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw "KSPTestDir and KSPRefDir must not contain each other ($TestDir, $RefDir)"
+}
 if (-not (Test-Path -LiteralPath (Join-Path $RefDir 'KSP_x64.exe'))) { throw "No KSP_x64.exe in KSPRefDir: $RefDir" }
 $ScenarioFile = Join-Path $RepoRoot "tests\ksp\scenarios\$Scenario.cfg"
 if (-not (Test-Path -LiteralPath $ScenarioFile)) { throw "Scenario file not found: $ScenarioFile" }
@@ -212,7 +215,21 @@ foreach ($dll in @("$ModSource\Plugins\Subterra.dll", "$DevToolsSource\Plugins\S
 # --- 3. Test copy of KSP ------------------------------------------------------------------
 
 Write-Host "Preparing $TestDir from $RefDir (profile $Profile)"
+# This script deletes inside the test copy: only in a folder it created itself (marker file), and
+# never through a junction at the copy's root, GameData or saves.
+$Marker = Join-Path $TestDir '.subterra-test-copy'
+if (Test-Path -LiteralPath $TestDir) {
+    if (-not (Test-Path -LiteralPath $Marker) -and @(Get-ChildItem -LiteralPath $TestDir -Force).Count -gt 0) {
+        throw "$TestDir exists, is not empty and has no .subterra-test-copy marker: refusing to use it as the test copy"
+    }
+}
 New-Item -ItemType Directory -Force -Path $TestDir | Out-Null
+if (-not (Test-Path -LiteralPath $Marker)) { Set-Content -LiteralPath $Marker -Value 'Throwaway KSP copy made by Subterra tools/test-ksp.ps1' -Encoding ascii }
+foreach ($sub in @($TestDir, (Join-Path $TestDir 'GameData'), (Join-Path $TestDir 'saves'))) {
+    if ((Test-Path -LiteralPath $sub) -and (Test-ReparsePoint (Get-Item -LiteralPath $sub -Force))) {
+        throw "$sub is a junction or link: refusing to work through it"
+    }
+}
 Invoke-Robocopy $RefDir $TestDir @('*.exe', '*.dll', 'buildID*.txt', 'Physics.cfg')
 $settingsFile = Join-Path $TestDir 'settings.cfg'
 if (-not (Test-Path -LiteralPath $settingsFile)) { Copy-Item -LiteralPath (Join-Path $RefDir 'settings.cfg') $settingsFile }
@@ -295,20 +312,36 @@ foreach ($old in @($KspLog, $PlayerLog)) { if (Test-Path -LiteralPath $old) { Re
 
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $kspArgs = @('-popupwindow', '-screen-width', '1280', '-screen-height', '720', '-logFile', "`"$PlayerLog`"")
-Write-Host "Launching KSP: scenario '$Scenario', timeout $TimeoutMin min"
-$ksp = Start-Process -FilePath (Join-Path $TestDir 'KSP_x64.exe') -ArgumentList $kspArgs -WorkingDirectory $TestDir -PassThru
-$null = $ksp.Handle   # keeps the handle open so ExitCode is available later
-
-$deadline = (Get-Date).AddMinutes($TimeoutMin)
+$RunFile = Join-Path $PluginData 'run.txt'
 $done = $false
 $timedOut = $false
-while ($true) {
-    if (Test-Path -LiteralPath $ResultsFile) {
-        if (@(Get-Content -LiteralPath $ResultsFile -ErrorAction SilentlyContinue) -contains 'DONE') { $done = $true; break }
+# A KSP started right after another one closed sometimes exits at once; the runner deletes run.txt
+# when the scenario starts, so a KSP that exits while run.txt is still there gets one more try.
+for ($attempt = 1; $attempt -le 2; $attempt++) {
+    foreach ($process in @(Get-Process -Name KSP_x64 -ErrorAction SilentlyContinue)) {
+        $exePath = $null
+        try { $exePath = $process.Path } catch { }
+        if (-not $exePath -or -not $exePath.StartsWith($TestDir + '\', [StringComparison]::OrdinalIgnoreCase)) {
+            throw "KSP is running from '$exePath' (pid $($process.Id)). Close it and run again; this script does not touch it."
+        }
     }
-    if ($ksp.HasExited) { break }
-    if ((Get-Date) -gt $deadline) { $timedOut = $true; break }
-    Start-Sleep -Seconds 2
+
+    Write-Host "Launching KSP: scenario '$Scenario', timeout $TimeoutMin min (attempt $attempt)"
+    $ksp = Start-Process -FilePath (Join-Path $TestDir 'KSP_x64.exe') -ArgumentList $kspArgs -WorkingDirectory $TestDir -PassThru
+    $null = $ksp.Handle   # keeps the handle open so ExitCode is available later
+    $deadline = (Get-Date).AddMinutes($TimeoutMin)
+    while ($true) {
+        if (Test-Path -LiteralPath $ResultsFile) {
+            if (@(Get-Content -LiteralPath $ResultsFile -ErrorAction SilentlyContinue) -contains 'DONE') { $done = $true; break }
+        }
+        if ($ksp.HasExited) { break }
+        if ((Get-Date) -gt $deadline) { $timedOut = $true; break }
+        Start-Sleep -Seconds 2
+    }
+
+    if ($done -or $timedOut -or -not (Test-Path -LiteralPath $RunFile)) { break }
+    Write-Host "KSP exited before the scenario started (exit code $($ksp.ExitCode)); retrying in 20 s"
+    Start-Sleep -Seconds 20
 }
 if (-not $ksp.HasExited) {
     # After DONE the runner calls Application.Quit(); give KSP a minute to close.

@@ -82,50 +82,81 @@ namespace Subterra
 
         private static bool BiomePrefix(CelestialBody body, double lat, double lon, ref string __result)
         {
-            string biome = CaveBiomeAt(body, lat, lon);
-            if (biome == null)
+            try
             {
+                string biome = CaveBiomeAt(body, lat, lon);
+                if (biome == null)
+                {
+                    return true;
+                }
+
+                __result = biome;
+                return false;
+            }
+            catch (Exception e)
+            {
+                PatchManager.Fault(Id, e);
                 return true;
             }
-
-            __result = biome;
-            return false;
         }
 
         private static bool BiomeLocalizedPrefix(CelestialBody body, double lat, double lon, ref string __result)
         {
-            string biome = CaveBiomeAt(body, lat, lon);
-            if (biome == null)
+            try
             {
+                string biome = CaveBiomeAt(body, lat, lon);
+                if (biome == null)
+                {
+                    return true;
+                }
+
+                __result = DisplayName(body, biome);
+                return false;
+            }
+            catch (Exception e)
+            {
+                PatchManager.Fault(Id, e);
                 return true;
             }
-
-            __result = DisplayName(body, biome);
-            return false;
         }
 
         private static bool DisplayNamePrefix(CelestialBody body, string biome, ref string __result)
         {
-            if (!IsCave(body, biome))
+            try
             {
+                if (!IsCave(body, biome))
+                {
+                    return true;
+                }
+
+                __result = DisplayName(body, biome);
+                return false;
+            }
+            catch (Exception e)
+            {
+                PatchManager.Fault(Id, e);
                 return true;
             }
-
-            __result = DisplayName(body, biome);
-            return false;
         }
 
         private static void SubjectPostfix(ScienceSubject __result, ScienceExperiment experiment, ExperimentSituations situation, CelestialBody body, string biome)
         {
-            if (__result == null || experiment == null || !IsCave(body, biome) || !BodyRegistry.Instance.TryGet(body, out BodyRuntime runtime))
+            try
             {
-                return;
-            }
+                if (__result == null || experiment == null || !IsCave(body, biome) || !BodyRegistry.Instance.TryGet(body, out BodyRuntime runtime))
+                {
+                    return;
+                }
 
-            // Idempotent: computed from the body's base value, not from the current subject value.
-            float value = (float)(SituationValue(body.scienceValues, situation) * BiomeIds.Multiplier(biome, runtime.Spec));
-            __result.subjectValue = value;
-            __result.scienceCap = experiment.scienceCap * value;
+                // Idempotent: computed from the body's base value, not from the current subject value.
+                float value = (float)(SituationValue(body.scienceValues, situation) * BiomeIds.Multiplier(biome, runtime.Spec));
+                __result.subjectValue = value;
+                __result.scienceCap = experiment.scienceCap * value;
+            }
+            catch (Exception e)
+            {
+                PatchManager.Fault(Id, e);
+            }
         }
 
         private static bool IsCave(CelestialBody body, string biome) =>

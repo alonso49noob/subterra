@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 # Writes GameData/Subterra/Bodies/Mun/Mun.cfg from the site coordinates chosen with the SiteFinder
-# spike (Task 36). Usage: tools/make-mun-cfg.sh (edit the coordinates below first).
+# spike (Task 36). Usage: SERENITY="lat0 lon0 lat1 lon1" GALLERY=... CHAIN=... FROST=... tools/make-mun-cfg.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# start lat, start lon, end lat, end lon of each site's track (from sitefinder.txt).
-SERENITY=(${SERENITY:-0 0 0 0})
-GALLERY=(${GALLERY:-0 0 0 0})
-CHAIN=(${CHAIN:-0 0 0 0})
-FROST=(${FROST:-0 0 0 0})
+# "start lat, start lon, end lat, end lon" of each site's track (from sitefinder.txt), as environment
+# variables SERENITY, GALLERY, CHAIN, FROST. All four are required.
+for v in SERENITY GALLERY CHAIN FROST; do
+  if [ -z "${!v:-}" ] || [ $(echo ${!v} | wc -w) -ne 4 ]; then echo "make-mun-cfg.sh: set $v to \"lat0 lon0 lat1 lon1\"" >&2; exit 1; fi
+done
+SERENITY=($SERENITY)
+GALLERY=($GALLERY)
+CHAIN=($CHAIN)
+FROST=($FROST)
 
 lerp() { awk -v a="$1" -v b="$2" -v t="$3" 'BEGIN { printf "%.5f", a + (b - a) * t }'; }
 

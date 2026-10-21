@@ -2,7 +2,7 @@
 
 Lava tubes you can fly into, land in and drive through, under the surface of the Mun.
 
-Requires: ModuleManager, Harmony (HarmonyKSP). Optional: SCANsat, CommunityResourcePack, Parallax, Kopernicus.
+Requires: ModuleManager, Harmony (HarmonyKSP). Optional: SCANsat, Kerbalism, CommunityResourcePack, Parallax. Works with Kopernicus.
 Install: copy `GameData/Subterra` into your KSP's `GameData`.
 Settings: `GameData/Subterra/Settings.cfg`. Debug window: Alt+Shift+U.
 

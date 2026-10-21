@@ -26,6 +26,18 @@ namespace Subterra
 
         private static void SunBodyFluxPostfix(FlightIntegrator __instance, Vessel ___vessel)
         {
+            try
+            {
+                SunBodyFlux(__instance, ___vessel);
+            }
+            catch (System.Exception e)
+            {
+                PatchManager.Fault(Id, e);
+            }
+        }
+
+        private static void SunBodyFlux(FlightIntegrator __instance, Vessel ___vessel)
+        {
             UndergroundState state = State(___vessel);
             if (!state.Inside)
             {
@@ -45,10 +57,17 @@ namespace Subterra
 
         private static void BackgroundPostfix(Vessel ___vessel, ref double __result)
         {
-            UndergroundState state = State(___vessel);
-            if (state.Inside && state.RockTemp.HasValue)
+            try
             {
-                __result = state.RockTemp.Value;
+                UndergroundState state = State(___vessel);
+                if (state.Inside && state.RockTemp.HasValue)
+                {
+                    __result = state.RockTemp.Value;
+                }
+            }
+            catch (System.Exception e)
+            {
+                PatchManager.Fault(Id, e);
             }
         }
 

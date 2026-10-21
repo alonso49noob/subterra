@@ -28,14 +28,24 @@ namespace Subterra
                 harmony.Patch(update,
                     prefix: new HarmonyMethod(typeof(CameraPatch), nameof(Prefix)),
                     postfix: new HarmonyMethod(typeof(CameraPatch), nameof(Postfix)),
+                    finalizer: new HarmonyMethod(typeof(CameraPatch), nameof(Finalizer)),
                     transpiler: new HarmonyMethod(typeof(CameraPatch), nameof(Transpiler)));
             });
         }
 
         private static void Prefix(FlightCamera __instance)
         {
-            pivotUnderground = FlightGlobals.ready
-                && Underground.Locate(FlightGlobals.currentMainBody, __instance.GetPivot().position, out _, out _);
+            try
+            {
+                pivotUnderground = FlightGlobals.ready
+                    && Underground.Locate(FlightGlobals.currentMainBody, __instance.GetPivot().position, out _, out _);
+            }
+            catch (System.Exception e)
+            {
+                pivotUnderground = false;
+                PatchManager.Fault(Id, e);
+            }
+
             if (!pivotUnderground)
             {
                 return;
@@ -58,6 +68,13 @@ namespace Subterra
             }
 
             pivotUnderground = false;
+        }
+
+        // Runs even when UpdateCameraTransform throws (the postfix would not): never leave the minimum heights at -10000.
+        private static System.Exception Finalizer(FlightCamera __instance, System.Exception __exception)
+        {
+            Postfix(__instance);
+            return __exception;
         }
 
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)

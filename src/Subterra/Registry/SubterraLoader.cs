@@ -76,54 +76,68 @@ namespace Subterra
             IEnumerable<CfgNode> raw = GameDatabase.Instance.GetConfigNodes("SUBTERRA_BODY").Select(CfgAdapter.ToCore);
             foreach (CfgNode node in BodyMerge.MergeBodies(raw))
             {
-                ParseResult<BodySpec> parsed = BodySpecParser.Parse(node);
-                foreach (string warning in parsed.Warnings)
+                // One broken body must not stop the others.
+                try
                 {
-                    Log.Warn(warning);
+                    LoadBody(node);
                 }
-
-                BodySpec spec = parsed.Value;
-                if (spec == null)
+                catch (Exception e)
                 {
-                    continue;
+                    Log.Error($"SUBTERRA_BODY '{node.GetValue("body")}' skipped: {e}");
                 }
-
-                CelestialBody body = FlightGlobals.GetBodyByName(spec.Body);
-                if (body == null)
-                {
-                    Log.Warn($"Skipped SUBTERRA_BODY '{spec.Body}': body not found");
-                    continue;
-                }
-
-                if (!spec.Enabled || Settings.Current.DisabledBodies.Contains(spec.Body))
-                {
-                    Log.Info($"Body {spec.Body} disabled");
-                    continue;
-                }
-
-                if (body.pqsController == null)
-                {
-                    Log.Warn($"Skipped SUBTERRA_BODY '{spec.Body}': it has no terrain (PQS)");
-                    continue;
-                }
-
-                var runtime = new BodyRuntime(spec, body);
-                foreach (SiteSpec site in spec.Sites)
-                {
-                    TubeNetwork network = CompileNamed(site, body);
-                    if (network != null)
-                    {
-                        runtime.Catalog.AddNamed(network);
-                    }
-                }
-
-                BodyRegistry.Instance.Add(runtime);
-                SkylightInjector.Inject(runtime);
-                ResourcePatch.Prepare(runtime);
-                AnomalyRegistrar.Register(runtime);
-                PropLibrary.Preload(spec.Scatters);
-                Log.Info($"Loaded body {spec.Body}: {runtime.Catalog.Named.Count} sites, {spec.Fields.Count} fields");
             }
+        }
+
+        private static void LoadBody(CfgNode node)
+        {
+            ParseResult<BodySpec> parsed = BodySpecParser.Parse(node);
+            foreach (string warning in parsed.Warnings)
+            {
+                Log.Warn(warning);
+            }
+
+            BodySpec spec = parsed.Value;
+            if (spec == null)
+            {
+                return;
+            }
+
+            CelestialBody body = FlightGlobals.GetBodyByName(spec.Body);
+            if (body == null)
+            {
+                Log.Warn($"Skipped SUBTERRA_BODY '{spec.Body}': body not found");
+                return;
+            }
+
+            if (!spec.Enabled || Settings.Current.DisabledBodies.Contains(spec.Body))
+            {
+                Log.Info($"Body {spec.Body} disabled");
+                return;
+            }
+
+            if (body.pqsController == null)
+            {
+                Log.Warn($"Skipped SUBTERRA_BODY '{spec.Body}': it has no terrain (PQS)");
+                return;
+            }
+
+            var runtime = new BodyRuntime(spec, body);
+            foreach (SiteSpec site in spec.Sites)
+            {
+                TubeNetwork network = CompileNamed(site, body);
+                if (network != null)
+                {
+                    runtime.Catalog.AddNamed(network);
+                }
+            }
+
+            // Registered only once fully set up.
+            ResourcePatch.Prepare(runtime);
+            PropLibrary.Preload(spec.Scatters);
+            SkylightInjector.Inject(runtime);
+            AnomalyRegistrar.Register(runtime);
+            BodyRegistry.Instance.Add(runtime);
+            Log.Info($"Loaded body {spec.Body}: {runtime.Catalog.Named.Count} sites, {spec.Fields.Count} fields");
         }
 
         // Heights are read straight from the PQS on the main thread: named sites are few and small.

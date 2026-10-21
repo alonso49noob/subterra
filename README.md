@@ -26,7 +26,7 @@ landers, rovers and kerbals on EVA can explore.
 - ModuleManager
 - Harmony (HarmonyKSP, `000_Harmony`)
 
-Optional: SCANsat, CommunityResourcePack, Parallax, Kopernicus (all detected automatically).
+Optional (detected automatically): SCANsat, Kerbalism, CommunityResourcePack, Parallax. Works with Kopernicus.
 
 ## Installation
 

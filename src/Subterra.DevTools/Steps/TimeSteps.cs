@@ -93,6 +93,12 @@ namespace Subterra.DevTools
         private static bool PartTempNear(ConfigNode node, TestContext ctx)
         {
             Vessel v = ctx.TrackedVessel;
+            if (v == null)
+            {
+                ctx.Detail = "no vessel";
+                return false;
+            }
+
             double k = node.ArgDouble("k", 250), tol = node.ArgDouble("tol", 5);
             double worst = v.parts.Max(p => Math.Max(Math.Abs(p.skinTemperature - k), Math.Abs(p.temperature - k)));
             ctx.Detail = Invariant($"mean skin {MeanSkinTemp(v):F1} K, worst deviation {worst:F1} K from {k} (rock {UndergroundTracker.For(v).RockTemp:F1} K, sun {v.directSunlight})");
@@ -102,6 +108,12 @@ namespace Subterra.DevTools
         private static bool PartTempSnapshot(ConfigNode node, TestContext ctx)
         {
             Vessel v = ctx.TrackedVessel;
+            if (v == null)
+            {
+                ctx.Detail = "no vessel";
+                return false;
+            }
+
             TempSnapshots[node.RequireArg("name")] = MeanSkinTemp(v);
             ctx.Detail = Invariant($"mean skin {MeanSkinTemp(v):F1} K");
             return true;
@@ -111,6 +123,12 @@ namespace Subterra.DevTools
         private static bool PartTempRise(ConfigNode node, TestContext ctx)
         {
             Vessel v = ctx.TrackedVessel;
+            if (v == null)
+            {
+                ctx.Detail = "no vessel";
+                return false;
+            }
+
             if (!TempSnapshots.TryGetValue(node.RequireArg("ref"), out double before))
             {
                 ctx.Detail = "no snapshot";

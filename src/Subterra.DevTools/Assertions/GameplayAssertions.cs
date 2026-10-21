@@ -151,6 +151,12 @@ namespace Subterra.DevTools
         private static bool AbundanceRatio(ConfigNode node, TestContext ctx)
         {
             Vessel v = ctx.TrackedVessel;
+            if (v == null || ResourceMap.Instance == null)
+            {
+                ctx.Detail = "no vessel or resource map";
+                return false;
+            }
+
             string resource = node.Arg("resource", "Ore");
             double inside = Abundance(v, resource, v.altitude), surface = Abundance(v, resource, 0);
             double expected = node.ArgDouble("ratio", 1);
@@ -162,6 +168,12 @@ namespace Subterra.DevTools
         private static bool AbundanceAtLeast(ConfigNode node, TestContext ctx)
         {
             Vessel v = ctx.TrackedVessel;
+            if (v == null || ResourceMap.Instance == null)
+            {
+                ctx.Detail = "no vessel or resource map";
+                return false;
+            }
+
             string resource = node.Arg("resource", "Water");
             double value = Abundance(v, resource, v.altitude);
             ctx.Detail = Invariant($"{resource} {value:F4}");

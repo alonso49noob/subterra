@@ -11,6 +11,7 @@ namespace Subterra.DevTools
         {
             StepRegistry.RegisterAssertion("chunkCount", ChunkCount);
             StepRegistry.RegisterAssertion("colliderBelow", ColliderBelow);
+            StepRegistry.RegisterAssertion("packedOrColliderBelow", PackedOrColliderBelow);
         }
 
         // chunkCount min = 1 — visible cave chunks.
@@ -26,6 +27,20 @@ namespace Subterra.DevTools
 
             ctx.Detail = $"{streamer.ActiveChunks} visible, {streamer.CachedChunks} cached ({streamer.CachedBytes / 1024} KiB), {streamer.PendingJobs} meshing";
             return streamer.ActiveChunks >= min;
+        }
+
+        // packedOrColliderBelow maxDist = 8 — the load guard's invariant: the tracked vessel is either still
+        // on rails or has a cave collider under it.
+        private static bool PackedOrColliderBelow(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = ctx.TrackedVessel;
+            if (vessel != null && vessel.packed)
+            {
+                ctx.Detail = "packed";
+                return true;
+            }
+
+            return ColliderBelow(node, ctx);
         }
 
         // colliderBelow maxDist = 8 — a layer-15 raycast straight down from the tracked vessel hits a cave chunk within maxDist.
