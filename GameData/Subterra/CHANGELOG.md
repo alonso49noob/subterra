@@ -13,5 +13,6 @@ First release: the core plugin and the lava tubes of the Mun.
 - Cave biomes for science (x1.5, x2 at named sites), richer Ore in the tubes (and water ice with
   CommunityResourcePack), discovery messages and waypoints, SCANsat anomalies for the named sites.
 - Props in the caves: breakdown boulders, rubble, lavacicles, pahoehoe slabs, ice crystals.
+- With Kerbalism: caves shelter crews from radiation (by depth and sky visibility).
 - Debug window: Alt+Shift+U.
 - English and Spanish.

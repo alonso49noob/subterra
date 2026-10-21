@@ -29,7 +29,9 @@ param(
     [switch]$NoBuild,
     [int]$TimeoutMin = 15,
     # Development cfgs from tests\ksp\cfg to load (base names; 'none' loads none). M0 spikes use none.
-    [string[]]$Cfg = @('*')
+    [string[]]$Cfg = @('*'),
+    # Install Subterra from this folder (an unpacked release zip's GameData\Subterra) instead of the repo.
+    [string]$ModSource = ''
 )
 
 Set-StrictMode -Version 2.0
@@ -206,7 +208,12 @@ if (-not $NoBuild) {
     & dotnet build (Join-Path $RepoRoot 'Subterra.sln') -c Release -nologo
     if ($LASTEXITCODE -ne 0) { throw "dotnet build failed ($LASTEXITCODE)" }
 }
-$ModSource = Join-Path $RepoRoot 'GameData\Subterra'
+if (-not $ModSource) {
+    $ModSource = Join-Path $RepoRoot 'GameData\Subterra'
+}
+elseif (-not (Test-Path -LiteralPath (Join-Path $ModSource 'Plugins\Subterra.dll'))) {
+    throw "No Plugins\Subterra.dll under -ModSource '$ModSource'"
+}
 $DevToolsSource = Join-Path $RepoRoot 'build\DevTools\Subterra.DevTools'
 foreach ($dll in @("$ModSource\Plugins\Subterra.dll", "$DevToolsSource\Plugins\Subterra.DevTools.dll")) {
     if (-not (Test-Path -LiteralPath $dll)) { throw "Missing build output $dll (run without -NoBuild)" }
