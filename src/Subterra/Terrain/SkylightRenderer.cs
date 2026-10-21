@@ -334,8 +334,10 @@ namespace Subterra
         // vertices tens of metres apart), not the analytic height, which can be centimetres to decimetres off and
         // would push wheels up. Points over the cut (no terrain left there) keep the analytic height.
         // Returns the mean colour the terrain has there (its vertex colours, which tint its textures), or null if none was hit.
-        private Color? FitToTerrainMesh(List<Vec3> planar, float[] heights, Vec3d centre, Vec3d up)
+        private Color? FitToTerrainMesh(List<Vec3> planar, float[] heights, Vec3d centre, Vec3d up, Entry e)
         {
+            float?[] before = e.GroundHeights != null && e.GroundHeights.Length == planar.Count ? e.GroundHeights : null;
+            var found = new float?[planar.Count];
             var meshes = new Dictionary<Mesh, (Color[] colours, int[] triangles)>();
             Color sum = Color.clear;
             int count = 0;
@@ -358,6 +360,7 @@ namespace Subterra
                 if (nearest is RaycastHit h)
                 {
                     heights[i] = (float)Vec3d.Dot(Frames.ToBody(body, h.point) - centre, up);
+                    found[i] = heights[i];
                     if (h.collider is MeshCollider mc && mc.sharedMesh != null && mc.sharedMesh.isReadable && h.triangleIndex >= 0)
                     {
                         if (!meshes.TryGetValue(mc.sharedMesh, out var m))
@@ -377,7 +380,23 @@ namespace Subterra
                 }
             }
 
-            return count > 0 ? sum / count : (Color?)null;
+            // Where the ground is cut now, the height it had (same layout: the rim keeps its surface under the wheels).
+            for (int i = 0; i < found.Length; i++)
+            {
+                if (found[i] == null && before?[i] is float kept)
+                {
+                    heights[i] = kept;
+                    found[i] = kept;
+                }
+            }
+
+            e.GroundHeights = found;
+            if (count > 0)
+            {
+                e.GroundColour = sum / count;
+            }
+
+            return e.GroundColour;
         }
 
         // The solid part of a dug mouth's rim: all but the curtains (a vehicle drives out over them). Its heights follow
@@ -425,7 +444,7 @@ namespace Subterra
         /// <summary>
         /// Steadies the landed vessels near a mouth whose ground was just cut, for half a second: their wheels go from
         /// the terrain's collider to the rim's in one frame, and the suspension takes that as a bump (a rover was thrown
-        /// up at 3 m/s). Upward speed is taken off and spin damped meanwhile.
+        /// up at 3 m/s). Upward speed is taken off, sliding and spin damped meanwhile.
         /// </summary>
         public void Settle(Vec3d centre, float radius)
         {
@@ -461,11 +480,10 @@ namespace Subterra
                         continue;
                     }
 
+                    // No rising, and sliding damped (a parked vehicle stays parked).
                     float rise = Vector3.Dot(rb.velocity, up);
-                    if (rise > 0)
-                    {
-                        rb.velocity -= up * rise;
-                    }
+                    Vector3 slide = rb.velocity - up * rise;
+                    rb.velocity = slide * 0.8f + up * Mathf.Min(0, rise);
 
                     rb.angularVelocity *= 0.7f;
                 }
@@ -576,7 +594,7 @@ namespace Subterra
             }
 
             // Every rim follows the terrain as built where it is not cut (no terrain showing through it), and takes its colour.
-            Color? ground = FitToTerrainMesh(planar, heights, centre, up);
+            Color? ground = FitToTerrainMesh(planar, heights, centre, up, e);
 
             MeshData data = RimBuilder.Build(radii, segments, heights, Hash.Combine(Hash.Of(e.Net.Id), (ulong)e.Skylight.Index), e.Skylight.Smooth);
             if (e.Skylight.Smooth)
@@ -667,6 +685,12 @@ namespace Subterra
             public float CapHeight;
             public bool Building;
             public bool Cancelled;
+
+            // The heights the last build found on the terrain (null where there was none), for a rebuild once the
+            // ground under it is cut: the rim keeps the same surface under the wheels.
+            public float?[] GroundHeights;
+
+            public Color? GroundColour;
         }
     }
 }

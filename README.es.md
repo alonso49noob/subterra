@@ -19,8 +19,10 @@ largo que se pueden explorar con módulos de aterrizaje, róveres y kerbals en E
   días abrasadores).
 - **Juego**: biomas de cueva para la ciencia (x1,5; sitios con nombre x2), más mineral (Ore) en los tubos (hielo de agua
   con CommunityResourcePack), aviso y waypoints al descubrir una red, anomalías de SCANsat en los sitios con nombre.
-- **Decorado**: bloques de derrumbe, conos de escombros bajo los tragaluces, estalactitas de lava, losas de lava cordada,
+- **Decorado**: bloques de derrumbe agrupados, conos de escombros bajo los tragaluces, estalactitas de lava,
   cristales de hielo.
+- **Perforación y excavación** (0.2): una barrena que atraviesa las capas de roca (testigos, bolsas de gas, perfil
+  del pozo), una bomba de pozo, un topo que cava túneles transitables que se unen a las cuevas, y voladuras.
 
 ## Requisitos
 

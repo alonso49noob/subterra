@@ -18,7 +18,9 @@ landers, rovers and kerbals on EVA can explore.
   baking days).
 - **Gameplay**: cave biomes for science (x1.5, named sites x2), richer Ore in the tubes (water ice with
   CommunityResourcePack), a message and waypoints when you discover a network, SCANsat anomalies for named sites.
-- **Props**: breakdown boulders, rubble cones under the skylights, lavacicles, pahoehoe slabs, ice crystals.
+- **Props**: breakdown boulders in clusters, rubble cones under the skylights, lavacicles, ice crystals.
+- **Drilling and digging** (0.2): a core drill that bores through the rock layers (core samples, gas pockets, a
+  hole profile), a well pump, a tunnel borer that digs drivable tunnels joining the caves, and blast holes.
 
 ## Requirements
 
