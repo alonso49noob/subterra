@@ -65,10 +65,17 @@ namespace Subterra
                     return;
                 }
 
-                int[] indices = Ensure(runtime.Body.pqsController).AddHoles(added);
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                PQSMod_SubterraSkylight mod = Ensure(runtime.Body.pqsController);
+                int[] indices = mod.AddHoles(added);
                 for (int i = 0; i < keys.Count; i++)
                 {
                     HoleIndex[keys[i]] = indices[i];
+                }
+
+                if (watch.Elapsed.TotalMilliseconds > 5)
+                {
+                    Log.Info($"Skylights: {added.Count} added on {runtime.Body.bodyName} ({mod.HoleCount} total, {mod.CutQuads} quads cut) in {watch.Elapsed.TotalMilliseconds:F1} ms");
                 }
             }
         }

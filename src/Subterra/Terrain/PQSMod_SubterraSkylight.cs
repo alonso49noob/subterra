@@ -37,17 +37,21 @@ namespace Subterra
         public int[] AddHoles(IList<(Vector3d centre, Vector3 up, float radius)> added)
         {
             var indices = new int[added.Count];
+            var fresh = new List<Hole>(added.Count);
             for (int i = 0; i < added.Count; i++)
             {
-                holes.Add(new Hole { Centre = added[i].centre, Up = added[i].up.normalized, Radius = added[i].radius, Quads = new HashSet<PQ>() });
+                var hole = new Hole { Centre = added[i].centre, Up = added[i].up.normalized, Radius = added[i].radius, Quads = new HashSet<PQ>() };
+                holes.Add(hole);
+                fresh.Add(hole);
                 indices[i] = holes.Count - 1;
             }
 
+            // Built quads are already cut by the older holes: only the new ones are tested.
             if (sphere != null && sphere.quads != null)
             {
                 foreach (PQ root in sphere.quads)
                 {
-                    CutTree(root);
+                    CutTree(root, fresh);
                 }
             }
 
@@ -77,7 +81,7 @@ namespace Subterra
         {
             using (SubterraClock.Measure("PqsHole"))
             {
-                Cut(quad);
+                Cut(quad, holes);
             }
         }
 
@@ -98,12 +102,12 @@ namespace Subterra
                 Recuts++;
                 using (SubterraClock.Measure("PqsHole"))
                 {
-                    Cut(quad);
+                    Cut(quad, holes);
                 }
             }
         }
 
-        private void CutTree(PQ quad)
+        private void CutTree(PQ quad, List<Hole> subset)
         {
             if (quad == null)
             {
@@ -114,33 +118,44 @@ namespace Subterra
             {
                 foreach (PQ child in quad.subNodes)
                 {
-                    CutTree(child);
+                    CutTree(child, subset);
                 }
             }
 
             if (quad.isBuilt && quad.mesh != null)
             {
-                Cut(quad);
+                Cut(quad, subset);
             }
         }
 
-        private void Cut(PQ quad)
+        private void Cut(PQ quad, List<Hole> subset)
         {
             Mesh mesh = quad.mesh;
-            if (mesh == null || holes.Count == 0 || quad.subdivision < sphere.maxLevel)
+            if (mesh == null || subset.Count == 0 || quad.subdivision < sphere.maxLevel)
             {
                 return;
             }
 
             Bounds bounds = mesh.bounds;
+            float reach = CutReach;
+
+            // Coarse test in sphere coordinates first (one transform per quad, not two per hole).
+            Vector3d quadCentre = sphere.transform.InverseTransformPoint(quad.transform.TransformPoint(bounds.center));
+            double quadRadius = bounds.extents.magnitude;
             Vector3[] v = null;
             int[] t = null;
             bool changed = false;
-            foreach (Hole hole in holes)
+            foreach (Hole hole in subset)
             {
+                double near = quadRadius + hole.Radius + reach;
+                if ((hole.Centre - quadCentre).sqrMagnitude > near * near)
+                {
+                    continue;
+                }
+
                 Vector3 c = quad.transform.InverseTransformPoint(sphere.transform.TransformPoint(hole.Centre));
-                float reach = hole.Radius + CutReach;
-                if (bounds.SqrDistance(c) > reach * reach)
+                float holeReach = hole.Radius + reach;
+                if (bounds.SqrDistance(c) > holeReach * holeReach)
                 {
                     continue;
                 }
