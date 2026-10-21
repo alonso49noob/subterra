@@ -82,6 +82,19 @@ SUBTERRA_BODY
             Assert.Empty(r.Warnings);
         }
 
+        [Fact]
+        public void ParsesLayerYieldsAndGas()
+        {
+            var r = ParseText("SUBTERRA_BODY\n{\n body = Eve\n STRATA\n {\n  LAYER\n  {\n   name = Aquifer\n   top = 100\n   bottom = 800\n" +
+                "   gasChance = 0.3\n   gasResource = Explodium\n   YIELD\n   {\n    resource = Explodium\n    rate = 0.05\n   }\n   YIELD\n   {\n    resource = Water\n   }\n  }\n }\n}");
+            LayerSpec layer = r.Value.Strata.Single();
+            Assert.Equal(0.05, layer.Yields["Explodium"]);
+            Assert.False(layer.Yields.ContainsKey("Water"));
+            Assert.Equal(0.3, layer.GasChance);
+            Assert.Equal("Explodium", layer.GasResource);
+            Assert.Contains(r.Warnings, w => w.Contains("YIELD"));
+        }
+
         // The Mun.cfg that ships (Task 36): four named sites, each starting at a skylight, one field, no warnings.
         [Fact]
         public void ParsesShippedMun()

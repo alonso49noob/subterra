@@ -66,9 +66,14 @@ namespace Subterra
 
         private static void Discover(Vessel vessel, UndergroundState state)
         {
-            TubeNetwork net = state.Net;
-            SubterraScenario.Instance.Visit(net.Id, state.Zone.Kind.ToString());
-            if (SubterraScenario.Instance.IsDiscovered(net.Id))
+            SubterraScenario.Instance.Visit(state.Net.Id, state.Zone.Kind.ToString());
+            DiscoverNetwork(vessel, state.Net);
+        }
+
+        /// <summary>Discovers <paramref name="net"/> for <paramref name="vessel"/> (entered, or reached by a drill); no-op if known.</summary>
+        internal static void DiscoverNetwork(Vessel vessel, TubeNetwork net)
+        {
+            if (SubterraScenario.Instance == null || SubterraScenario.Instance.IsDiscovered(net.Id))
             {
                 return;
             }

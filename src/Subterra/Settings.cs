@@ -31,6 +31,10 @@ namespace Subterra
         public float CapMinDistance = 1500;
         public bool Waypoints = true;
         public bool Debug;
+        public float DigSpeed = 1;
+        public bool Excavation = true;
+        public int MaxTunnelSegments = 5000;
+        public float VoidStrengthMPa = 150;
         public HashSet<string> DisabledBodies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> DisabledPatches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -49,6 +53,10 @@ namespace Subterra
                 settings.CapMinDistance = (float)Read(n, "capMinDistance", settings.CapMinDistance);
                 settings.Waypoints = ReadBool(n, "waypoints", settings.Waypoints);
                 settings.Debug = ReadBool(n, "debug", settings.Debug);
+                settings.DigSpeed = (float)Math.Max(0, Read(n, "digSpeed", settings.DigSpeed));
+                settings.Excavation = ReadBool(n, "excavation", settings.Excavation);
+                settings.MaxTunnelSegments = (int)Math.Max(0, Read(n, "maxTunnelSegments", settings.MaxTunnelSegments));
+                settings.VoidStrengthMPa = (float)Math.Max(1, Read(n, "voidStrengthMPa", settings.VoidStrengthMPa));
                 foreach (string body in Split(n.GetValue("disabledBodies")))
                 {
                     settings.DisabledBodies.Add(body);

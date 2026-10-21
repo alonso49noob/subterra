@@ -183,6 +183,22 @@ namespace Subterra.Core.Config
                 }
             }
 
+            foreach (CfgNode y in node.GetNodes("YIELD"))
+            {
+                string resource = y.GetValue("resource")?.Trim();
+                double rate = r.Double(y, "rate", 0);
+                if (string.IsNullOrEmpty(resource) || rate <= 0)
+                {
+                    r.Warn("YIELD needs a resource and a rate > 0; skipped");
+                    continue;
+                }
+
+                layer.Yields[resource] = rate;
+            }
+
+            layer.GasChance = Math.Max(0, Math.Min(1, r.Double(node, "gasChance", 0)));
+            layer.GasResource = node.GetValue("gasResource")?.Trim();
+
             if (!(layer.Bottom > layer.Top) || layer.Top < 0)
             {
                 r.Warn($"needs 0 <= top < bottom (top {Inv(layer.Top)}, bottom {Inv(layer.Bottom)}); layer skipped");
