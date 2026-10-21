@@ -178,12 +178,26 @@ namespace Subterra
             Vec3d headBody = Frames.ToBody(body, head);
             Vec3d up = headBody.Normalized;
             Vec3d dir = (Frames.ToBody(body, head + dirWorld) - headBody).Normalized;
-            double slope = Math.Asin(Math.Max(-1, Math.Min(1, Vec3d.Dot(dir, up)))) * 180 / Math.PI;
-            if (Math.Abs(slope) > maxSlope)
+
+            // The tunnel goes the way the arm points over the ground, at most maxSlope up or down. However the part
+            // is mounted (an arm pointing straight down said "too steep" on flat ground), it digs: an arm nearly
+            // vertical digs ahead of the vessel.
+            Vec3d level = dir - up * Vec3d.Dot(dir, up);
+            if (level.Length < 0.2)
+            {
+                Vec3d forward = Frames.ToBody(body, vessel.transform.position + (Vector3d)vessel.ReferenceTransform.up) - Frames.ToBody(body, vessel.transform.position);
+                level = forward - up * Vec3d.Dot(forward, up);
+            }
+
+            if (level.Length < 1e-6)
             {
                 uiStatus = Localizer.Format("#Subterra_Borer_TooSteep");
                 return;
             }
+
+            double slope = Math.Asin(Math.Max(-1, Math.Min(1, Vec3d.Dot(dir, up)))) * 180 / Math.PI;
+            slope = Math.Max(-maxSlope, Math.Min(maxSlope, slope));
+            dir = (level.Normalized * Math.Cos(slope * Math.PI / 180) + up * Math.Sin(slope * Math.PI / 180)).Normalized;
 
             // The tunnel's floor centre under the head.
             Vec3d floor = headBody - up * radius;
