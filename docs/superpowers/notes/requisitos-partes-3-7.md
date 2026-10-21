@@ -244,6 +244,21 @@ Sí, por niveles de dificultad:
    - Ideas: impactos en el océano → tsunamis (parte 5); polvo en la atmósfera; ciencia de impacto.
    - Integración: AD limita la masa física a 10⁶ t; Subterra debe leer la masa real de AD (`spec.mass`, en
      el módulo `ModuleAsteroidalDetail`), como dependencia opcional.
+   **Explosivos útiles sin destruir tus naves (pregunta de Lucas):** "perforar y volar", como en la minería real:
+   - las cargas se meten en barrenos hechos con la Barrena; enterradas empujan la roca hacia el frente libre y
+     apenas lanzan nada fuera (una carga en la superficie hace un cráter y lanza escombros);
+   - radio de peligro con la ley de escala de Hopkinson-Cranz (Z = R / W^(1/3)): zonas de destrucción, daño
+     (calor y empuje) y segura; el confinamiento en roca lo reduce mucho; en un túnel la onda va por el túnel;
+   - al armar: anillo de peligro dibujado en el mundo y lista de naves y kerbals dentro; temporizador o
+     detonación remota; aviso si algo queda en la zona de destrucción;
+   - para qué: salas de 8–15 m en segundos (bases, el último tramo a una sala sellada), forma irregular con
+     escombros, consumible; la tuneladora queda para túneles largos y limpios;
+   - técnica: la misma edición persistente de la roca que los túneles y los cráteres; daño a piezas por calor y
+     fuerza dentro del radio; efecto visual de explosión de stock.
+   - **Desplegados por la Barrena en un barreno vertical, repartidos de forma eficiente** (pedido de Lucas):
+     carga por capa según su dureza, nada donde el pozo cruza una cueva, cargas espaciadas, retacado arriba y
+     detonación escalonada de abajo arriba. Abre un pozo vertical; si llega a una cueva, un tragaluz nuevo.
+     Diseño en la spec del sub-proyecto 2, §7.4 (fase E).
 3. **Destruir** (cráteres por explosión o impacto): posible con el mismo mecanismo, pero es lo más caro
    (detectar impactos, rendimiento, compatibilidad). Lo último.
 

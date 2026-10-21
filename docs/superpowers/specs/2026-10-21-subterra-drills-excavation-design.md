@@ -84,7 +84,7 @@ Valores (todos en el cfg de la pieza, `MODULE` propios):
 
 ## 6. Bombeo
 
-- Campo opcional de capa `yield` por recurso: `RESOURCE { name = Water rate = 0.02 }` (unidades/s).
+- Nodos opcionales de capa `YIELD { resource = Water rate = 0.02 }` (unidades/s).
 - La bomba extrae del pozo de una Barrena de la misma nave cuya capa actual tenga `yield`. Con varias, la más profunda.
 - Agua: solo con CRP (el recurso `Water` debe existir). Explodium: definido por Subterra (`RESOURCE_DEFINITION`,
   densidad 0,005, inflamable).
@@ -116,6 +116,25 @@ Valores (todos en el cfg de la pieza, `MODULE` propios):
   lo usan como cortador); se vuelven a mallar en los hilos de trabajo.
 - El trozo viejo sigue visible y con colisión hasta que el nuevo está listo (el streamer ya lo hace al reemplazar).
 - El frente del túnel es una tapa redondeada: siempre hay pared delante del rover.
+
+### 7.4 Voladura por barrenos (idea de Lucas, fase E)
+
+La Barrena también sirve para volar roca, como en la minería real:
+
+1. **Barreno:** el pozo estrecho de la Barrena (§4).
+2. **Carga automática a lo largo del pozo**, según el "factor de carga" (kg/m³) de cada capa:
+   - más carga en capas duras y densas, menos en blandas;
+   - sin carga donde el pozo cruza un hueco (cueva o túnel);
+   - cargas espaciadas con tramos inertes entre ellas;
+   - retacado arriba (un tramo sin carga de ~1 burden) que confina la explosión y casi elimina lo que sale por la boca.
+3. **Detonación escalonada de abajo hacia arriba** (retardos de milisegundos): cada carga rompe hacia el hueco de la
+   anterior; más roca con menos explosivo.
+4. **Resultado:** un pozo abierto de radio según la carga (escala con la raíz cúbica) a lo largo del tramo cargado,
+   como edición persistente de la roca (igual que los túneles). Si llega a una cueva, es un tragaluz nuevo hecho por
+   el jugador.
+5. **Seguridad:** radio de peligro (Hopkinson-Cranz) calculado con la carga más alta y el retacado; anillo dibujado y
+   lista de naves y kerbals dentro antes de detonar; temporizador o detonación remota.
+6. **Recurso:** explosivo como consumible (`Explosive`, en una pieza de carga o en la propia Barrena).
 
 ## 8. Interfaz
 

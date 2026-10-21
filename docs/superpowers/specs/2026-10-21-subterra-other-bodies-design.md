@@ -28,16 +28,17 @@ las **redes fijas para todos** (mismas cuevas en todas las partidas).
 | Cuerpo | Carácter | Profundidad | Sitios con nombre (propuesta) | Campos procedurales |
 |---|---|---|---|---|
 | **Kerbin** | Karst, ríos, cenotes, cuevas marinas, tubos modestos, kimberlita, Naica | hasta 1–2 km (geodas 4–7 km) | Cueva del KSC (rover al empezar), Gran Sala (montañas), Cenotes de la costa, Ruta Verne (volcán dormido → Mar de Lidenbrock → volcán activo), Chimenea de kimberlita | Karst en Highlands/Mountains; cenotes en Grasslands/Shores; tubos en Deserts/Badlands |
-| **Mun** | Tubos de lava (hecho en el sub-proyecto 1) | 50–210 m | Serenity, Gran Galería, Cadena Kerman, Frostvault | MunMaria |
+| **Mun** | Tubos de lava (hecho en el sub-proyecto 1) | 50–210 m | Serenity, Gran Galería, Cadena Kerman, Frostvault | **300–500 redes** (decisión de Lucas): MunMaria más denso + campo nuevo de pozos pequeños en tierras altas |
 | **Minmus** | Cuevas de hielo menta, geodas, bajo los flats | cavernas de cientos de m; geoda central | Geoda Central (sellada, se llega excavando), Galería de los Flats | Hielo en Slopes/Highlands |
-| **Duna** | Tubos de lava como Marte, volcán escudo dormido | 30–200 m | Tubos del Gran Volcán, Cueva de hielo polar (aire atrapado: ciencia del clima) | Tubos en Lowlands/Midlands; domos de sal |
-| **Ike** | Tubos pequeños | 30–100 m | — | Pocos tubos |
+| **Duna** | Análogo de Marte: cadenas de pozos (catenas) sobre tubos, tubos en los flancos de un volcán escudo dormido (como los "Siete Hermanos" de Arsia Mons), cuevas de hielo polar con aire antiguo, alcobas en paredes de cañón, aire fino de CO₂ en las cuevas, refugio de radiación (Kerbalism); lagos bajo el hielo polar en el sub-proyecto 4 | 30–200 m | Catena (fila de pozos), Tubos del Gran Volcán, Cueva de hielo polar, Alcobas del cañón | 500–800 redes (aprobado por Lucas), la mayoría sin tragaluz visible; domos de sal |
+| **Ike** | Rocoso y viejo: tubos antiguos y escasos, fosas tectónicas por las mareas de Duna con cuevas en las paredes, meteorito enterrado | 30–100 m | Fosa de Ike | 30–60 redes |
 | **Eve** | Ríos y acuíferos de explodium, bolsas de gas, domos de sal | 100–800 m | Acuífero de explodium, Domo de sal | Karst de Eve; gas (`gasChance`) |
-| **Gilly** | Nada o una cavidad curiosa | — | — | — |
+| **Gilly** | Asteroide capturado (montón de escombros, ~0 g): huecos entre bloques gigantes para EVA con jetpack; encaja con AsteroidalDetail | decenas de m | Túnel que atraviesa Gilly de lado a lado | Unas pocas cavidades |
 | **Moho** | Tubos de llanuras, hollows, hielo polar, el Mohole | tubos 30–150 m; Mohole: varios km | **El Mohole** (§4.2), Refugio térmico (base subterránea) | Tubos en llanuras; hollows |
 | **Dres** | Análogo de Ceres: cañones con cuevas, salmuera bajo mancha brillante, domo criovolcánico | cuevas 50–300 m; salmuera 10–20 km | Cráter de la mancha brillante, Domo | Cuevas en Canyons |
 | **Laythe** | Tubos en islas volcánicas, cuevas marinas, tubos sumergidos, vida | 20–200 m | Tubo de la isla (tipo Kazumura), Cueva marina con vida | Tubos en islas |
-| **Vall, Tylo, Bop, Pol, Eeloo** | Tylo: gran sistema de cuevas + tubos (el océano bajo él, sub-proyecto 4). Vall/Pol/Eeloo: cuevas de hielo pequeñas (los océanos y lagos, sub-proyecto 4). Bop: fracturas | Tylo: hasta ~1 km | Tylo: Gran Sistema de Tylo | Tylo: tubos y cuevas |
+| **Bop** | Probable cometa capturado: cavernas internas enormes (0,06 g), cuevas de hielo sucio con orgánicos | cientos de m | Caverna central, con un guiño discreto al Kraken de stock (aprobado por Lucas) | Pocas, grandes |
+| **Vall, Tylo, Pol, Eeloo** | Tylo: gran sistema de cuevas + tubos (el océano bajo él, sub-proyecto 4). Vall/Pol/Eeloo: cuevas de hielo pequeñas (los océanos y lagos, sub-proyecto 4) | Tylo: hasta ~1 km | Tylo: Gran Sistema de Tylo | Tylo: tubos y cuevas |
 
 Cada cuerpo con su `STRATA` y `GEOTHERM` (gradiente bajo en Mun/Minmus/Ike, alto en Kerbin/Eve/Laythe/Moho) y
 sus `ENRICHMENT`. Las capas de Kerbin incluyen las "provincias" de Theia (regiones laterales profundas; §5).
