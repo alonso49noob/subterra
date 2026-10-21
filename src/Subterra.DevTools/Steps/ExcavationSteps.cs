@@ -22,6 +22,9 @@ namespace Subterra.DevTools
             StepRegistry.Register("teleportIntoTunnel", TeleportIntoTunnel);
             StepRegistry.RegisterAssertion("resourceAtLeast", ResourceAtLeast);
             StepRegistry.RegisterAssertion("partExists", PartExists);
+            StepRegistry.RegisterAssertion("objectExists", ObjectExists);
+            StepRegistry.RegisterAssertion("objectGone", ObjectGone);
+            StepRegistry.RegisterAssertion("componentExists", ComponentExists);
             StepRegistry.RegisterAssertion("drillDepthAtLeast", DrillDepthAtLeast);
             StepRegistry.RegisterAssertion("drillLayer", DrillLayer);
             StepRegistry.RegisterAssertion("coreSample", CoreSample);
@@ -95,6 +98,29 @@ namespace Subterra.DevTools
             vessel.UpdateResourceSets();
             yield return null;
             ctx.Pass($"{name} tank on {vessel.rootPart.partInfo.title}");
+        }
+
+        // objectExists prefix = SubterraBlastRings — a live GameObject whose name starts with that.
+        private static bool ObjectExists(ConfigNode node, TestContext ctx) => CountObjects(node, ctx) > 0;
+
+        // objectGone prefix = SubterraBlastRings — no live GameObject whose name starts with that.
+        private static bool ObjectGone(ConfigNode node, TestContext ctx) => CountObjects(node, ctx) == 0;
+
+        private static int CountObjects(ConfigNode node, TestContext ctx)
+        {
+            string prefix = node.RequireArg("prefix");
+            int count = UnityEngine.Object.FindObjectsOfType<Transform>().Count(t => t.name.StartsWith(prefix, StringComparison.Ordinal));
+            ctx.Detail = $"{count} object(s) named {prefix}*";
+            return count;
+        }
+
+        // componentExists type = ProfileWindow — a live component of that type (simple name).
+        private static bool ComponentExists(ConfigNode node, TestContext ctx)
+        {
+            string type = node.RequireArg("type");
+            int count = UnityEngine.Object.FindObjectsOfType<MonoBehaviour>().Count(b => b.GetType().Name == type);
+            ctx.Detail = $"{count} {type}";
+            return count > 0;
         }
 
         // resourceAtLeast name = Water min = 0.1 — the tracked vessel holds at least that much.

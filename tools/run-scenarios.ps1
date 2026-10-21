@@ -22,6 +22,8 @@ param(
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $ExpectedToFail = @('m0-underground-control')
 $WithoutDevCfg = @('release-smoke')
+# Optional development cfgs (tests\ksp\cfg\optional) some scenarios need on top of the usual ones.
+$ExtraCfg = @{ 'gas' = 'DevGas' }
 
 if ($Build) {
     & dotnet build (Join-Path $RepoRoot 'Subterra.sln') -c Release -nologo | Out-Null
@@ -32,7 +34,8 @@ $summary = @()
 $allGood = $true
 foreach ($scenario in ($Scenarios -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {
     $log = Join-Path $RepoRoot "build-$scenario-$Profile.log"
-    $cfgArgs = if ($scenario -like 'm0-*' -or $WithoutDevCfg -contains $scenario) { @('-Cfg', 'none') } else { @() }
+    $cfgArgs = if ($scenario -like 'm0-*' -or $WithoutDevCfg -contains $scenario) { @('-Cfg', 'none') }
+        elseif ($ExtraCfg.ContainsKey($scenario)) { @('-Cfg', "*,$($ExtraCfg[$scenario])") } else { @() }
     try {
         & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'test-ksp.ps1') -Scenario $scenario -Profile $Profile -NoBuild -TimeoutMin $TimeoutMin @cfgArgs 2>&1 |
             Out-File -FilePath $log -Encoding utf8

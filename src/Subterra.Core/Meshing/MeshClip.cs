@@ -1,4 +1,5 @@
 using System;
+using Subterra.Core.Model;
 using Subterra.Core.Numerics;
 using Subterra.Core.Tubes;
 
@@ -11,6 +12,9 @@ namespace Subterra.Core.Meshing
     /// </summary>
     public static class MeshClip
     {
+        /// <summary>Clip depth (m) for the walls of dug tunnels.</summary>
+        public const float DugBelow = 0.05f;
+
         /// <summary>
         /// Clips the mesh <paramref name="below"/> m under the terrain: triangles wholly above that level are
         /// removed, and the vertices above it of the triangles crossing it are pulled down onto it (a clean
@@ -23,11 +27,24 @@ namespace Subterra.Core.Meshing
                 return mesh;
             }
 
-            // Metres each vertex is over the clip level (≤ 0: under it).
+            // Metres each vertex is over the clip level (≤ 0: under it). Dug tunnels are clipped just under the ground (their
+            // terrain is sampled every 2 m, and a ramp must start level with it); natural shafts 1 m under (rims hide them).
             var over = new float[mesh.Vertices.Count];
             for (int i = 0; i < over.Length; i++)
             {
-                over[i] = (float)net.AboveSurface(mesh.Vertices[i]) + below;
+                Vec3 v = mesh.Vertices[i];
+                double above = net.AboveSurface(v);
+                float level = below;
+                if (above > -below - 1)
+                {
+                    int nearest = net.Sdf.NearestPrimitive(v);
+                    if (nearest >= 0 && net.Primitives[nearest].Zone == ZoneKind.Excavation)
+                    {
+                        level = DugBelow;
+                    }
+                }
+
+                over[i] = (float)above + level;
             }
 
             var result = new MeshData();

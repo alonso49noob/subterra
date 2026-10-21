@@ -28,7 +28,8 @@ param(
     [Parameter(Mandatory = $true)][string]$Profile,
     [switch]$NoBuild,
     [int]$TimeoutMin = 15,
-    # Development cfgs from tests\ksp\cfg to load (base names; 'none' loads none). M0 spikes use none.
+    # Development cfgs from tests\ksp\cfg to load (base names, also comma-separated; 'none' loads none; '*' all of
+    # tests\ksp\cfg but none of tests\ksp\cfg\optional, which load only by name). M0 spikes use none.
     [string[]]$Cfg = @('*'),
     # Install Subterra from this folder (an unpacked release zip's GameData\Subterra) instead of the repo.
     [string]$ModSource = '',
@@ -81,6 +82,7 @@ $SettingsOverrides = [ordered]@{
 }
 if ($KeepOpen) { $SettingsOverrides['MASTER_VOLUME'] = '0.6' }
 
+$Cfg = @($Cfg | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Utf8NoBom = New-Object System.Text.UTF8Encoding $false
 
@@ -313,6 +315,12 @@ $cfgDir = Join-Path $RepoRoot 'tests\ksp\cfg'
 if (Test-Path -LiteralPath $cfgDir) {
     Get-ChildItem -LiteralPath $cfgDir -Filter '*.cfg' -File |
         Where-Object { $Cfg -contains '*' -or $Cfg -contains $_.BaseName } |
+        Copy-Item -Destination $DevToolsDir -Force
+}
+$optionalDir = Join-Path $cfgDir 'optional'
+if (Test-Path -LiteralPath $optionalDir) {
+    Get-ChildItem -LiteralPath $optionalDir -Filter '*.cfg' -File |
+        Where-Object { $Cfg -contains $_.BaseName } |
         Copy-Item -Destination $DevToolsDir -Force
 }
 $PluginData = Join-Path $DevToolsDir 'PluginData'

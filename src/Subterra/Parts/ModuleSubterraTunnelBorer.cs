@@ -201,7 +201,7 @@ namespace Subterra
             if (Math.Abs(ground - start.Length) < radius + 2)
             {
                 // From the surface (not from a cave floor, far under it).
-                start = start.Normalized * (ground - 0.3);
+                start = start.Normalized * (ground - 0.1);
             }
             Vec3d face = tunnel == null ? start : tunnel.ToBody(tunnel.Points[tunnel.Points.Count - 1]);
             if (tunnel != null && Vec3d.Dot(face - floor, dir) > radius + StartMargin + Reach)

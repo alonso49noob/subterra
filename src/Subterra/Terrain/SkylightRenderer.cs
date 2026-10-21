@@ -201,83 +201,133 @@ namespace Subterra
             }
         }
 
-        // A tunnel mouth's rim with its triangles over the tunnel removed (where the void reaches the ground): the
-        // trench stays open where it has been dug, and the rest of the cut ground stays closed (no sky through it).
+        // A tunnel mouth's rim opened over the tunnel: cut along the line where the tunnel meets the ground (the
+        // triangles crossing it are clipped there, marching-triangles style), so the edge is smooth, and a short wall
+        // hangs from that edge. The rest of the cut ground stays closed (no sky through it).
         private static MeshData OpenOverTunnel(MeshData rim, Entry e)
         {
+            var d = new float[rim.Vertices.Count];
+            for (int i = 0; i < d.Length; i++)
+            {
+                d[i] = UnderRim(rim.Vertices[i], e);
+            }
+
             var open = new MeshData();
             open.Vertices.AddRange(rim.Vertices);
             open.Normals.AddRange(rim.Normals);
             open.Uvs.AddRange(rim.Uvs);
-            var removed = new HashSet<(int, int)>();
+            var cuts = new Dictionary<(int, int), int>();
+            var edge = new List<(Vec3 a, Vec3 b, Vec3 hole)>();
+            var kept = new List<int>(4);
             for (int i = 0; i + 2 < rim.Triangles.Count; i += 3)
             {
-                // Open only where all three corners are over the void, tested under the clip level of the cave mesh
-                // (1 m): the rim overhangs the clipped walls a little (no sky between them).
-                if (OverVoid(rim.Vertices[rim.Triangles[i]], e) && OverVoid(rim.Vertices[rim.Triangles[i + 1]], e) && OverVoid(rim.Vertices[rim.Triangles[i + 2]], e))
+                int a = rim.Triangles[i], b = rim.Triangles[i + 1], c = rim.Triangles[i + 2];
+                int over = (d[a] < 0 ? 1 : 0) + (d[b] < 0 ? 1 : 0) + (d[c] < 0 ? 1 : 0);
+                if (over == 0)
                 {
-                    removed.Add(Edge(rim.Triangles[i], rim.Triangles[i + 1]));
-                    removed.Add(Edge(rim.Triangles[i + 1], rim.Triangles[i + 2]));
-                    removed.Add(Edge(rim.Triangles[i + 2], rim.Triangles[i]));
+                    open.Triangles.AddRange(new[] { a, b, c });
                     continue;
                 }
 
-                open.Triangles.Add(rim.Triangles[i]);
-                open.Triangles.Add(rim.Triangles[i + 1]);
-                open.Triangles.Add(rim.Triangles[i + 2]);
+                if (over == 3)
+                {
+                    continue;
+                }
+
+                // The part of the triangle off the tunnel, in the same winding, and the two points where it is cut.
+                kept.Clear();
+                var cutPoints = new List<int>(2);
+                Vec3 hole = new Vec3(0, 0, 0);
+                int[] corners = { a, b, c };
+                for (int k = 0; k < 3; k++)
+                {
+                    int p = corners[k], q = corners[(k + 1) % 3];
+                    if (d[p] >= 0)
+                    {
+                        kept.Add(p);
+                    }
+                    else
+                    {
+                        hole += rim.Vertices[p] / over;
+                    }
+
+                    if ((d[p] < 0) != (d[q] < 0))
+                    {
+                        int cut = Cut(open, d, cuts, p, q);
+                        kept.Add(cut);
+                        cutPoints.Add(cut);
+                    }
+                }
+
+                for (int k = 1; k + 1 < kept.Count; k++)
+                {
+                    open.Triangles.AddRange(new[] { kept[0], kept[k], kept[k + 1] });
+                }
+
+                edge.Add((open.Vertices[cutPoints[0]], open.Vertices[cutPoints[1]], hole));
             }
 
             open.SkirtTriangleStart = open.Triangles.Count;
-            AddCurtain(open, removed);
+            foreach ((Vec3 p, Vec3 q, Vec3 hole) in edge)
+            {
+                Curtain(open, p, q, hole);
+            }
+
             return open;
+        }
+
+        /// <summary>How far under the rim the tunnel must reach for the ground to open (its walls are clipped just under the ground).</summary>
+        private const float OpenDepth = 0.15f;
+
+        // Signed distance to the void from the point OpenDepth under a rim vertex (< 0: over the tunnel).
+        private static float UnderRim(Vec3 v, Entry e) =>
+            e.Net.Sdf.Distance(e.Skylight.SurfaceCenter + e.Right * v.X + e.Forward * v.Z + e.Up * (v.Y - OpenDepth));
+
+        // The vertex where the edge p–q crosses the tunnel's outline (shared by the two triangles on that edge).
+        private static int Cut(MeshData mesh, float[] d, Dictionary<(int, int), int> cuts, int p, int q)
+        {
+            var key = p < q ? (p, q) : (q, p);
+            if (cuts.TryGetValue(key, out int index))
+            {
+                return index;
+            }
+
+            float t = d[p] / (d[p] - d[q]);
+            index = mesh.Vertices.Count;
+            mesh.Vertices.Add(Vec3.Lerp(mesh.Vertices[p], mesh.Vertices[q], t));
+            mesh.Normals.Add(Vec3.Lerp(mesh.Normals[p], mesh.Normals[q], t).Normalized);
+            mesh.Uvs.Add(new Vec2(mesh.Uvs[p].X + (mesh.Uvs[q].X - mesh.Uvs[p].X) * t, mesh.Uvs[p].Y + (mesh.Uvs[q].Y - mesh.Uvs[p].Y) * t));
+            cuts[key] = index;
+            return index;
         }
 
         /// <summary>Depth (m) of the wall hanging from a dug mouth's edge.</summary>
         private const float CurtainDepth = 2.5f;
 
-        // A wall hanging from the opening's edge, facing into it: looking in at a slant, the eye meets ground there
-        // instead of the back of the tunnel's roof under the rim (not drawn: sky through it).
-        private static void AddCurtain(MeshData open, HashSet<(int, int)> removed)
+        // A wall under the edge p–q, facing the opening (towards hole): looking in at a slant, the eye meets ground there
+        // instead of the back of the tunnel's roof under the rim (not drawn: sky through it). Never solid.
+        private static void Curtain(MeshData mesh, Vec3 p, Vec3 q, Vec3 hole)
         {
-            int count = open.Triangles.Count;
-            for (int i = 0; i < count; i += 3)
-            {
-                int a = open.Triangles[i], b = open.Triangles[i + 1], c = open.Triangles[i + 2];
-                Curtain(open, removed, a, b, c);
-                Curtain(open, removed, b, c, a);
-                Curtain(open, removed, c, a, b);
-            }
-        }
-
-        // One quad under the edge a–b of a kept triangle (third corner c) if that edge borders the opening.
-        private static void Curtain(MeshData mesh, HashSet<(int, int)> removed, int a, int b, int c)
-        {
-            if (!removed.Contains(Edge(a, b)))
-            {
-                return;
-            }
-
-            Vec3 pa = mesh.Vertices[a], pb = mesh.Vertices[b], along = pb - pa;
-            Vec3 inward = mesh.Vertices[c] - pa;
-            inward -= along * (Vec3.Dot(inward, along) / Mathf.Max(1e-6f, along.LengthSquared));
-            Vec3 normal = new Vec3(-inward.X, 0, -inward.Z).Normalized;
+            Vec3 along = q - p;
+            Vec3 toward = hole - p;
+            toward -= along * (Vec3.Dot(toward, along) / Mathf.Max(1e-6f, along.LengthSquared));
+            Vec3 normal = new Vec3(toward.X, 0, toward.Z).Normalized;
             Vec3 drop = new Vec3(0, -CurtainDepth, 0);
             int start = mesh.Vertices.Count;
-            foreach (Vec3 p in new[] { pa, pb, pb + drop, pa + drop })
+            foreach (Vec3 v in new[] { p, q, q + drop, p + drop })
             {
-                mesh.Vertices.Add(p);
+                mesh.Vertices.Add(v);
                 mesh.Normals.Add(normal);
-                mesh.Uvs.Add(new Vec2((p.X + p.Z) / 4f, p.Y / 4f));
+                mesh.Uvs.Add(new Vec2((v.X + v.Z) / 4f, v.Y / 4f));
             }
 
             // Front faces have Cross(v1 - v0, v2 - v0) along their normal.
-            bool flip = Vec3.Dot(Vec3.Cross(pb - pa, drop), normal) < 0;
+            bool flip = Vec3.Dot(Vec3.Cross(q - p, drop), normal) < 0;
             mesh.Triangles.AddRange(flip
                 ? new[] { start, start + 2, start + 1, start, start + 3, start + 2 }
                 : new[] { start, start + 1, start + 2, start, start + 2, start + 3 });
         }
 
-        private static (int, int) Edge(int a, int b) => a < b ? (a, b) : (b, a);
 
 
         // A tunnel mouth's rim is driven on: its heights follow the terrain as built (its collider, flat between
@@ -348,9 +398,6 @@ namespace Subterra
             solid.SkirtTriangleStart = solid.Triangles.Count;
             return solid;
         }
-
-        private static bool OverVoid(Vec3 v, Entry e) =>
-            e.Net.Sdf.Distance(e.Skylight.SurfaceCenter + e.Right * v.X + e.Forward * v.Z + e.Up * (v.Y - 1.2f)) < 0;
 
         // One entry per opening: keyed by its owner (a dug tunnel's mouth keeps its key when the tunnel joins a cave).
         private Entry EntryFor(TubeNetwork net, Skylight s)

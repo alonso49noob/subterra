@@ -13,8 +13,26 @@ namespace Subterra
     public sealed class ProfileWindow : MonoBehaviour
     {
         private ModuleSubterraCoreDrill drill;
-        private Rect window = new Rect(Screen.width * 0.6f, Screen.height * 0.2f, 380, 10);
+        private Rect window = new Rect(Screen.width * 0.6f, Screen.height * 0.2f, 440, 10);
         private Vector2 scroll;
+        private bool uiHidden;
+
+        // F2 hides the UI: this window too.
+        private void Awake()
+        {
+            GameEvents.onHideUI.Add(OnHideUI);
+            GameEvents.onShowUI.Add(OnShowUI);
+        }
+
+        private void OnDestroy()
+        {
+            GameEvents.onHideUI.Remove(OnHideUI);
+            GameEvents.onShowUI.Remove(OnShowUI);
+        }
+
+        private void OnHideUI() => uiHidden = true;
+
+        private void OnShowUI() => uiHidden = false;
 
         public static void Toggle(ModuleSubterraCoreDrill drill)
         {
@@ -36,7 +54,12 @@ namespace Subterra
                 return;
             }
 
-            window = GUILayout.Window(GetInstanceID(), window, Draw, Localizer.Format("#Subterra_Profile_Title"), GUILayout.Width(380));
+            if (uiHidden)
+            {
+                return;
+            }
+
+            window = GUILayout.Window(GetInstanceID(), window, Draw, Localizer.Format("#Subterra_Profile_Title"), GUILayout.Width(440));
         }
 
         private void Draw(int id)
