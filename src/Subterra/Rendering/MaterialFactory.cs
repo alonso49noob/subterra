@@ -87,6 +87,26 @@ namespace Subterra
         /// <summary>Terrain vertex colour to rim tint (calibrated on the Mun against the terrain next to a rim).</summary>
         private const float GroundScale = 1.2f;
 
+        /// <summary>A copy of the body's terrain material (its own shader, textures and tiling), for meshes that stand in for
+        /// the terrain and carry its vertex colours; null if the body has no PQS material.</summary>
+        public static Material TerrainClone(CelestialBody body)
+        {
+            Material terrain = body?.pqsController?.surfaceMaterial;
+            if (terrain == null)
+            {
+                return null;
+            }
+
+            string key = body.bodyName + "/#terrain";
+            if (!ByLayer.TryGetValue(key, out Material material) || material == null)
+            {
+                material = new Material(terrain) { name = "Subterra terrain " + body.bodyName };
+                ByLayer[key] = material;
+            }
+
+            return material;
+        }
+
         /// <summary>Geode crystals: pale violet, glossy (they catch a lamp's light), on the procedural ice textures.</summary>
         public static Material Crystal()
         {

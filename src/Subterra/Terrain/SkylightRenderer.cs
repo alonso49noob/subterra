@@ -361,6 +361,8 @@ namespace Subterra
             float?[] before = e.GroundHeights != null && e.GroundHeights.Length == planar.Count ? e.GroundHeights : null;
             var found = new float?[planar.Count];
             var meshes = new Dictionary<Mesh, (Color[] colours, int[] triangles)>();
+            Color[] beforeColours = e.PointColours != null && e.PointColours.Length == planar.Count ? e.PointColours : null;
+            var pointColours = new Color?[planar.Count];
             Color sum = Color.clear;
             int count = 0;
             Vector3 world0 = Frames.ToWorld(body, centre);
@@ -395,7 +397,9 @@ namespace Subterra
                         if (m.colours.Length > 0 && t + 2 < m.triangles.Length)
                         {
                             Vector3 b = h.barycentricCoordinate;
-                            sum += m.colours[m.triangles[t]] * b.x + m.colours[m.triangles[t + 1]] * b.y + m.colours[m.triangles[t + 2]] * b.z;
+                            Color here = m.colours[m.triangles[t]] * b.x + m.colours[m.triangles[t + 1]] * b.y + m.colours[m.triangles[t + 2]] * b.z;
+                            pointColours[i] = here;
+                            sum += here;
                             count++;
                         }
                     }
@@ -416,6 +420,18 @@ namespace Subterra
             if (count > 0)
             {
                 e.GroundColour = sum / count;
+            }
+
+            // Every point's own colour (the terrain's colour varies across a rim); where none was hit, the one it had or the mean.
+            if (e.GroundColour is Color mean)
+            {
+                var colours = new Color[planar.Count];
+                for (int i = 0; i < colours.Length; i++)
+                {
+                    colours[i] = pointColours[i] ?? (beforeColours != null ? beforeColours[i] : mean);
+                }
+
+                e.PointColours = colours;
             }
 
             return e.GroundColour;
@@ -666,7 +682,19 @@ namespace Subterra
             Mesh mesh = MeshUploader.Upload(data, go.name);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var renderer = go.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = ground is Color g ? MaterialFactory.ForSurfaceTinted(body, g) : MaterialFactory.ForSurface(body);
+            // The terrain's own material with its own colours (per vertex, as the terrain has them): the rim reads as
+            // ground. Without them (or with rimMaterial = texture), a textured approximation.
+            Material terrainLike = Settings.Current.RimMaterial == "terrain" && e.PointColours != null ? MaterialFactory.TerrainClone(body) : null;
+            if (terrainLike != null)
+            {
+                mesh.colors = RimColours(mesh.vertexCount, e.PointColours, e.GroundColour ?? Color.gray);
+                renderer.sharedMaterial = terrainLike;
+            }
+            else
+            {
+                renderer.sharedMaterial = ground is Color g ? MaterialFactory.ForSurfaceTinted(body, g) : MaterialFactory.ForSurface(body);
+            }
+
             if (ground is Color logged)
             {
                 Log.Info($"{go.name}: terrain colour {logged.r:F2} {logged.g:F2} {logged.b:F2}");
@@ -680,6 +708,19 @@ namespace Subterra
 
             e.Rim = go;
             e.Building = false;
+        }
+
+        // Vertex colours for a rim mesh: the sampled points first (rings × segments, as built), the mean after (skirt,
+        // walls, cut points).
+        private static Color[] RimColours(int count, Color[] points, Color mean)
+        {
+            var colours = new Color[count];
+            for (int i = 0; i < count; i++)
+            {
+                colours[i] = i < points.Length ? points[i] : mean;
+            }
+
+            return colours;
         }
 
         private GameObject CreateCap(Entry e)
@@ -746,6 +787,8 @@ namespace Subterra
             public float?[] GroundHeights;
 
             public Color? GroundColour;
+
+            public Color[] PointColours;
 
             public float NextRefit;
         }
