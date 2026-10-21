@@ -13,6 +13,7 @@ namespace Subterra.DevTools
             StepRegistry.Register("brakes", Brakes);
             StepRegistry.Register("lights", Lights);
             StepRegistry.Register("floodlight", Floodlight);
+            StepRegistry.Register("trace", Trace);
         }
 
         // lights on = true — the tracked vessel's Light action group (its lamps).
@@ -52,6 +53,31 @@ namespace Subterra.DevTools
 
             yield return null;
             ctx.Pass("floodlight " + (node.ArgBool("on", true) ? "on" : "off"));
+        }
+
+        // trace seconds = 10 — logs the tracked vessel's height over the terrain, vertical speed and what its parts touch
+        // every quarter second (diagnostics).
+        private static IEnumerator Trace(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+            float until = Time.time + (float)node.ArgDouble("seconds", 10);
+            while (Time.time < until && vessel != null)
+            {
+                var touching = new System.Collections.Generic.HashSet<string>();
+                foreach (Part p in vessel.parts)
+                {
+                    foreach (Collider c in Physics.OverlapSphere(p.transform.position, 0.6f, 1 << 15, QueryTriggerInteraction.Ignore))
+                    {
+                        touching.Add(p.partInfo.name + ">" + c.gameObject.name);
+                    }
+                }
+
+                Debug.Log(string.Format(System.Globalization.CultureInfo.InvariantCulture, "[Subterra.DevTools] trace h {0:F2} vs {1:F2} touching {2}",
+                    vessel.heightFromTerrain, vessel.verticalSpeed, string.Join(", ", touching)));
+                yield return new WaitForSeconds(0.25f);
+            }
+
+            ctx.Pass("trace");
         }
 
         // brakes on = true — sets the brakes action group of the tracked vessel (a parked rover must not roll).

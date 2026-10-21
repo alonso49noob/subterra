@@ -66,6 +66,27 @@ namespace Subterra
             return material;
         }
 
+        /// <summary>
+        /// The ground with the colour the terrain has at a rim (its vertex colours, which the terrain shader multiplies its
+        /// textures by): the rim matches the ground around it wherever it is. Shared per colour (to 1/64).
+        /// </summary>
+        public static Material ForSurfaceTinted(CelestialBody body, Color ground)
+        {
+            Color tint = new Color(ground.r, ground.g, ground.b) * GroundScale;
+            string key = string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0}/#surface {1:F2} {2:F2} {3:F2}", body?.bodyName, Mathf.Round(tint.r * 64) / 64, Mathf.Round(tint.g * 64) / 64, Mathf.Round(tint.b * 64) / 64);
+            if (ByLayer.TryGetValue(key, out Material material) && material != null)
+            {
+                return material;
+            }
+
+            material = FromTerrain(body, "_midTex", "_midBumpMap", tint) ?? ForLayer(null, body);
+            ByLayer[key] = material;
+            return material;
+        }
+
+        /// <summary>Terrain vertex colour to rim tint (calibrated on the Mun against the terrain next to a rim).</summary>
+        private const float GroundScale = 1.2f;
+
         /// <summary>Layer tints are absolute greys around 0.5; the terrain textures already have the body's colour.</summary>
         private const float TerrainTint = 2f;
 

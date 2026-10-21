@@ -375,6 +375,10 @@ namespace Subterra
                 }
 
                 SkylightInjector.AddNetworks(runtime, new[] { alone });
+                foreach (Skylight opening in openings)
+                {
+                    SkylightRenderer.Instance?.Settle(alone.ToBody(opening.SurfaceCenter), opening.Radius);
+                }
             }
 
             if (spec.JoinedTo == null)

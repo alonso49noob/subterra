@@ -283,23 +283,51 @@ namespace Subterra
         // A tunnel mouth's rim is driven on: its heights follow the terrain as built (its collider, flat between
         // vertices tens of metres apart), not the analytic height, which can be centimetres to decimetres off and
         // would push wheels up. Points over the cut (no terrain left there) keep the analytic height.
-        private void FitToTerrainMesh(List<Vec3> planar, float[] heights, Vec3d centre, Vec3d up)
+        // Returns the mean colour the terrain has there (its vertex colours, which tint its textures), or null if none was hit.
+        private Color? FitToTerrainMesh(List<Vec3> planar, float[] heights, Vec3d centre, Vec3d up)
         {
+            var meshes = new Dictionary<Mesh, (Color[] colours, int[] triangles)>();
+            Color sum = Color.clear;
+            int count = 0;
             Vector3 world0 = Frames.ToWorld(body, centre);
             Vector3 down = -(Vector3)((Vector3d)world0 - body.position).normalized;
             for (int i = 0; i < planar.Count; i++)
             {
                 Vector3 world = Frames.ToWorld(body, centre + Vec3d.FromVec3(planar[i]) + up * heights[i]);
                 float best = float.MaxValue;
+                RaycastHit? nearest = null;
                 foreach (RaycastHit hit in Physics.RaycastAll(world - down * 20f, down, 40f, 1 << ChunkObject.Layer, QueryTriggerInteraction.Ignore))
                 {
                     if (hit.distance < best && hit.collider.GetComponent<PQ>() != null)
                     {
                         best = hit.distance;
-                        heights[i] = (float)Vec3d.Dot(Frames.ToBody(body, hit.point) - centre, up);
+                        nearest = hit;
+                    }
+                }
+
+                if (nearest is RaycastHit h)
+                {
+                    heights[i] = (float)Vec3d.Dot(Frames.ToBody(body, h.point) - centre, up);
+                    if (h.collider is MeshCollider mc && mc.sharedMesh != null && mc.sharedMesh.isReadable && h.triangleIndex >= 0)
+                    {
+                        if (!meshes.TryGetValue(mc.sharedMesh, out var m))
+                        {
+                            m = (mc.sharedMesh.colors, mc.sharedMesh.triangles);
+                            meshes[mc.sharedMesh] = m;
+                        }
+
+                        int t = h.triangleIndex * 3;
+                        if (m.colours.Length > 0 && t + 2 < m.triangles.Length)
+                        {
+                            Vector3 b = h.barycentricCoordinate;
+                            sum += m.colours[m.triangles[t]] * b.x + m.colours[m.triangles[t + 1]] * b.y + m.colours[m.triangles[t + 2]] * b.z;
+                            count++;
+                        }
                     }
                 }
             }
+
+            return count > 0 ? sum / count : (Color?)null;
         }
 
         // The solid part of a dug mouth's rim: all but the curtains (a vehicle drives out over them). Its heights follow
@@ -345,6 +373,56 @@ namespace Subterra
             }
 
             return e;
+        }
+
+        /// <summary>
+        /// Steadies the landed vessels near a mouth whose ground was just cut, for half a second: their wheels go from
+        /// the terrain's collider to the rim's in one frame, and the suspension takes that as a bump (a rover was thrown
+        /// up at 3 m/s). Upward speed is taken off and spin damped meanwhile.
+        /// </summary>
+        public void Settle(Vec3d centre, float radius)
+        {
+            if (body == null)
+            {
+                return;
+            }
+
+            PQSMod_SubterraSkylight mod = SkylightInjector.ModFor(body.pqsController);
+            double reach = radius + (mod != null ? mod.CutReach : 60f) + 20;
+            Vector3d world = Frames.ToWorld(body, centre);
+            foreach (Vessel v in FlightGlobals.VesselsLoaded)
+            {
+                if (v.mainBody == body && !v.packed && (v.CoMD - world).magnitude < reach)
+                {
+                    StartCoroutine(SettleVessel(v));
+                }
+            }
+        }
+
+        private IEnumerator SettleVessel(Vessel v)
+        {
+            float until = Time.time + 0.5f;
+            while (Time.time < until && v != null && v.loaded && !v.packed)
+            {
+                yield return new WaitForFixedUpdate();
+                Vector3 up = (v.CoMD - v.mainBody.position).normalized;
+                foreach (Part p in v.parts)
+                {
+                    Rigidbody rb = p.Rigidbody;
+                    if (rb == null)
+                    {
+                        continue;
+                    }
+
+                    float rise = Vector3.Dot(rb.velocity, up);
+                    if (rise > 0)
+                    {
+                        rb.velocity -= up * rise;
+                    }
+
+                    rb.angularVelocity *= 0.7f;
+                }
+            }
         }
 
         /// <summary>
@@ -450,10 +528,8 @@ namespace Subterra
                 yield return KspSampler.Fill(body, points, (i, radius, biome) => Store(i, radius), 2f);
             }
 
-            if (e.Skylight.Smooth)
-            {
-                FitToTerrainMesh(planar, heights, centre, up);
-            }
+            // Every rim follows the terrain as built where it is not cut (no terrain showing through it), and takes its colour.
+            Color? ground = FitToTerrainMesh(planar, heights, centre, up);
 
             MeshData data = RimBuilder.Build(radii, segments, heights, Hash.Combine(Hash.Of(e.Net.Id), (ulong)e.Skylight.Index), e.Skylight.Smooth);
             if (e.Skylight.Smooth)
@@ -480,7 +556,11 @@ namespace Subterra
             Mesh mesh = MeshUploader.Upload(data, go.name);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var renderer = go.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = MaterialFactory.ForSurface(body);
+            renderer.sharedMaterial = ground is Color g ? MaterialFactory.ForSurfaceTinted(body, g) : MaterialFactory.ForSurface(body);
+            if (ground is Color logged)
+            {
+                Log.Info($"{go.name}: terrain colour {logged.r:F2} {logged.g:F2} {logged.b:F2}");
+            }
             renderer.shadowCastingMode = ShadowCastingMode.On;
             MeshData solid = e.Skylight.Smooth ? SolidPart(data) : data;
             if (solid.Triangles.Count > 0)
