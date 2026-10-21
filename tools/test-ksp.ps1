@@ -31,7 +31,9 @@ param(
     # Development cfgs from tests\ksp\cfg to load (base names; 'none' loads none). M0 spikes use none.
     [string[]]$Cfg = @('*'),
     # Install Subterra from this folder (an unpacked release zip's GameData\Subterra) instead of the repo.
-    [string]$ModSource = ''
+    [string]$ModSource = '',
+    # Leave KSP running after the scenario (a handOver step): for a player to take over. Sound stays on.
+    [switch]$KeepOpen
 )
 
 Set-StrictMode -Version 2.0
@@ -77,6 +79,7 @@ $SettingsOverrides = [ordered]@{
     CHECK_FOR_UPDATES      = 'False'
     MASTER_VOLUME          = '0'
 }
+if ($KeepOpen) { $SettingsOverrides['MASTER_VOLUME'] = '0.6' }
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Utf8NoBom = New-Object System.Text.UTF8Encoding $false
@@ -357,7 +360,10 @@ for ($attempt = 1; $attempt -le 2; $attempt++) {
     Write-Host "KSP exited before the scenario started (exit code $($ksp.ExitCode)); retrying in 20 s"
     Start-Sleep -Seconds 20
 }
-if (-not $ksp.HasExited) {
+if ($KeepOpen -and $done -and -not $ksp.HasExited) {
+    Write-Host "KSP left running for the player (pid $($ksp.Id))"
+}
+elseif (-not $ksp.HasExited) {
     # After DONE the runner calls Application.Quit(); give KSP a minute to close.
     if (-not $done -or -not $ksp.WaitForExit(60000)) {
         Write-Host "Stopping KSP (pid $($ksp.Id))"

@@ -38,6 +38,7 @@ namespace Subterra.DevTools
             StepRegistry.Register("spike", Spike);
             StepRegistry.Register("assert", Assert);
             StepRegistry.Register("quit", Quit);
+            StepRegistry.Register("handOver", HandOver);
         }
 
         internal static string DetailSuffix(TestContext ctx)
@@ -552,6 +553,16 @@ namespace Subterra.DevTools
         }
 
         // quit — ends the scenario; the runner writes DONE and quits KSP.
+        // handOver — ends the scenario and leaves the game running for a player (no quit; holds released).
+        private static IEnumerator HandOver(ConfigNode node, TestContext ctx)
+        {
+            ctx.Release();
+            ctx.HandedOver = true;
+            ctx.QuitRequested = true;
+            ctx.Pass("handed over to the player");
+            yield break;
+        }
+
         private static IEnumerator Quit(ConfigNode node, TestContext ctx)
         {
             ctx.QuitRequested = true;

@@ -119,7 +119,10 @@ namespace Subterra.DevTools
             }
 
             WriteLine("DONE");
-            Application.Quit();
+            if (!context.HandedOver)
+            {
+                Application.Quit();
+            }
         }
 
         private IEnumerator RunStep(int number, ConfigNode step)

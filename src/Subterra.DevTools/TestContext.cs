@@ -38,6 +38,9 @@ namespace Subterra.DevTools
         /// <summary>Set by the quit step: the runner stops after the current step.</summary>
         public bool QuitRequested { get; set; }
 
+        /// <summary>The scenario ends with the game left running for a player (step handOver): no quit.</summary>
+        public bool HandedOver { get; set; }
+
         /// <summary>Count of scene loads seen (onLevelWasLoadedGUIReady) and the last scene loaded.</summary>
         public int SceneLoads { get; private set; }
 

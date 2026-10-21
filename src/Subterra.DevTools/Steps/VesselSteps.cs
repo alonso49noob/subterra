@@ -14,6 +14,7 @@ namespace Subterra.DevTools
             StepRegistry.Register("lights", Lights);
             StepRegistry.Register("floodlight", Floodlight);
             StepRegistry.Register("trace", Trace);
+            StepRegistry.Register("cheats", Cheats);
         }
 
         // lights on = true — the tracked vessel's Light action group (its lamps).
@@ -78,6 +79,15 @@ namespace Subterra.DevTools
             }
 
             ctx.Pass("trace");
+        }
+
+        // cheats electricity = true — KSP's own cheat toggles (Alt+F12 menu), for hands-on test sessions.
+        private static IEnumerator Cheats(ConfigNode node, TestContext ctx)
+        {
+            CheatOptions.InfiniteElectricity = node.ArgBool("electricity", CheatOptions.InfiniteElectricity);
+            CheatOptions.InfinitePropellant = node.ArgBool("propellant", CheatOptions.InfinitePropellant);
+            yield return null;
+            ctx.Pass($"cheats: electricity {CheatOptions.InfiniteElectricity}, propellant {CheatOptions.InfinitePropellant}");
         }
 
         // brakes on = true — sets the brakes action group of the tracked vessel (a parked rover must not roll).
