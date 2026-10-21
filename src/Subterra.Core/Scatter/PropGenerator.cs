@@ -11,7 +11,7 @@ namespace Subterra.Core.Scatter
     /// </summary>
     public static class PropGenerator
     {
-        public static readonly string[] Names = { "Boulder01", "Boulder02", "Boulder03", "RubbleCone01", "Lavacicle01", "PahoehoeSlab01", "IceCluster01" };
+        public static readonly string[] Names = { "Boulder01", "Boulder02", "Boulder03", "RubbleCone01", "Lavacicle01", "PahoehoeSlab01", "IceCluster01", "GeodeCrystal01" };
 
         /// <summary>The prop for a model url or name (the part after the last '/'); null if unknown.</summary>
         public static MeshData Build(string model, int lod)
@@ -40,6 +40,7 @@ namespace Subterra.Core.Scatter
                 case "Lavacicle01": return Shape(subdivisions, seed, p => Icicle(p), 0.05f, hanging: true);
                 case "PahoehoeSlab01": return Shape(subdivisions, seed, p => new Vec3(p.X * 1.6f, (p.Y + 1) * 0.12f, p.Z * 1.2f), 0.06f, baseAtZero: false);
                 case "IceCluster01": return Crystals(lod == 0 ? 2 : 1, seed);
+                case "GeodeCrystal01": return Crystals(lod == 0 ? 2 : 1, seed, 7, 1.5f, 2.2f);
                 default: return null;
             }
         }
@@ -96,15 +97,15 @@ namespace Subterra.Core.Scatter
         }
 
         // A few hexagonal-ish crystals leaning out from a common base.
-        private static MeshData Crystals(int subdivisions, ulong seed)
+        // A cluster of `count` pointed prisms leaning out from the base; `length` and `thickness` scale them.
+        private static MeshData Crystals(int subdivisions, ulong seed, int count = 5, float length = 1f, float thickness = 1f)
         {
             var rng = new Rng(seed);
             var mesh = new MeshData();
-            int count = 5;
             for (int c = 0; c < count; c++)
             {
                 double angle = rng.Range(0, 2 * Math.PI), lean = rng.Range(0.1, 0.5);
-                float height = (float)rng.Range(0.8, 1.8), width = (float)rng.Range(0.12, 0.25);
+                float height = (float)rng.Range(0.8, 1.8) * length, width = (float)rng.Range(0.12, 0.25) * thickness;
                 var axis = new Vec3((float)(Math.Cos(angle) * lean), 1, (float)(Math.Sin(angle) * lean)).Normalized;
                 Vec3 side = Vec3.Cross(axis, new Vec3(0, 0, 1)).Normalized;
                 Vec3 other = Vec3.Cross(side, axis);

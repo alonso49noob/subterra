@@ -52,6 +52,19 @@ namespace Subterra.Core.Tests.Tubes
         private static Vec3 FloorAt(double meters) => At(Net, 0, Lon0 + Deg(meters), R - 68);
 
         [Fact]
+        public void GeodeIsASealedCrystalRoom()
+        {
+            var site = new SiteSpec { Name = "Geode", IsNamed = true };
+            site.Nodes.Add(new NodeSpec { Lat = 0, Lon = Lon0, Depth = 200, Width = 40, Height = 30, Feature = NodeFeature.Geode });
+            TubeNetwork net = Compile(site);
+            Vec3 inside = At(net, 0, Lon0, R - 200 - 30 + 10);
+            Assert.True(net.IsInside(inside));
+            Assert.Equal(ZoneKind.Geode, net.ZoneAt(inside).Kind);
+            Assert.Empty(net.Skylights);
+            Assert.True(net.Sdf.Distance(At(net, 0, Lon0, R - 100)) > 0, "rock between the geode and the surface");
+        }
+
+        [Fact]
         public void ShaftCutsSurface()
         {
             var top = Net.ToLocal(BodyFrame.Direction(0, Lon0) * (R + 1));

@@ -6,6 +6,9 @@ namespace Subterra.Core.Model
         Skylight,
         Chamber,
         End,
+
+        /// <summary>A sealed crystal-lined room (no skylight; reached by digging).</summary>
+        Geode,
     }
 
     /// <summary>A tube graph node: position, roof depth (m under the local terrain), cross-section and feature.</summary>

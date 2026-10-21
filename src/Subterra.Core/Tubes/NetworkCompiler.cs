@@ -129,6 +129,17 @@ namespace Subterra.Core.Tubes
                         Index = skylights.Count,
                     });
                 }
+                else if (node.Feature == NodeFeature.Geode)
+                {
+                    // Smooth, round walls (a geode is a bubble in the rock), its own zone for crystals and science.
+                    prims.Add(new Chamber(Local(p.FloorCenter), up, (float)node.Width, (float)Math.Max(node.Height, 0.6 * node.Width))
+                    {
+                        Roughness = (float)(0.02 * node.Width),
+                        NoiseScale = (float)Math.Max(4, 0.3 * node.Width),
+                        Zone = ZoneKind.Geode,
+                        Source = i,
+                    });
+                }
                 else if (node.Feature == NodeFeature.Chamber)
                 {
                     prims.Add(new Chamber(Local(p.FloorCenter), up, (float)node.Width, (float)(1.2 * node.Height))

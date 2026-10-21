@@ -87,6 +87,23 @@ namespace Subterra
         /// <summary>Terrain vertex colour to rim tint (calibrated on the Mun against the terrain next to a rim).</summary>
         private const float GroundScale = 1.2f;
 
+        /// <summary>Geode crystals: pale violet, glossy (they catch a lamp's light), on the procedural ice textures.</summary>
+        public static Material Crystal()
+        {
+            const string key = "#crystal";
+            if (ByLayer.TryGetValue(key, out Material material) && material != null)
+            {
+                return material;
+            }
+
+            material = Create("Ice_d", "Ice_n", new Color(0.86f, 0.80f, 1.0f));
+            material.SetColor("_SpecColor", new Color(0.6f, 0.6f, 0.65f));
+            material.SetFloat("_Shininess", 0.5f);
+            material.name = "Subterra crystal";
+            ByLayer[key] = material;
+            return material;
+        }
+
         /// <summary>Rock props: the body's cliff texture a little lighter than the walls (loose blocks catch the light); null without one.</summary>
         public static Material ForProps(CelestialBody body)
         {
