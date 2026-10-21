@@ -32,9 +32,29 @@ namespace Subterra
             return manager.Waypoints.Where(w => w.name != null && w.name.StartsWith(prefix)).ToList();
         }
 
+        // Waypoints not added yet come back with the discoveries when the next flight scene restores them.
+        private void OnDestroy()
+        {
+            PendingWaypoints.Clear();
+            PendingNames.Clear();
+        }
+
         private void Update()
         {
-            if (!FlightGlobals.ready || SubterraScenario.Instance == null || Time.realtimeSinceStartup < nextCheck)
+            if (!FlightGlobals.ready || SubterraScenario.Instance == null)
+            {
+                return;
+            }
+
+            if (PendingWaypoints.Count > 0)
+            {
+                using (SubterraClock.Measure("DiscoveryService"))
+                {
+                    AddPendingWaypoint();
+                }
+            }
+
+            if (Time.realtimeSinceStartup < nextCheck)
             {
                 return;
             }
@@ -107,12 +127,16 @@ namespace Subterra
             }
         }
 
+        // Waypoints to add, one per frame: adding a network's dozen at once costs a visible frame.
+        private static readonly Queue<Waypoint> PendingWaypoints = new Queue<Waypoint>();
+        private static readonly HashSet<string> PendingNames = new HashSet<string>();
+
         private static void AddWaypoints(SubterraScenario.Discovery d)
         {
             List<Waypoint> existing = WaypointsOf(d.Id);
             foreach (SubterraScenario.WaypointInfo info in d.Waypoints)
             {
-                if (existing.Any(w => w.name == info.Name))
+                if (existing.Any(w => w.name == info.Name) || !PendingNames.Add(info.Name))
                 {
                     continue;
                 }
@@ -129,8 +153,20 @@ namespace Subterra
                     isNavigatable = true,
                     isCustom = true,
                 };
-                WaypointManager.AddWaypoint(waypoint);
+                PendingWaypoints.Enqueue(waypoint);
             }
+        }
+
+        private static void AddPendingWaypoint()
+        {
+            if (PendingWaypoints.Count == 0)
+            {
+                return;
+            }
+
+            Waypoint waypoint = PendingWaypoints.Dequeue();
+            PendingNames.Remove(waypoint.name);
+            WaypointManager.AddWaypoint(waypoint);
         }
     }
 }

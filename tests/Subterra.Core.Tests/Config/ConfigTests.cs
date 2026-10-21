@@ -106,7 +106,7 @@ SUBTERRA_BODY
             Assert.Equal(new[] { "SerenitySkylight", "GreatGallery", "KermanChain", "Frostvault" }, b.Sites.Select(s => s.Name));
             Assert.All(b.Sites, s => Assert.Equal(NodeFeature.Skylight, s.Nodes[0].Feature));
             Assert.Equal(5, b.Sites.Single(s => s.Name == "KermanChain").Nodes.Count(n => n.Feature == NodeFeature.Skylight));
-            Assert.Equal("MunMaria", b.Fields.Single().Name);
+            Assert.Equal(new[] { "MunMaria", "MunHighlands" }, b.Fields.Select(f => f.Name));
             Assert.Equal(6, b.Scatters.Count);
         }
 

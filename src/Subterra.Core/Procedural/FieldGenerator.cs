@@ -48,6 +48,19 @@ namespace Subterra.Core.Procedural
         public static List<SiteSpec> Generate(FieldSpec f, string body, string idPrefix, CellGrid grid, CellId cell, IHeightSampler h, IBiomeSampler b) =>
             Generate(new[] { f }, body, idPrefix, grid, cell, h, b);
 
+        // A hidden network: no skylight, the tube stays closed under the ground.
+        private static void Hide(SiteSpec site)
+        {
+            foreach (NodeSpec node in site.Nodes)
+            {
+                if (node.Feature == NodeFeature.Skylight)
+                {
+                    node.Feature = NodeFeature.None;
+                    node.SkylightRadius = 0;
+                }
+            }
+        }
+
         // Adds the field's networks; `next` is the cell's next free network index (the id's last digit).
         private static void GenerateField(FieldSpec f, string body, string idPrefix, CellGrid grid, CellId cell, IHeightSampler h, IBiomeSampler b,
             ref int next, List<SiteSpec> result)
@@ -123,6 +136,11 @@ namespace Subterra.Core.Procedural
                 }
 
                 site.Name = $"{idPrefix}-{cell.Index(grid.N) * 10 + next + k:D4}";
+                site.Field = f.Name;
+                if (f.HiddenChance > 0 && new Rng(Hash.Combine(Hash.Of(site.Name), Hash.Of("hidden"))).NextDouble() < f.HiddenChance)
+                {
+                    Hide(site);
+                }
                 result.Add(site);
             }
 

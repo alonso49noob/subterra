@@ -12,6 +12,9 @@ namespace Subterra.Core.Model
 
         public bool IsNamed { get; set; }
 
+        /// <summary>The TUBE_FIELD a procedural network came from; null for named sites.</summary>
+        public string Field { get; set; }
+
         public List<NodeSpec> Nodes { get; set; } = new List<NodeSpec>();
 
         public List<EdgeSpec> Edges { get; set; } = new List<EdgeSpec>();

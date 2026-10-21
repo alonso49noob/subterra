@@ -167,6 +167,19 @@ namespace Subterra.Core.Tests.Procedural
             Assert.NotEmpty(await run);
         }
 
+        [Fact]
+        public void HiddenNetworksHaveNoSkylightAndKeepTheirShape()
+        {
+            List<SiteSpec> open = Gen(), hidden = FieldGenerator.Generate(
+                new FieldSpec { Name = "MunMaria", Biomes = { "Lowlands" }, NetworksPer10k = 40, HiddenChance = 1 }, "Mun", "MN", Grid, Cell, Terrain, Terrain);
+            Assert.Equal(open.Count, hidden.Count);
+            Assert.All(hidden, s => Assert.DoesNotContain(s.Nodes, n => n.Feature == NodeFeature.Skylight));
+            for (int i = 0; i < open.Count; i++)
+            {
+                Assert.Equal(open[i].Nodes.Select(n => (n.Lat, n.Lon, n.Depth)), hidden[i].Nodes.Select(n => (n.Lat, n.Lon, n.Depth)));
+            }
+        }
+
         // Networks are the same in every save and for every player (Lucas's ruling: maps must stay valid),
         // so the generator's output is pinned. If this fails, a change moved existing networks: undo it, or,
         // if it is deliberate, note it in the CHANGELOG and update the fingerprint.

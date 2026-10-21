@@ -336,6 +336,7 @@ namespace Subterra.Core.Config
             field.SkylightSpacing = ClampRange(r.Range(node, "skylightSpacing", field.SkylightSpacing), field.SkylightSpacing, MinSkylightSpacing, MaxFieldDistance, r, "skylightSpacing");
             field.BranchChance = Clamp(r.Double(node, "branchChance", field.BranchChance), 0, 1, r, "branchChance");
             field.ChamberChance = Clamp(r.Double(node, "chamberChance", field.ChamberChance), 0, 1, r, "chamberChance");
+            field.HiddenChance = Clamp(r.Double(node, "hiddenChance", field.HiddenChance), 0, 1, r, "hiddenChance");
             field.Seed = r.ULong(node, "seed", field.Seed);
             if (field.Biomes.Count == 0)
             {

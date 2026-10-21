@@ -24,6 +24,9 @@ namespace Subterra.Core.Model
 
         public double ChamberChance { get; set; } = 0.15;
 
+        /// <summary>0–1: fraction of networks with no skylight at all (found by drilling, digging or radar). Chosen per network id.</summary>
+        public double HiddenChance { get; set; }
+
         public ulong Seed { get; set; } = 1;
     }
 }
