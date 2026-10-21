@@ -17,8 +17,8 @@ namespace Subterra.Core.Excavation
         /// <summary>A piece shorter than this keeps growing instead of starting a new one, if it stays straight.</summary>
         public const float MaxPieceLength = 20f;
 
-        /// <summary>Largest turn (degrees) that still extends the last piece.</summary>
-        public const float StraightAngle = 5f;
+        /// <summary>How far (m) a new point may stray from the last piece's line and still extend it.</summary>
+        public const float StraightOffset = 0.25f;
 
         public ExcavationSpec(string id, string body, Vec3d anchor, float radius)
         {
@@ -63,13 +63,21 @@ namespace Subterra.Core.Excavation
 
             if (Points.Count >= 2)
             {
+                // Extend the last piece if dropping its end point b moves the tunnel's line by at most StraightOffset
+                // (so the wobble of a digging vehicle does not split it into one-metre pieces), the tunnel goes on
+                // forward, and the piece stays short.
                 Vec3 a = Points[Points.Count - 2], b = Points[Points.Count - 1];
-                Vec3 last = b - a, next = to - b;
-                if (last.Length > 0 && next.Length > 0 && (to - a).Length <= MaxPieceLength
-                    && Vec3.Dot(last.Normalized, next.Normalized) >= Math.Cos(StraightAngle * Math.PI / 180))
+                Vec3 last = b - a, next = to - b, span = to - a;
+                if (last.Length > 0 && next.Length > 0 && span.Length <= MaxPieceLength && Vec3.Dot(last, next) > 0)
                 {
-                    Points[Points.Count - 1] = to;
-                    return Points.Count - 2;
+                    Vec3 axis = span.Normalized;
+                    Vec3 ab = b - a;
+                    float off = (ab - axis * Vec3.Dot(ab, axis)).Length;
+                    if (off <= StraightOffset)
+                    {
+                        Points[Points.Count - 1] = to;
+                        return Points.Count - 2;
+                    }
                 }
             }
 

@@ -98,6 +98,20 @@ namespace Subterra.Core.Tests.Excavation
         }
 
         [Fact]
+        public void AWobblingBorerStillGrowsOnePiece()
+        {
+            // A rover settling on its wheels while it digs: each metre a little off the line.
+            ExcavationSpec t = Tunnel();
+            t.Append(new Vec3(0, 0, 0));
+            for (int x = 1; x <= 6; x++)
+            {
+                t.Append(new Vec3(x, x % 2 == 0 ? 0.1f : -0.1f, x % 3 == 0 ? 0.08f : 0f));
+            }
+
+            Assert.Equal(1, t.PieceCount);
+        }
+
+        [Fact]
         public void TurnsAndLongRunsStartNewPieces()
         {
             ExcavationSpec t = Tunnel();
