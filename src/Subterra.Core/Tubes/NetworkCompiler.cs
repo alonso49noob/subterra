@@ -80,6 +80,7 @@ namespace Subterra.Core.Tubes
 
                     PathPoint a = pts[i - 1], b = pts[i];
                     double step = Vec3d.Distance(a.FloorCenter, b.FloorCenter);
+                    double startAlong = along;
                     double mid = along + step * 0.5;
                     along += step;
                     double toSkylight = Math.Min(skylightDistance[edge.From] + mid, skylightDistance[edge.To] + (edgeLength - mid));
@@ -98,6 +99,7 @@ namespace Subterra.Core.Tubes
                         NoiseScale = (float)Math.Max(4, 0.3 * width),
                         Group = groups[e],
                         Source = e,
+                        AlongStart = (float)startAlong,
                     };
                     prims.Add(segment);
                 }

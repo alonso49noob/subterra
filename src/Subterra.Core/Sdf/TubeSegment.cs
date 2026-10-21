@@ -33,6 +33,9 @@ namespace Subterra.Core.Sdf
             SetCoreBounds(BoxAround(a, b, Math.Max(Math.Max(widthA, widthB) * 0.5f, Math.Max(heightA, heightB))));
         }
 
+        /// <summary>Distance (m) along its tube where this piece starts: texture coordinates run on across pieces.</summary>
+        public float AlongStart { get; init; }
+
         public Vec3 A => a;
 
         public Vec3 B { get; }
@@ -82,6 +85,39 @@ namespace Subterra.Core.Sdf
 
             return d2;
         }
+
+        /// <summary>
+        /// Texture coordinates (m) of a point on the wall: across the section, the distance from the floor's centre line
+        /// (over the floor, then up the wall along the arch, a seam along the crest); along, the distance down the tube.
+        /// </summary>
+        public Vec2 WallUv(Vec3 p)
+        {
+            Vec3 ap = p - a;
+            float along = Vec3.Dot(ap, axis);
+            float t = length > 0 ? Math.Max(0f, Math.Min(1f, along / length)) : 0f;
+            Vec3 up = Vec3.Lerp(upA, upB, t);
+            up = (up - axis * Vec3.Dot(up, axis)).Normalized;
+            Vec3 side = Vec3.Cross(up, axis);
+            Vec3 pc = p - (a + axis * (t * length));
+            float u = Vec3.Dot(pc, side), v = Math.Max(0f, Vec3.Dot(pc, up));
+            float hw = Math.Max(0.5f, (widthA + (widthB - widthA) * t) * 0.5f);
+            float height = Math.Max(0.5f, heightA + (heightB - heightA) * t);
+            float across;
+            if (v < 0.05f * height && Math.Abs(u) < hw)
+            {
+                across = u;
+            }
+            else
+            {
+                double theta = Math.Atan2(v / height, Math.Abs(u) / hw);
+                across = Math.Sign(u == 0 ? 1 : u) * (hw + (float)(theta * (hw + height) * 0.5));
+            }
+
+            return new Vec2(across, AlongStart + along);
+        }
+
+        /// <summary>Half the crest-to-crest perimeter (m): two wall points this far apart across are on either side of the seam.</summary>
+        public float HalfPerimeter(Vec3 p) => (Math.Max(widthA, widthB) * 0.5f) * 1.6f + Math.Max(heightA, heightB) * 0.8f;
 
         // No noise on the floor (solidified lava is flat), full noise from a fifth of the height up.
         public override float NoiseMask(Vec3 p)

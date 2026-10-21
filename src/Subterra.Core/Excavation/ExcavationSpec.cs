@@ -114,11 +114,18 @@ namespace Subterra.Core.Excavation
             Vec3 a = Points[index] + offset, b = Points[index + 1] + offset;
             Vec3 upA = ToBody(Points[index]).Normalized.ToVec3(), upB = ToBody(Points[index + 1]).Normalized.ToVec3();
             float d = 2 * Radius;
+            float start = 0;
+            for (int k = 0; k < index; k++)
+            {
+                start += (Points[k + 1] - Points[k]).Length;
+            }
+
             return new TubeSegment(a, b, upA, upB, d, d, d, d, 0f, ZoneKind.Excavation)
             {
                 Roughness = 0.15f,
                 NoiseScale = 3f,
                 Source = index,
+                AlongStart = start,
             };
         }
 

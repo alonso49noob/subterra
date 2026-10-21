@@ -475,7 +475,7 @@ namespace Subterra
                         List<ScatterMesh> scatters = ScatterBuilder.Build(data, key, net, scatterSpecs);
                         if (!data.IsEmpty && MaterialFactory.Mode == RockShaderMode.BumpedSpecularBoxUv)
                         {
-                            data = UvProjector.Project(data, MaterialFactory.MetersPerUv);
+                            data = TubeUvProjector.Project(data, net, MaterialFactory.MetersPerUv);
                         }
 
                         // Unity-ready arrays are built here too: the main thread only hands them over.
