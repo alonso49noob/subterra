@@ -366,3 +366,17 @@ Lunas de Neidon:
 | Soden, Archae, Crokslev | 32–61 km | Fracturas o cuevas de hielo pequeñas; o nada |
 | Geito, Lint-Mikey (cometas) | 0,5–1 km | Fosas de sublimación y cavidades pequeñas |
 | Edas, Kal, Ki'Ki, Flake, Lon | 2–5 km | Nada, o una cavidad única como curiosidad |
+
+## Rimas sinuosas (tubos de lava colapsados) — pedido de Lucas, 2026-10-21
+
+Imágenes de referencia: rimas sinuosas lunares (tipo Rima Hadley / colinas Marius): un canal serpenteante de
+0,3–1,5 km de ancho y varios km de largo, con tramos donde el techo del tubo sigue intacto (puentes) y pozos donde se
+hundió; a veces nace en un cráter-fuente. Pedido para cuando los tubos de lava estén pulidos.
+
+- **Cómo:** a diferencia de los tragaluces (recortes), el ancho permite deformar el propio terreno con un PQSMod de
+  altura (los vértices del PQS de la Mun están a 20–40 m): bajar el terreno a lo largo de la curva del tubo, con un
+  perfil en V/U, y dejar sin bajar los tramos de techo intacto. El tubo bajo esos tramos ya existe (red de Subterra).
+- **Dónde:** campo propio en los mares de la Mun (y Duna), pocas por cuerpo; alguna con nombre.
+- **Juego:** se ven desde órbita a propósito (son el gran indicio de un tubo); los tramos cerrados son entradas.
+- **Dependencias:** las curvas suaves de los tubos (hecho); el PQSMod de altura (se comparte con los volcanes de la
+  parte 3).
