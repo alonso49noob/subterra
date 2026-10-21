@@ -5,6 +5,7 @@ using System.Text;
 using Subterra.Core.Geo;
 using Subterra.Core.Model;
 using Subterra.Core.Procedural;
+using Subterra.Core.Tubes;
 using Xunit;
 using static Subterra.Core.Tests.Sites;
 
@@ -224,5 +225,53 @@ namespace Subterra.Core.Tests.Procedural
                 Assert.Equal(Fingerprint, hash);
             }
         }
+
+        private static List<SiteSpec> Karst() =>
+            FieldGenerator.Generate(new FieldSpec { Name = "Karst", Biomes = { "Lowlands" }, NetworksPer10k = 40, Style = FieldStyle.Karst, Width = new Range(8, 40), Length = new Range(1500, 4000), RoofDepth = new Range(20, 60), ChamberChance = 0.2 }, "Kerbin", "KB", Grid, Cell, Terrain, Terrain);
+
+        [Fact]
+        public void KarstIsDeterministicAndConnected()
+        {
+            List<SiteSpec> sites = Karst();
+            Assert.NotEmpty(sites);
+            Assert.Equal(Ser(sites), Ser(Karst()));
+            foreach (SiteSpec s in sites)
+            {
+                // A tree: every node but the first is the end of exactly one edge.
+                Assert.Equal(s.Nodes.Count - 1, s.Edges.Count);
+                Assert.Equal(Enumerable.Range(1, s.Nodes.Count - 1), s.Edges.Select(e => e.To).OrderBy(i => i));
+            }
+        }
+
+        [Fact]
+        public void KarstHasLevelsTallPassagesAndRooms()
+        {
+            List<SiteSpec> sites = Karst();
+            Assert.Contains(sites, s => s.Nodes.Max(n => n.Depth) - s.Nodes.Min(n => n.Depth) > 25);
+            NodeSpec[] passages = sites.SelectMany(s => s.Nodes).Where(n => n.Feature == NodeFeature.None).ToArray();
+            Assert.All(passages, n => Assert.InRange(n.Width, 8, 60));
+            Assert.True(passages.Average(n => n.Height / n.Width) > 0.9, "karst passages are taller than lava tubes");
+            Assert.Contains(sites.SelectMany(s => s.Nodes), n => n.Feature == NodeFeature.Chamber);
+        }
+
+        [Fact]
+        public void KarstCompilesIntoOpenPassages()
+        {
+            foreach (SiteSpec s in Karst())
+            {
+                var warnings = new List<string>();
+                TubeNetwork net = NetworkCompiler.Compile(s, "Kerbin", R, Terrain, warnings);
+                // The middle of every edge (ramps between levels included) is open: a passage, not solid rock.
+                foreach (EdgeSpec e in s.Edges)
+                {
+                    var path = TubePath.Build(s, e, R, Terrain, warnings);
+                    PathPoint mid = path[path.Count / 2];
+                    Assert.True(net.IsInside(net.ToLocal(mid.FloorCenter + mid.Up * (mid.Height * 0.5))), $"{s.Name} edge {e.From}-{e.To} is closed");
+                }
+            }
+        }
+
+        [Fact]
+        public void LavaFieldsAreUnchangedByKarst() => Assert.Equal(Ser(Gen()), Ser(FieldGenerator.Generate(new FieldSpec { Name = "MunMaria", Biomes = { "Lowlands" }, NetworksPer10k = 40, Style = FieldStyle.Lava }, "Mun", "MN", Grid, Cell, Terrain, Terrain)));
     }
 }

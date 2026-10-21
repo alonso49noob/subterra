@@ -129,7 +129,7 @@ namespace Subterra.Core.Procedural
             var walker = new Walker(h, b, allowedBiomes, radius, rect);
             for (int k = 0; k < origins.Count; k++)
             {
-                SiteSpec site = Network(f, rng, walker, origins[k]);
+                SiteSpec site = f.Style == FieldStyle.Karst ? KarstNetwork(f, rng, walker, origins[k]) : Network(f, rng, walker, origins[k]);
                 if (site == null)
                 {
                     continue;
@@ -256,6 +256,116 @@ namespace Subterra.Core.Procedural
             }
 
             return site;
+        }
+
+        // Karst: a passage per level (two or three levels, 30–80 m apart), each lower one starting a step from a node of the
+        // one above (a steep ramp between them); tall, narrow, winding passages; rooms at some joins; dolines (rooms
+        // open to the sky) on the top level. Width and length come from the field; heights are taller than lava tubes.
+        private static SiteSpec KarstNetwork(FieldSpec f, Rng rng, Walker walker, Vec3d origin)
+        {
+            double length = rng.Range(f.Length.Min, f.Length.Max);
+            if (!(length <= MaxLength))
+            {
+                length = MaxLength;
+            }
+
+            double u = rng.NextDouble();
+            double width = Math.Max(KarstWidthMin, f.Width.Min + (f.Width.Max - f.Width.Min) * u * u);
+            double depth = rng.Range(f.RoofDepth.Min, f.RoofDepth.Max);
+            int levels = rng.NextDouble() < 0.5 ? 2 : 3;
+
+            var site = new SiteSpec { IsNamed = false };
+            List<Vec3d> passage = walker.Walk(origin, null, length, rng);
+            if (passage.Count < 2)
+            {
+                return null;
+            }
+
+            AddPassage(site, passage, -1, depth, width, rng);
+            int levelStart = 0, levelCount = passage.Count;
+            for (int level = 1; level < levels; level++)
+            {
+                // The join: a node of the level above (not its ends), and a start one step aside from it.
+                if (levelCount < 3)
+                {
+                    break;
+                }
+
+                int join = levelStart + rng.Range(1, levelCount - 1);
+                Vec3d from = BodyFrame.Direction(site.Nodes[join].Lat, site.Nodes[join].Lon);
+                Vec3d next = BodyFrame.Direction(site.Nodes[join + 1].Lat, site.Nodes[join + 1].Lon);
+                double angle = rng.Range(60, 120) * (rng.NextDouble() < 0.5 ? -1 : 1) * BodyFrame.Deg2Rad;
+                Vec3d heading = walker.Rotate(from, walker.Heading(from, next), angle);
+                Vec3d start = (from + heading * (StepLength / walker.Radius)).Normalized;
+                List<Vec3d> lower = walker.Walk(start, heading, length * rng.Range(0.4, 0.9), rng);
+                if (lower.Count < 2)
+                {
+                    break;
+                }
+
+                depth += rng.Range(30, 80);
+                width = Math.Max(KarstWidthMin, width * rng.Range(0.7, 1.1));
+                levelStart = site.Nodes.Count;
+                levelCount = lower.Count;
+                AddPassage(site, lower, join, depth, width, rng);
+                if (site.Nodes[join].Feature == NodeFeature.None && rng.NextDouble() < 0.5 + f.ChamberChance)
+                {
+                    site.Nodes[join].Feature = NodeFeature.Chamber;
+                    site.Nodes[join].Width = Math.Min(500, site.Nodes[join].Width * rng.Range(2, 4));
+                }
+            }
+
+            // Rooms along the passages, and dolines on the top level (the first passage).
+            for (int i = 1; i < site.Nodes.Count - 1; i++)
+            {
+                NodeSpec node = site.Nodes[i];
+                if (node.Feature != NodeFeature.None || rng.NextDouble() >= f.ChamberChance)
+                {
+                    continue;
+                }
+
+                node.Width = Math.Min(500, node.Width * rng.Range(2, 5));
+                node.Height = Math.Max(node.Height, node.Width * rng.Range(0.3, 0.5));
+                bool top = i < passage.Count;
+                if (top && rng.NextDouble() < KarstDolineChance)
+                {
+                    node.Feature = NodeFeature.Skylight;
+                    node.SkylightRadius = Math.Max(10, node.Width * rng.Range(0.25, 0.4));
+                }
+                else
+                {
+                    node.Feature = NodeFeature.Chamber;
+                }
+            }
+
+            return site;
+        }
+
+        /// <summary>Narrowest karst passage (m): a rover still fits.</summary>
+        private const double KarstWidthMin = 8;
+
+        /// <summary>Share of top-level karst rooms that are dolines (open to the sky).</summary>
+        private const double KarstDolineChance = 0.35;
+
+        // Adds a karst passage: its nodes (tall cross-sections) and the edges along it, the first from `joinFrom` if any.
+        private static void AddPassage(SiteSpec site, List<Vec3d> points, int joinFrom, double depth, double width, Rng rng)
+        {
+            int previous = joinFrom;
+            foreach (Vec3d p in points)
+            {
+                NodeSpec node = MakeNode(p, depth, width, rng);
+                node.Width = Math.Max(KarstWidthMin, width * rng.Range(0.7, 1.3));
+                node.Height = node.Width * rng.Range(0.8, 1.6);
+                node.Depth = Math.Max(TubePath.MinRoof(node.Width), depth * rng.Range(0.9, 1.1));
+                site.Nodes.Add(node);
+                int index = site.Nodes.Count - 1;
+                if (previous >= 0)
+                {
+                    site.Edges.Add(new EdgeSpec { From = previous, To = index, Sinuosity = 0.6, Roughness = 0.1 });
+                }
+
+                previous = index;
+            }
         }
 
         private static NodeSpec MakeNode(Vec3d dir, double depth, double width, Rng rng)

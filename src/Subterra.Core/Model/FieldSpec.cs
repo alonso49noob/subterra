@@ -2,6 +2,18 @@ using System.Collections.Generic;
 
 namespace Subterra.Core.Model
 {
+    public enum FieldStyle
+    {
+        /// <summary>Lava tubes: wide, low trunks that flow downhill, a few branches, skylights where the roof is thin.</summary>
+        Lava,
+
+        /// <summary>
+        /// Karst (solution caves): narrow, tall, winding passages on two or three levels joined by steep ramps, rooms
+        /// where passages meet, now and then a doline (a room open to the sky).
+        /// </summary>
+        Karst,
+    }
+
     /// <summary>Rules for procedural tube networks spread over some biomes of a body.</summary>
     public sealed class FieldSpec
     {
@@ -26,6 +38,8 @@ namespace Subterra.Core.Model
 
         /// <summary>0–1: fraction of networks with no skylight at all (found by drilling, digging or radar). Chosen per network id.</summary>
         public double HiddenChance { get; set; }
+
+        public FieldStyle Style { get; set; } = FieldStyle.Lava;
 
         public ulong Seed { get; set; } = 1;
     }

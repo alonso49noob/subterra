@@ -338,6 +338,7 @@ namespace Subterra.Core.Config
             field.ChamberChance = Clamp(r.Double(node, "chamberChance", field.ChamberChance), 0, 1, r, "chamberChance");
             field.HiddenChance = Clamp(r.Double(node, "hiddenChance", field.HiddenChance), 0, 1, r, "hiddenChance");
             field.Seed = r.ULong(node, "seed", field.Seed);
+            field.Style = r.Enum(node, "style", FieldStyle.Lava);
             if (field.Biomes.Count == 0)
             {
                 r.Warn("no 'biomes'; field skipped");
