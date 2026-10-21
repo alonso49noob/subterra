@@ -23,6 +23,12 @@ namespace Subterra
         private const int GridSize = 64;
         private const int MaxConcurrentCells = 2;
 
+        /// <summary>No new cells above this time-warp rate.</summary>
+        private const float MaxWarpRate = 4f;
+
+        /// <summary>No new cells while the active vessel is higher than this over the ground (m).</summary>
+        private const double MaxAltitude = 25000;
+
         private readonly HashSet<(string, CellId)> inProgress = new HashSet<(string, CellId)>();
         private float nextCheck;
 
@@ -64,6 +70,14 @@ namespace Subterra
                 nextCheck = Time.realtimeSinceStartup + 1f;
                 CelestialBody body = FlightGlobals.currentMainBody;
                 if (!BodyRegistry.Instance.TryGet(body, out BodyRuntime runtime) || runtime.Spec.Fields.Count == 0)
+                {
+                    return;
+                }
+
+                // Not while time runs fast (the ground track sweeps cell after cell: the sampling and the terrain cuts
+                // dropped frames) nor high above the ground (nothing there is close enough to need networks yet).
+                Vessel active = FlightGlobals.ActiveVessel;
+                if (TimeWarp.CurrentRate > MaxWarpRate || (active != null && active.altitude - Math.Max(0, active.terrainAltitude) > MaxAltitude))
                 {
                     return;
                 }

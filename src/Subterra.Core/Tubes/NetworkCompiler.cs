@@ -19,6 +19,9 @@ namespace Subterra.Core.Tubes
         /// <summary>Path distance from the nearest skylight beyond which a polar tube is a frozen vault.</summary>
         public const double FrozenDistance = 500;
 
+        /// <summary>Largest wall noise amplitude of a tube (m).</summary>
+        public const double MaxRoughness = 4;
+
         /// <summary>The shaft rises this far above the terrain so rays and meshes clear the surface.</summary>
         public const float ShaftAboveSurface = 20f;
 
@@ -89,7 +92,9 @@ namespace Subterra.Core.Tubes
                     var segment = new TubeSegment(Local(a.FloorCenter), Local(b.FloorCenter), a.Up.ToVec3(), b.Up.ToVec3(),
                         (float)a.Width, (float)b.Width, (float)a.Height, (float)b.Height, (float)edge.BenchHeight, zone)
                     {
-                        Roughness = (float)(edge.Roughness * width),
+                        // Wall noise grows with the tube but not past MaxRoughness: in wide tubes a bigger amplitude left
+                        // thin floating slabs of rock under the roof.
+                        Roughness = (float)Math.Min(MaxRoughness, edge.Roughness * width),
                         NoiseScale = (float)Math.Max(4, 0.3 * width),
                         Group = groups[e],
                         Source = e,
@@ -144,7 +149,7 @@ namespace Subterra.Core.Tubes
                 {
                     prims.Add(new Chamber(Local(p.FloorCenter), up, (float)node.Width, (float)(1.2 * node.Height))
                     {
-                        Roughness = (float)(0.05 * node.Width),
+                        Roughness = (float)Math.Min(MaxRoughness * 1.5, 0.05 * node.Width),
                         NoiseScale = (float)Math.Max(4, 0.3 * node.Width),
                         Source = i,
                     });

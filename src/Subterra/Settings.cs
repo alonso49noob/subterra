@@ -27,7 +27,7 @@ namespace Subterra
         public float MainThreadBudgetMs = 2;
         public float ColliderRadius = 150;
         public float VisualRange = 4000;
-        public float CapRange = 30000;
+        public float CapRange = 8000;
         public float CapMinDistance = 1500;
         public bool Waypoints = true;
         public bool Debug;

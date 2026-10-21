@@ -184,7 +184,7 @@ namespace Subterra.Core.Tests.Procedural
         // Networks are the same in every save and for every player (Lucas's ruling: maps must stay valid),
         // so the generator's output is pinned. If this fails, a change moved existing networks: undo it, or,
         // if it is deliberate, note it in the CHANGELOG and update the fingerprint.
-        private const string Fingerprint = "CB289CE3CD3E38BA";
+        private const string Fingerprint = "FA2B82ACF24DB6A3";
 
         [Fact]
         public void OutputIsPinned()

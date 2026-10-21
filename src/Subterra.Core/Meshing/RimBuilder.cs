@@ -12,6 +12,12 @@ namespace Subterra.Core.Meshing
     public static class RimBuilder
     {
         public const float OuterLift = 0.3f;
+
+        /// <summary>How far a skylight rim's outer edge sits under the terrain (m).</summary>
+        public const float OuterSink = 0.05f;
+
+        /// <summary>Depth of the wall hanging from a skylight rim's inner edge (m): it closes the gap down to the shaft wall.</summary>
+        public const float InnerWall = 6f;
         public const float LipDrop = 2f;
         public const float SkirtDepth = 2f;
         public const float MaxBump = 1.5f;
@@ -60,13 +66,15 @@ namespace Subterra.Core.Meshing
                     }
                     else if (r == rings - 1)
                     {
-                        // Just above the terrain (no z-fighting); a smooth rim stays almost flush (a vehicle drives over it).
-                        y += smooth ? 0.03f : OuterLift;
+                        // A smooth rim (driven on) sits just over the ground; a skylight's outer edge just under it, so the terrain
+                        // hides the seam and there is no step.
+                        y += smooth ? 0.03f : -OuterSink;
                     }
                     else
                     {
-                        float bump = (Noise.Fbm(new Vec3(x * 0.15f, 0.5f, z * 0.15f), tables, 3) + 1) * 0.5f;
-                        y += smooth ? 0.03f : MaxBump * (1 - t) * bump;
+                        // The ground slumps towards the pit (no raised lip, as at real lunar pits), a little uneven.
+                        float noise = Noise.Fbm(new Vec3(x * 0.15f, 0.5f, z * 0.15f), tables, 3);
+                        y += smooth ? 0.03f : -LipDrop * (1 - t) * (1 - t) + MaxBump * 0.15f * noise * (1 - t);
                     }
 
                     mesh.Vertices.Add(new Vec3(x, y, z));
@@ -123,6 +131,29 @@ namespace Subterra.Core.Meshing
                 int a = (rings - 1) * segments + s, b = (rings - 1) * segments + s1, c = skirt + s, d = skirt + s1;
                 // Facing outwards.
                 mesh.Triangles.AddRange(new[] { a, b, c, b, d, c });
+            }
+
+            if (!smooth)
+            {
+                // A wall hanging from the inner edge, facing the pit: no gap (sky, a wheel trap) between the rim and the
+                // shaft wall, which is clipped under the terrain.
+                int wall = mesh.Vertices.Count;
+                for (int s = 0; s < segments; s++)
+                {
+                    Vec3 o = mesh.Vertices[s];
+                    Vec3 inward = new Vec3(-o.X, 0, -o.Z).Normalized;
+                    mesh.Vertices.Add(new Vec3(o.X, o.Y - InnerWall, o.Z));
+                    mesh.Normals.Add(inward);
+                    mesh.Uvs.Add(new Vec2(o.X / 4f, (o.Z - InnerWall) / 4f));
+                }
+
+                for (int s = 0; s < segments; s++)
+                {
+                    int s1 = (s + 1) % segments;
+                    int a = s, b = s1, c = wall + s, d = wall + s1;
+                    // Facing inwards (the reverse of the skirt's winding).
+                    mesh.Triangles.AddRange(new[] { a, c, b, b, c, d });
+                }
             }
 
             return mesh;

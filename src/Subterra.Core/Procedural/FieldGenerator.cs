@@ -371,7 +371,7 @@ namespace Subterra.Core.Procedural
         private static NodeSpec MakeNode(Vec3d dir, double depth, double width, Rng rng)
         {
             BodyFrame.ToLatLon(dir, out double lat, out double lon);
-            double nodeWidth = Math.Min(500, Math.Max(BodySpecWidthMin, width * rng.Range(0.85, 1.15)));
+            double nodeWidth = Math.Min(500, Math.Max(BodySpecWidthMin, width * rng.Range(0.94, 1.06)));
             return new NodeSpec
             {
                 Lat = lat,
@@ -413,13 +413,17 @@ namespace Subterra.Core.Procedural
                 double travelled = 0;
                 while (travelled + StepLength <= length + 1e-6)
                 {
+                    // Lava (and water) keeps its course and bends slowly towards the slope: mostly the previous heading,
+                    // some downhill, a little wander, and never more than MaxTurn per step (wide curves, no zigzag).
                     Vec3d down = Downhill(p) ?? previous;
-                    Vec3d jitter = RandomTangent(p, rng) * 0.25;
-                    Vec3d heading = Tangent(p, down * 0.7 + previous * 0.3 + jitter);
+                    Vec3d jitter = RandomTangent(p, rng) * 0.12;
+                    Vec3d heading = Tangent(p, previous * 0.7 + down * 0.3 + jitter);
                     if (heading.LengthSquared < 1e-12)
                     {
                         heading = previous;
                     }
+
+                    heading = LimitTurn(p, previous, heading);
 
                     Vec3d next = (p + heading * (StepLength / Radius)).Normalized;
                     if (!InRect(next))
@@ -445,6 +449,29 @@ namespace Subterra.Core.Procedural
                 }
 
                 return points;
+            }
+
+            /// <summary>Largest change of heading between two steps (radians).</summary>
+            private const double MaxTurn = 18 * Math.PI / 180;
+
+            // `heading` turned back towards `previous` (both tangent at p) if they are more than MaxTurn apart.
+            private static Vec3d LimitTurn(Vec3d p, Vec3d previous, Vec3d heading)
+            {
+                Vec3d before = Tangent(p, previous);
+                if (before.LengthSquared < 1e-12)
+                {
+                    return heading;
+                }
+
+                double angle = Math.Acos(Math.Max(-1, Math.Min(1, Vec3d.Dot(before, heading))));
+                if (angle <= MaxTurn)
+                {
+                    return heading;
+                }
+
+                double sign = Vec3d.Dot(Vec3d.Cross(before, heading), p) >= 0 ? 1 : -1;
+                Vec3d side = Vec3d.Cross(p, before).Normalized;
+                return (before * Math.Cos(MaxTurn) + side * (sign * Math.Sin(MaxTurn))).Normalized;
             }
 
             /// <summary>Unit tangent at <paramref name="from"/> pointing towards <paramref name="to"/>.</summary>

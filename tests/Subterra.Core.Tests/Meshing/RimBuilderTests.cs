@@ -14,14 +14,27 @@ namespace Subterra.Core.Tests.Meshing
         private static MeshData Rim(ulong seed = 3) => RimBuilder.Build(30, 135, Segments, Rings, Heights(), seed);
 
         [Fact]
-        public void OuterRingSitsOverTheTerrain()
+        public void OuterRingSitsJustUnderTheTerrain()
         {
             var m = Rim();
             float[] h = Heights();
             for (int s = 0; s < Segments; s++)
             {
                 int i = (Rings - 1) * Segments + s;
-                Assert.Equal(h[i] + 0.3f, m.Vertices[i].Y, 5);
+                Assert.Equal(h[i] - RimBuilder.OuterSink, m.Vertices[i].Y, 5);
+            }
+        }
+
+        [Fact]
+        public void InnerWallHangsFromTheLipFacingThePit()
+        {
+            var m = Rim();
+            int wall = m.Vertices.Count - Segments;
+            for (int s = 0; s < Segments; s++)
+            {
+                Assert.Equal(m.Vertices[s].Y - RimBuilder.InnerWall, m.Vertices[wall + s].Y, 4);
+                Vec3 toCentre = new Vec3(-m.Vertices[s].X, 0, -m.Vertices[s].Z);
+                Assert.True(Vec3.Dot(m.Normals[wall + s], toCentre) > 0);
             }
         }
 

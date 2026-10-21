@@ -112,6 +112,21 @@ cat <<'EOF'
 		hiddenChance = 0.7
 		seed = 2
 	}
+	// Short ice-lined tubes under the polar ground (cold traps): mostly dark, frozen vaults with water ice.
+	TUBE_FIELD
+	{
+		name = MunPolarIce
+		biomes = Poles, Polar Crater
+		networksPer10k = 14
+		width = 15, 90
+		length = 800, 5000
+		roofDepth = 10, 60
+		skylightSpacing = 1500, 4000
+		branchChance = 0.15
+		chamberChance = 0.1
+		hiddenChance = 0.5
+		seed = 3
+	}
 EOF
 # Breakdown piles: clusters where the roof shed blocks, mostly small rocks and a few big ones, half sunk; clear floor between.
 scatter BreakdownBoulders "Subterra/Props/Boulder01, Subterra/Props/Boulder02, Subterra/Props/Boulder03" floor "TubeGallery, TubeChamber, TubeBranch" 1.4 "0.3, 4.5" 0.6 true 0.035 0.62 3 0.3

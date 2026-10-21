@@ -95,7 +95,16 @@ namespace Subterra
         {
             Instance = this;
             capMesh = Disc(32);
-            capMaterial = new Material(Shader.Find("KSP/Unlit")) { color = new Color(0.01f, 0.01f, 0.012f) };
+            // A soft shadow, not a black dot: dark in the middle, fading to nothing at the edge (vertex colours), blended over
+            // the ground. From far away a pit reads as a smudge, as real lunar pits do (and not easier to spot than that).
+            Shader soft = Shader.Find("KSP/Particles/Alpha Blended") ?? Shader.Find("Sprites/Default");
+            capMaterial = new Material(soft);
+            if (capMaterial.HasProperty("_TintColor"))
+            {
+                capMaterial.SetColor("_TintColor", new Color(0.5f, 0.5f, 0.5f, 0.5f));
+            }
+
+            capMaterial.renderQueue = 2450;
         }
 
         private void OnDestroy()
@@ -680,9 +689,12 @@ namespace Subterra
             var renderer = go.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = capMaterial;
             renderer.shadowCastingMode = ShadowCastingMode.Off;
-            go.transform.localScale = Vector3.one * e.Skylight.Radius * 1.1f;
+            go.transform.localScale = Vector3.one * e.Skylight.Radius * 1.4f;
             return go;
         }
+
+        /// <summary>The far cap's centre: a deep shadow, not black, and not quite opaque.</summary>
+        private static readonly Color CapCentre = new Color(0.08f, 0.08f, 0.085f, 0.85f);
 
         // Unit disc in the X/Z plane facing up.
         private static Mesh Disc(int segments)
@@ -694,6 +706,12 @@ namespace Subterra
                 float a = 2 * Mathf.PI * s / segments;
                 vertices.Add(new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)));
             }
+            var colours = new List<Color> { CapCentre };
+            for (int s = 0; s < segments; s++)
+            {
+                colours.Add(new Color(CapCentre.r, CapCentre.g, CapCentre.b, 0));
+            }
+
 
             for (int s = 0; s < segments; s++)
             {
@@ -703,6 +721,7 @@ namespace Subterra
 
             var mesh = new Mesh();
             mesh.SetVertices(vertices);
+            mesh.SetColors(colours);
             mesh.SetTriangles(tris, 0);
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
