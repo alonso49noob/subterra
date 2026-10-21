@@ -75,6 +75,44 @@ namespace Subterra.Core.Tubes
         /// <summary>The graph it was compiled from.</summary>
         public SiteSpec Site { get; }
 
+        /// <summary>
+        /// The same network with <paramref name="extra"/> primitives (already in this network's frame) added, and
+        /// extra terrain samples for them: a dug tunnel joined into it. The wall noise keeps its seed (the id),
+        /// so the untouched parts mesh exactly as before.
+        /// </summary>
+        public TubeNetwork WithPrimitives(IReadOnlyList<Primitive> extra, IReadOnlyList<Vec3d> extraSurfaceDirs, IReadOnlyList<double> extraSurfaceRadii)
+        {
+            var prims = new List<Primitive>(Primitives.Count + extra.Count);
+            prims.AddRange(Primitives);
+            prims.AddRange(extra);
+            var dirs = new List<Vec3d>(surfaceDirs);
+            dirs.AddRange(extraSurfaceDirs);
+            var radii = new List<double>(surfaceRadii);
+            radii.AddRange(extraSurfaceRadii);
+            var sdf = new NetworkSdf(prims, new SpatialGrid(prims), Hash.Of(Id));
+            return new TubeNetwork(Id, Body, SiteName, DisplayName, Anchor, prims, sdf, Skylights, dirs.ToArray(), radii.ToArray(), Nodes, Site);
+        }
+
+        /// <summary>
+        /// A dug tunnel standing alone (not yet reaching a cave): its pieces as the network, the terrain sampled
+        /// along it, and the surface opening if it has one.
+        /// </summary>
+        public static TubeNetwork ForExcavation(Excavation.ExcavationSpec spec, IReadOnlyList<Vec3d> surfaceDirs, IReadOnlyList<double> surfaceRadii,
+            IReadOnlyList<Skylight> openings)
+        {
+            List<Primitive> prims = spec.Pieces(spec.Anchor);
+            var sdf = new NetworkSdf(prims, new SpatialGrid(prims), Hash.Of(spec.Id));
+            var dirs = new Vec3d[surfaceDirs.Count];
+            var radii = new double[surfaceRadii.Count];
+            for (int i = 0; i < dirs.Length; i++)
+            {
+                dirs[i] = surfaceDirs[i];
+                radii[i] = surfaceRadii[i];
+            }
+
+            return new TubeNetwork(spec.Id, spec.Body, null, spec.Id, spec.Anchor, prims, sdf, openings ?? new Skylight[0], dirs, radii);
+        }
+
         public Vec3 ToLocal(Vec3d bodyPos) => (bodyPos - Anchor).ToVec3();
 
         public Vec3d ToBody(Vec3 local) => Anchor + Vec3d.FromVec3(local);

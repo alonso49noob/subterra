@@ -9,5 +9,8 @@ namespace Subterra.Core.Model
         TubeChamber,
         TubeBranch,
         FrozenVault,
+
+        /// <summary>A tunnel dug by the player (sub-project 2).</summary>
+        Excavation,
     }
 }
