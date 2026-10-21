@@ -44,7 +44,7 @@ namespace Subterra
 
             float[] tint = layer?.Tint ?? new[] { 0.5f, 0.5f, 0.5f };
             var colour = new Color(tint[0], tint[1], tint[2]);
-            material = FromTerrain(body, "_steepTex", "_steepBumpMap", colour * TerrainTint)
+            material = FromTerrain(body, "_steepTex", "_steepBumpMap", Capped(colour * TerrainTint))
                 ?? Create("Rock_d", "Rock_n", colour * 1.6f);
             material.name = "Subterra rock " + key;
             ByLayer[key] = material;
@@ -87,11 +87,28 @@ namespace Subterra
         /// <summary>Terrain vertex colour to rim tint (calibrated on the Mun against the terrain next to a rim).</summary>
         private const float GroundScale = 1.2f;
 
+        /// <summary>Rock props: the body's cliff texture a little lighter than the walls (loose blocks catch the light); null without one.</summary>
+        public static Material ForProps(CelestialBody body)
+        {
+            Material material = FromTerrain(body, "_steepTex", "_steepBumpMap", new Color(1.1f, 1.1f, 1.1f));
+            if (material != null)
+            {
+                material.name = "Subterra props " + body.bodyName;
+            }
+
+            return material;
+        }
+
         /// <summary>Layer tints are absolute greys around 0.5; the terrain textures already have the body's colour.</summary>
         private const float TerrainTint = 2f;
 
         /// <summary>Tint of the terrain's flat texture on rims (the PQS adds its colour per vertex).</summary>
         private static readonly Color SurfaceGrey = new Color(0.52f, 0.515f, 0.53f);
+
+        // Light layer tints (ice) doubled would wash the texture out: each channel at most MaxTint.
+        private const float MaxTint = 1.15f;
+
+        private static Color Capped(Color c) => new Color(Mathf.Min(c.r, MaxTint), Mathf.Min(c.g, MaxTint), Mathf.Min(c.b, MaxTint), 1);
 
         /// <summary>Metres per tile of the terrain textures on cave meshes (the meshes' UVs are 4 m per tile).</summary>
         private const float TerrainMetersPerTile = 8f;

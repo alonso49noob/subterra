@@ -19,6 +19,7 @@ scatters() {
   scatter IceCrystals "Subterra/Props/IceCluster01" floor "FrozenVault" 0.8 "0.4, 1.6" 0.8 false 0.02 0.35 1.5 0.15
 }
 
+# Duna's cliff texture is already red: layer tints are near-neutral greys (they darken or lighten it).
 # --- Duna -----------------------------------------------------------------------------------------------------
 out=GameData/Subterra/Bodies/Duna/Duna.cfg
 mkdir -p "$(dirname "$out")"
@@ -39,13 +40,13 @@ SUBTERRA_BODY
 	STRATA
 	{
 EOF
-layer Regolith 0 5 0.15 1.5 8 "0.62,0.40,0.29"
-layer PolarIce 5 1500 0.35 1.1 6 "0.82,0.80,0.82" "Poles, Polar Highlands, Polar Craters" "Water:0.04"
+layer Regolith 0 5 0.15 1.5 8 "0.55,0.53,0.52"
+layer PolarIce 5 1500 0.35 1.1 6 "0.62,0.62,0.64" "Poles, Polar Highlands, Polar Craters" "Water:0.04"
 # Layered sediments of old seas and canyons: soft, with a little old water in the pores.
-layer LayeredSediments 5 900 0.4 2.3 9 "0.60,0.44,0.34" "Midland Sea, Northern Basin, Southern Basin, Northern Shelf, Midland Canyon, Eastern Canyon, Western Canyon" "Water:0.01"
-layer VolcanicBasalt 5 4000 0.6 3.0 8 "0.42,0.30,0.25" "*"
-layer Megaregolith 4000 9000 0.65 2.9 8 "0.45,0.34,0.28"
-layer LowerCrust 9000 50000 0.75 3.0 8 "0.40,0.32,0.27"
+layer LayeredSediments 5 900 0.4 2.3 9 "0.52,0.50,0.48" "Midland Sea, Northern Basin, Southern Basin, Northern Shelf, Midland Canyon, Eastern Canyon, Western Canyon" "Water:0.01"
+layer VolcanicBasalt 5 4000 0.6 3.0 8 "0.36,0.35,0.35" "*"
+layer Megaregolith 4000 9000 0.65 2.9 8 "0.42,0.41,0.40"
+layer LowerCrust 9000 50000 0.75 3.0 8 "0.40,0.39,0.38"
 layer UpperMantle 50000 150000 0.85 3.4 5 "0.40,0.33,0.26"
 layer LowerMantle 150000 250000 0.9 3.6 3 "0.38,0.30,0.24"
 layer Core 250000 320000 0.95 6.0 1 "0.45,0.30,0.20"

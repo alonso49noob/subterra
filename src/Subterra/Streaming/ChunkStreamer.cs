@@ -553,7 +553,7 @@ namespace Subterra
 
                     using (SubterraClock.Measure("ChunkStreamer.Step.Scatter"))
                     {
-                        chunk.AddScatter(scatter, MeshUploader.Upload(scatterVisual, chunk.Key + " " + scatter.Model, readable: false), PropLibrary.MaterialFor(scatter.Model));
+                        chunk.AddScatter(scatter, MeshUploader.Upload(scatterVisual, chunk.Key + " " + scatter.Model, readable: false), PropLibrary.MaterialFor(scatter.Model, body));
                     }
 
                     chunk.Bytes += scatter.Visual.ByteSize + (scatter.Collider?.ByteSize ?? 0);

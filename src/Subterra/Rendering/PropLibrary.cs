@@ -42,16 +42,16 @@ namespace Subterra
 
         public static bool TryGet(string model, int lod, out MeshData mesh) => Meshes.TryGetValue((model, lod), out mesh) && mesh != null;
 
-        /// <summary>Main thread only.</summary>
-        public static Material MaterialFor(string model)
+        /// <summary>Main thread only. Rock props take the body's own cliff texture (red on Duna, grey on the Mun).</summary>
+        public static Material MaterialFor(string model, CelestialBody body = null)
         {
             bool ice = model.IndexOf("Ice", System.StringComparison.OrdinalIgnoreCase) >= 0;
-            string key = ice ? "ice" : "rock";
+            string key = ice ? "ice" : "rock/" + (body?.bodyName ?? "");
             if (!Materials.TryGetValue(key, out Material material) || material == null)
             {
                 material = ice
                     ? MaterialFactory.Create("Ice_d", "Ice_n", new Color(0.75f, 0.85f, 0.95f))
-                    : MaterialFactory.Create("Rock_d", "Rock_n", new Color(0.62f, 0.6f, 0.57f));
+                    : MaterialFactory.ForProps(body) ?? MaterialFactory.Create("Rock_d", "Rock_n", new Color(0.62f, 0.6f, 0.57f));
                 Materials[key] = material;
             }
 

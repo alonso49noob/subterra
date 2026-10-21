@@ -170,6 +170,19 @@ namespace Subterra
                         StartCoroutine(BuildRim(runtime, e));
                     }
 
+                    // A rim built before the terrain under it had colliders (far away, or seen from orbit) neither follows nor
+                    // matches the ground: built again once the terrain is there.
+                    if (e.Rim != null && !e.Building && e.GroundColour == null && distance < RefitRange && Time.realtimeSinceStartup >= e.NextRefit)
+                    {
+                        e.NextRefit = Time.realtimeSinceStartup + 2f;
+                        // Tested just outside the hole (the terrain is cut over it).
+                        Vector3d beside = Frames.ToWorld(body, e.Net.ToBody(e.Skylight.SurfaceCenter + e.Right * (e.Skylight.Radius + 10f)));
+                        if (TerrainColliderUnder(beside, (beside - body.position).normalized))
+                        {
+                            Rebuild(runtime, e);
+                        }
+                    }
+
                     bool open = SkylightInjector.IsOpen(body, e.Net, e.Skylight);
                     bool showCap = distance < settings.CapRange && (!open || distance > settings.CapMinDistance);
                     if (showCap && e.Cap == null)
@@ -511,6 +524,15 @@ namespace Subterra
             // A rebuilt rim (a tunnel grew under its trench) is cut against the network as it is now.
             e.Net = net;
             e.Skylight = s;
+            Rebuild(runtime, e);
+        }
+
+        /// <summary>How near the camera a rim built without terrain under it is built again (m).</summary>
+        private const float RefitRange = 3000f;
+
+        // Drops an entry's rim (mesh included) and builds it again right now.
+        private void Rebuild(BodyRuntime runtime, Entry e)
+        {
             if (e.Rim != null)
             {
                 Mesh old = e.Rim.GetComponent<MeshFilter>()?.sharedMesh;
@@ -525,6 +547,20 @@ namespace Subterra
 
             e.Cancelled = false;
             Drain(BuildRim(runtime, e, true));
+        }
+
+        // True if a terrain collider lies under (or around) a point, along the local vertical.
+        private static bool TerrainColliderUnder(Vector3d world, Vector3 up)
+        {
+            foreach (RaycastHit hit in Physics.RaycastAll((Vector3)world + up * 50f, -up, 100f, 1 << ChunkObject.Layer, QueryTriggerInteraction.Ignore))
+            {
+                if (hit.collider.GetComponent<PQ>() != null)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         // Runs a coroutine (and the ones it yields) to the end in this frame.
@@ -691,6 +727,8 @@ namespace Subterra
             public float?[] GroundHeights;
 
             public Color? GroundColour;
+
+            public float NextRefit;
         }
     }
 }
