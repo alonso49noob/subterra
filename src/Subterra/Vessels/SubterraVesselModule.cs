@@ -11,6 +11,11 @@ namespace Subterra
         private float nextUpdate;
         private UndergroundState state;
         private float stateTime = float.NegativeInfinity;
+        private const float StillDistance = 0.5f;
+        private const float MaxReuse = 2f;
+        private CelestialBody stateBody;
+        private Vector3d statePos;
+        private float fullTime = float.NegativeInfinity;
 
         public LoadGuard Guard { get; } = new LoadGuard();
 
@@ -36,7 +41,20 @@ namespace Subterra
         public void Refresh()
         {
             stateTime = Time.realtimeSinceStartup;
-            state = UndergroundTracker.Compute(vessel.mainBody, vessel.GetWorldPos3D(), true);
+
+            // The full state (sky rays towards every skylight within 2 km) costs milliseconds in a busy
+            // network: a vessel that has not moved keeps it, recomputed at most every MaxReuse seconds.
+            CelestialBody body = vessel.mainBody;
+            Vector3d bodyPos = body.pqsController != null ? Frames.ToBody(body, vessel.GetWorldPos3D()).ToKsp() : Vector3d.zero;
+            if (body == stateBody && (bodyPos - statePos).sqrMagnitude < StillDistance * StillDistance && stateTime - fullTime < MaxReuse)
+            {
+                return;
+            }
+
+            state = UndergroundTracker.Compute(body, vessel.GetWorldPos3D(), true);
+            stateBody = body;
+            statePos = bodyPos;
+            fullTime = stateTime;
         }
 
         private void Update()

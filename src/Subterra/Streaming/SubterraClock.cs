@@ -79,7 +79,7 @@ namespace Subterra
         }
 
         /// <summary>"Name max/total ms" for the components that cost most, worst first.</summary>
-        public static string Breakdown(int top = 6) =>
+        public static string Breakdown(int top = 14) =>
             string.Join(", ", ComponentMax.OrderByDescending(p => p.Value).Take(top)
                 .Select(p => FormattableString.Invariant($"{p.Key} {p.Value:F1}/{ComponentTotal[p.Key]:F0}")));
 

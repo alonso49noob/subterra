@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Subterra.Core.Meshing;
 using Subterra.Core.Numerics;
 using UnityEngine;
@@ -6,50 +5,85 @@ using UnityEngine.Rendering;
 
 namespace Subterra
 {
+    /// <summary>
+    /// A mesh's arrays already in Unity's types, with its bounds. Built by <see cref="MeshUploader.Prepare"/>
+    /// on a worker thread (only plain structs, no Unity calls), so the main thread just hands them over.
+    /// </summary>
+    public sealed class PreparedMesh
+    {
+        public Vector3[] Vertices;
+        public Vector3[] Normals;
+        public Vector2[] Uvs;
+        public int[] Triangles;
+        public Bounds Bounds;
+    }
+
     /// <summary>MeshData (worker thread) → Unity Mesh (main thread).</summary>
     public static class MeshUploader
     {
-        /// <param name="readable">False for render-only meshes: the CPU copy is freed after the upload.</param>
-        public static Mesh Upload(MeshData data, string name, bool readable = true)
+        /// <summary>Converts <paramref name="data"/> to Unity arrays; safe on any thread.</summary>
+        public static PreparedMesh Prepare(MeshData data)
         {
-            var mesh = new Mesh { name = name };
             int count = data.Vertices.Count;
-            if (count >= 65535)
+            var prepared = new PreparedMesh { Vertices = new Vector3[count], Triangles = data.Triangles.ToArray() };
+            Vector3 min = Vector3.positiveInfinity, max = Vector3.negativeInfinity;
+            for (int i = 0; i < count; i++)
             {
-                mesh.indexFormat = IndexFormat.UInt32;
+                Vector3 v = data.Vertices[i].ToUnity();
+                prepared.Vertices[i] = v;
+                min = Vector3.Min(min, v);
+                max = Vector3.Max(max, v);
             }
 
-            var vertices = new List<Vector3>(count);
-            foreach (Vec3 v in data.Vertices)
-            {
-                vertices.Add(v.ToUnity());
-            }
-
-            mesh.SetVertices(vertices);
+            prepared.Bounds = count == 0 ? default : new Bounds((min + max) * 0.5f, max - min);
             if (data.Normals.Count == count)
             {
-                var normals = new List<Vector3>(count);
-                foreach (Vec3 n in data.Normals)
+                prepared.Normals = new Vector3[count];
+                for (int i = 0; i < count; i++)
                 {
-                    normals.Add(n.ToUnity());
+                    prepared.Normals[i] = data.Normals[i].ToUnity();
                 }
-
-                mesh.SetNormals(normals);
             }
 
             if (data.Uvs.Count == count)
             {
-                var uvs = new List<Vector2>(count);
-                foreach (Vec2 uv in data.Uvs)
+                prepared.Uvs = new Vector2[count];
+                for (int i = 0; i < count; i++)
                 {
-                    uvs.Add(new Vector2(uv.X, uv.Y));
+                    Vec2 uv = data.Uvs[i];
+                    prepared.Uvs[i] = new Vector2(uv.X, uv.Y);
                 }
-
-                mesh.SetUVs(0, uvs);
             }
 
-            mesh.SetTriangles(data.Triangles, 0, true);
-            if (data.Normals.Count != count)
+            return prepared;
+        }
+
+        /// <param name="readable">False for render-only meshes: the CPU copy is freed after the upload.</param>
+        public static Mesh Upload(MeshData data, string name, bool readable = true) => Upload(Prepare(data), name, readable);
+
+        /// <param name="readable">False for render-only meshes: the CPU copy is freed after the upload.</param>
+        public static Mesh Upload(PreparedMesh prepared, string name, bool readable = true)
+        {
+            var mesh = new Mesh { name = name };
+            if (prepared.Vertices.Length >= 65535)
+            {
+                mesh.indexFormat = IndexFormat.UInt32;
+            }
+
+            mesh.vertices = prepared.Vertices;
+            if (prepared.Normals != null)
+            {
+                mesh.normals = prepared.Normals;
+            }
+
+            if (prepared.Uvs != null)
+            {
+                mesh.uv = prepared.Uvs;
+            }
+
+            mesh.SetTriangles(prepared.Triangles, 0, false);
+            mesh.bounds = prepared.Bounds;
+            if (prepared.Normals == null)
             {
                 mesh.RecalculateNormals();
             }
