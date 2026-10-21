@@ -760,13 +760,13 @@ Abreviaturas en los escenarios (a partir de Task 22, que crea `teleportToNetwork
 ### Task 37: Empaquetado y comprobación de la 0.1.0
 
 **Files:**
-- Create: `GameData/Subterra/{Subterra.version,LICENSE,README.md,CHANGELOG.md}`, `README.md`, `README.es.md`, `Subterra.netkan`, `tools/package.py`, `tests/ksp/scenarios/release-smoke.cfg`, `docs/superpowers/notes/compat-0.1.0.md`
+- Create: `GameData/Subterra/{Subterra.version,LICENSE,README.md,CHANGELOG.md}`, `README.md`, `README.es.md`, `Subterra.netkan`, `tools/package.py`, `tests/ksp/scenarios/release-smoke.cfg`, `docs/superpowers/notes/compat.md`
 
 **Interfaces:**
 - Produces: `python tools/package.py` → `dist/Subterra-0.1.0.zip` con `GameData/Subterra/` (DDS, sin DevTools, sin `PluginData`), versión leída de `Subterra.version`.
 
 - [ ] **Step 1:** **Confirmar la licencia con el usuario** (propuesta: MIT código + CC BY-NC-SA 4.0 assets) antes de escribir `LICENSE`.
 - [ ] **Step 2:** `Subterra.version` (KSP-AVC: `NAME Subterra`, `VERSION 0.1.0`, `KSP_VERSION 1.12.5`, `KSP_VERSION_MIN 1.12.0`, `KSP_VERSION_MAX 1.12.99`), `CHANGELOG.md` (0.1.0 alpha), READMEs (inglés y español: qué hace, dependencias, opcionales, instalación, problemas conocidos), `Subterra.netkan` (`depends`: ModuleManager, Harmony2; `suggests`: SCANsat, Kerbalism, CommunityResourcePack, Parallax; `install` de `GameData/Subterra`).
-- [ ] **Step 3:** `release-smoke.cfg` = `boot` + un sitio de la Mun (bajar por el tragaluz, aterrizar, bioma, F5/F9) + `noSubterraExceptions`. Ejecutarlo con `stock`, `full` y (si existe) `kerbalism`; y una vez con un perfil `stock` + Kopernicus solo, añadiéndolo a la tabla de perfiles. Escribir la matriz en `compat-0.1.0.md`.
+- [ ] **Step 3:** `release-smoke.cfg` = `boot` + un sitio de la Mun (bajar por el tragaluz, aterrizar, bioma, F5/F9) + `noSubterraExceptions`. Ejecutarlo con `stock`, `full` y (si existe) `kerbalism`; y una vez con un perfil `stock` + Kopernicus solo, añadiéndolo a la tabla de perfiles. Escribir la matriz en `compat.md`.
 - [ ] **Step 4:** `dotnet test tests/Subterra.Core.Tests -c Release` → todo PASS (incluido Perf); `python -m pytest tools/tests -q` → PASS; `python tools/package.py` → zip creado; descomprimirlo en la copia de pruebas en lugar del build y repetir `release-smoke` con `stock` → PASS.
 - [ ] **Step 5:** Commit `release: Subterra 0.1.0`. No hacer push ni crear repo ni release en GitHub sin permiso del usuario.

@@ -1,6 +1,6 @@
-# Subterra 0.1.0 (alpha)
+# Subterra 0.2.0 (alpha)
 
-Lava tubes you can fly into, land in and drive through, under the surface of the Mun.
+Lava tubes you can fly into, land in and drive through, under the surface of the Mun; drills, pumps, tunnel borers and blast holes to dig your own.
 
 Requires: ModuleManager, Harmony (HarmonyKSP). Optional: SCANsat, Kerbalism, CommunityResourcePack, Parallax. Works with Kopernicus.
 Install: copy `GameData/Subterra` into your KSP's `GameData`.

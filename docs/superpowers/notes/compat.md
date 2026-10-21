@@ -1,4 +1,4 @@
-# Subterra 0.1.0 — compatibility matrix
+# Subterra — compatibility matrix (0.1.0, 0.2.0)
 
 KSP 1.12.5 (build 03190), Windows, throwaway test copy (`tools/test-ksp.ps1`). Scenario `release-smoke`: the loader
 with the shipped `Mun.cfg` only (no development cfgs), a rover set down in the tube next to Serenity Skylight, cave
@@ -25,3 +25,16 @@ mod set one pause is ~20 ms). Measured with vsync at 60 Hz (screen off); at 120 
 - A rover that falls down a skylight shaft (60–170 m) breaks: lower it, or land next to the rubble cone.
 - The Kerman Chain is 20 km long, not the 25 km of the design: no gentle 25 km track exists in the Midlands.
 - `SurfaceNetsTests.TubeChunkUnder30ms` is a timing test; it fails on a loaded or throttled machine.
+
+## 0.2.0 (internal) — drills, pumps and digging
+
+Runs of 2026-10-21 with the new parts:
+
+| Profile | Scenarios |
+|---|---|
+| stock | drill, tunnel, tunnel-join, pump (needs CRP: run on full), blast, gas, dig-perf, showcase-dig, plus the 0.1.0 set: skylight, caps, stream, mun-sites, scatters, discover, boot ✅ |
+| full | drill, tunnel, pump, blast, gas ✅ |
+| kerbalism | drill, tunnel, blast ✅ |
+
+Frame cost while the tunnel borer digs from the surface (dig-perf, stock): average 0.23 ms, worst frame 2.6 ms.
+`stream` failed once on a 16 ms frame in DiscoveryService and passed on the rerun (occasional).
