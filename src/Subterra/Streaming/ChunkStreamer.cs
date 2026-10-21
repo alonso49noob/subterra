@@ -27,6 +27,9 @@ namespace Subterra
         private readonly Dictionary<string, Transform> roots = new Dictionary<string, Transform>();
         private readonly Dictionary<string, TubeNetwork> networks = new Dictionary<string, TubeNetwork>();
         private readonly HashSet<ChunkKey> pending = new HashSet<ChunkKey>();
+        // Cached chunks whose network changed under them (a dug tunnel): shown until their new mesh is ready.
+        private readonly HashSet<ChunkKey> stale = new HashSet<ChunkKey>();
+        private readonly Dictionary<string, int> revisions = new Dictionary<string, int>();
         private readonly HashSet<ChunkKey> desiredVisual = new HashSet<ChunkKey>();
         private readonly HashSet<ChunkKey> desiredColliders = new HashSet<ChunkKey>();
         private readonly HashSet<ChunkKey> missingVisual = new HashSet<ChunkKey>();
@@ -155,6 +158,8 @@ namespace Subterra
             desiredColliders.Clear();
             missingVisual.Clear();
             collidersOn.Clear();
+            stale.Clear();
+            revisions.Clear();
             wanted.Clear();
             steps.Clear();
             while (fromWorkers.TryDequeue(out _))
@@ -163,6 +168,61 @@ namespace Subterra
 
             planned = false;
         }
+
+        /// <summary>
+        /// A network changed shape inside <paramref name="localBox"/> (a tunnel was dug or joined into it): the
+        /// cached chunks there are meshed again, staying on screen (and solid) until their new mesh is ready.
+        /// </summary>
+        public void NetworkChanged(TubeNetwork net, Aabb localBox)
+        {
+            revisions[net.Id] = RevisionOf(net.Id) + 1;
+            if (networks.ContainsKey(net.Id))
+            {
+                networks[net.Id] = net;
+            }
+
+            Aabb box = localBox.Expand(4f);
+            foreach (ChunkKey key in cache.Keys)
+            {
+                if (key.NetworkId == net.Id && key.Bounds.Intersects(box))
+                {
+                    stale.Add(key);
+                }
+            }
+
+            nextPlan = 0;
+        }
+
+        /// <summary>A standalone dug tunnel became part of another network: its own chunks and root go.</summary>
+        public void NetworkRemoved(string id)
+        {
+            revisions[id] = RevisionOf(id) + 1;
+            foreach (ChunkKey key in cache.Keys.Where(k => k.NetworkId == id).ToList())
+            {
+                if (cache.Remove(key, out ChunkObject chunk))
+                {
+                    collidersOn.Remove(key);
+                    stale.Remove(key);
+                    chunk.Destroy();
+                }
+            }
+
+            if (roots.TryGetValue(id, out Transform root))
+            {
+                if (root != null)
+                {
+                    Destroy(root.gameObject);
+                }
+
+                roots.Remove(id);
+            }
+
+            networks.Remove(id);
+            nextPlan = 0;
+            visibilityDirty = true;
+        }
+
+        private int RevisionOf(string id) => revisions.TryGetValue(id, out int revision) ? revision : 0;
 
         private void Update()
         {
@@ -349,21 +409,19 @@ namespace Subterra
             wanted.Clear();
             foreach (ChunkKey key in ordered)
             {
-                if (cache.TryGet(key, out _))
+                bool cached = cache.TryGet(key, out _);
+                if (cached)
                 {
                     cache.Touch(key, frame);
                 }
-                else
+                else if (desiredVisual.Contains(key))
                 {
-                    if (desiredVisual.Contains(key))
-                    {
-                        missingVisual.Add(key);
-                    }
+                    missingVisual.Add(key);
+                }
 
-                    if (!pending.Contains(key))
-                    {
-                        wanted.Add(key);
-                    }
+                if ((!cached || stale.Contains(key)) && !pending.Contains(key))
+                {
+                    wanted.Add(key);
                 }
             }
 
@@ -374,6 +432,8 @@ namespace Subterra
 
         private void EnsureRoot(TubeNetwork net)
         {
+            // Always the catalog's current version (a network grows when a tunnel joins it).
+            networks[net.Id] = net;
             if (roots.ContainsKey(net.Id))
             {
                 return;
@@ -384,7 +444,6 @@ namespace Subterra
             go.transform.localPosition = net.Anchor.ToKsp();
             go.transform.localRotation = Quaternion.identity;
             roots[net.Id] = go.transform;
-            networks[net.Id] = net;
         }
 
         // Starts meshing jobs for wanted chunks, in plan order, up to the job limit.
@@ -394,13 +453,18 @@ namespace Subterra
             while (pending.Count < MaxPendingJobs && wantedIndex < wanted.Count)
             {
                 ChunkKey key = wanted[wantedIndex++];
-                if (pending.Contains(key) || cache.TryGet(key, out _))
+                if (pending.Contains(key) || cache.TryGet(key, out _) && !stale.Contains(key))
+                {
+                    continue;
+                }
+
+                if (!networks.TryGetValue(key.NetworkId, out TubeNetwork net))
                 {
                     continue;
                 }
 
                 pending.Add(key);
-                TubeNetwork net = networks[key.NetworkId];
+                int revision = RevisionOf(net.Id);
                 IReadOnlyList<ScatterSpec> scatterSpecs = runtime.Spec.Scatters;
                 WorkerPool.Shared.Enqueue(() =>
                 {
@@ -422,7 +486,7 @@ namespace Subterra
                             scatterVisuals.Add(MeshUploader.Prepare(scatter.Visual));
                         }
 
-                        fromWorkers.Enqueue(() => Meshed(jobGeneration, net, key, data, visual, collider, scatters, scatterVisuals));
+                        fromWorkers.Enqueue(() => Meshed(jobGeneration, revision, net, key, data, visual, collider, scatters, scatterVisuals));
                     }
                     catch (Exception e)
                     {
@@ -441,10 +505,18 @@ namespace Subterra
         }
 
         // A finished job becomes upload steps: the chunk mesh, then one step per scatter, then the cache entry.
-        private void Meshed(int jobGeneration, TubeNetwork net, ChunkKey key, MeshData data, PreparedMesh visual, MeshData colliderData, List<ScatterMesh> scatters, List<PreparedMesh> scatterVisuals)
+        private void Meshed(int jobGeneration, int revision, TubeNetwork net, ChunkKey key, MeshData data, PreparedMesh visual, MeshData colliderData, List<ScatterMesh> scatters, List<PreparedMesh> scatterVisuals)
         {
             if (jobGeneration != generation)
             {
+                return;
+            }
+
+            // Meshed from a version of the network that has since grown: mesh it again.
+            if (revision != RevisionOf(net.Id))
+            {
+                pending.Remove(key);
+                nextPlan = 0;
                 return;
             }
 
@@ -506,9 +578,11 @@ namespace Subterra
         private void Finish(ChunkObject chunk)
         {
             pending.Remove(chunk.Key);
+            stale.Remove(chunk.Key);
             if (cache.TryGet(chunk.Key, out ChunkObject old) && old != chunk)
             {
                 cache.Remove(chunk.Key, out _);
+                collidersOn.Remove(chunk.Key);
                 old.Destroy();
             }
 

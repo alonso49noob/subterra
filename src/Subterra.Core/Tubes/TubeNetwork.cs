@@ -80,7 +80,8 @@ namespace Subterra.Core.Tubes
         /// extra terrain samples for them: a dug tunnel joined into it. The wall noise keeps its seed (the id),
         /// so the untouched parts mesh exactly as before.
         /// </summary>
-        public TubeNetwork WithPrimitives(IReadOnlyList<Primitive> extra, IReadOnlyList<Vec3d> extraSurfaceDirs, IReadOnlyList<double> extraSurfaceRadii)
+        public TubeNetwork WithPrimitives(IReadOnlyList<Primitive> extra, IReadOnlyList<Vec3d> extraSurfaceDirs, IReadOnlyList<double> extraSurfaceRadii,
+            IReadOnlyList<Skylight> extraSkylights = null)
         {
             var prims = new List<Primitive>(Primitives.Count + extra.Count);
             prims.AddRange(Primitives);
@@ -90,7 +91,13 @@ namespace Subterra.Core.Tubes
             var radii = new List<double>(surfaceRadii);
             radii.AddRange(extraSurfaceRadii);
             var sdf = new NetworkSdf(prims, new SpatialGrid(prims), Hash.Of(Id));
-            return new TubeNetwork(Id, Body, SiteName, DisplayName, Anchor, prims, sdf, Skylights, dirs.ToArray(), radii.ToArray(), Nodes, Site);
+            var skylights = new List<Skylight>(Skylights);
+            if (extraSkylights != null)
+            {
+                skylights.AddRange(extraSkylights);
+            }
+
+            return new TubeNetwork(Id, Body, SiteName, DisplayName, Anchor, prims, sdf, skylights, dirs.ToArray(), radii.ToArray(), Nodes, Site);
         }
 
         /// <summary>

@@ -5,7 +5,7 @@ namespace Subterra
 {
     /// <summary>
     /// Saved with the game: discovered networks (with the waypoints made for their skylights, so they
-    /// can be recreated before their cell is generated again) and visited zones.
+    /// can be recreated before their cell is generated again), visited zones and the tunnels dug by the player.
     /// </summary>
     [KSPScenario(ScenarioCreationOptions.AddToAllGames, GameScenes.FLIGHT, GameScenes.SPACECENTER, GameScenes.TRACKSTATION)]
     public sealed class SubterraScenario : ScenarioModule
@@ -70,6 +70,8 @@ namespace Subterra
                 n.AddValue("id", parts[0]);
                 n.AddValue("zone", parts.Length > 1 ? parts[1] : "");
             }
+
+            ExcavationService.Save(node);
         }
 
         public override void OnLoad(ConfigNode node)
@@ -100,6 +102,8 @@ namespace Subterra
             {
                 visited.Add(n.GetValue("id") + "|" + n.GetValue("zone"));
             }
+
+            ExcavationService.Load(node);
         }
 
         public sealed class Discovery

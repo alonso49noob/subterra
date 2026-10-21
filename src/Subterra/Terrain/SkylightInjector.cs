@@ -40,7 +40,7 @@ namespace Subterra
         public static PQSMod_SubterraSkylight ModFor(PQS pqs) => pqs != null && Mods.TryGetValue(pqs, out PQSMod_SubterraSkylight mod) ? mod : null;
 
         // All new skylights of a batch of networks (a cell, or the named sites) cut in one pass over the quads.
-        private static void AddNetworks(BodyRuntime runtime, IEnumerable<TubeNetwork> nets)
+        internal static void AddNetworks(BodyRuntime runtime, IEnumerable<TubeNetwork> nets)
         {
             using (SubterraClock.Measure("SkylightInjector"))
             {

@@ -58,6 +58,40 @@ namespace Subterra.Core.Tests.Procedural
         }
 
         [Fact]
+        public void ReplaceSwapsNamedCellAndDugNetworks()
+        {
+            var catalog = new NetworkCatalog(Spec(true), R);
+            TubeNetwork named = Net("Named", 10), inCell = Net("InCell", 40), dug = Net("Dug", 70);
+            catalog.AddNamed(named);
+            catalog.AddCell(catalog.Grid.CellOf(BodyFrame.Direction(0, 40)), new List<TubeNetwork> { inCell });
+            catalog.PutDug(dug);
+            Assert.Equal(3, catalog.All.Count());
+
+            foreach (TubeNetwork old in new[] { named, inCell, dug })
+            {
+                TubeNetwork grown = old.WithPrimitives(new List<Subterra.Core.Sdf.Primitive>(), new Subterra.Core.Numerics.Vec3d[0], new double[0]);
+                Assert.True(catalog.Replace(grown));
+                Assert.Same(grown, catalog.Find(old.Id));
+            }
+
+            Assert.Equal(3, catalog.All.Count());
+            Assert.False(catalog.Replace(Net("Unknown", 100)));
+        }
+
+        [Fact]
+        public void DugTunnelsCanJoinAndLeave()
+        {
+            var catalog = new NetworkCatalog(Spec(true), R);
+            TubeNetwork dug = Net("Dug", 70);
+            catalog.PutDug(dug);
+            catalog.PutDug(dug);
+            Assert.Single(catalog.All);
+            Assert.True(catalog.RemoveDug(dug.Id));
+            Assert.Empty(catalog.All);
+            Assert.False(catalog.RemoveDug(dug.Id));
+        }
+
+        [Fact]
         public void NoFieldsNoMissingCells() =>
             Assert.Empty(new NetworkCatalog(Spec(false), R).MissingCellsNear(BodyFrame.Direction(0, 10) * R, 60000));
     }
