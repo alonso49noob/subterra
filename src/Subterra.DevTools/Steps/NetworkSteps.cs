@@ -73,6 +73,8 @@ namespace Subterra.DevTools
             vessel.Landed = true;
             vessel.SetPosition(Frames.ToWorld(body, target));
             body.GetLatLonAlt(vessel.transform.position, out vessel.latitude, out vessel.longitude, out vessel.altitude);
+            TestContext.RestOrbitHere(vessel);
+            vessel.Landed = true;
             yield return null;
             if (hold)
             {

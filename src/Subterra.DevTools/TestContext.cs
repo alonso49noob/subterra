@@ -106,17 +106,26 @@ namespace Subterra.DevTools
                 // The orbit stayed frozen while held: restart it at rest relative to the surface
                 // (as SetVesselPosition does), or the vessel would leave the rails with the speed
                 // of a fall that never happened.
-                CelestialBody body = vessel.mainBody;
-                Vector3d position = body.GetWorldSurfacePosition(vessel.latitude, vessel.longitude, vessel.altitude) - body.position;
-                Vector3d velocity = Vector3d.Cross(body.angularVelocity, position);
-                vessel.orbit.UpdateFromStateVectors(position.xzy, velocity.xzy, body, Planetarium.GetUniversalTime());
-                vessel.orbitDriver.updateFromParameters();
+                RestOrbitHere(vessel);
                 vessel.Landed = false;
                 OrbitPhysicsManager.HoldVesselUnpack(1);
                 vessel.GoOffRails();
             }
 
             return vessel;
+        }
+
+        /// <summary>
+        /// Restarts the vessel's orbit at its latitude, longitude and altitude, at rest relative to the surface.
+        /// A packed vessel moved by hand keeps its old orbit, and KSP puts it back there when it leaves the rails.
+        /// </summary>
+        internal static void RestOrbitHere(Vessel vessel)
+        {
+            CelestialBody body = vessel.mainBody;
+            Vector3d position = body.GetWorldSurfacePosition(vessel.latitude, vessel.longitude, vessel.altitude) - body.position;
+            Vector3d velocity = Vector3d.Cross(body.angularVelocity, position);
+            vessel.orbit.UpdateFromStateVectors(position.xzy, velocity.xzy, body, Planetarium.GetUniversalTime());
+            vessel.orbitDriver.updateFromParameters();
         }
 
         /// <summary>Yields every frame until <paramref name="condition"/> is true; throws TimeoutException after the timeout (real time).</summary>

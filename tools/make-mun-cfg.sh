@@ -77,7 +77,7 @@ node "${GALLERY[2]}" "${GALLERY[3]}" 90 200 70 end
 edge 0 1 0.25 0.05; edge 1 2 0.3 0.06
 printf '\t}\n'
 
-# Kerman Chain: a 25 km tube with five skylights in a row.
+# Kerman Chain: a 20 km tube with five skylights in a row (no gentle 25 km track exists in the Midlands).
 site_head KermanChain
 for i in 0 1 2 3 4 5 6 7 8 9 10; do
   t=$(awk -v i=$i 'BEGIN { printf "%.3f", i / 10 }')

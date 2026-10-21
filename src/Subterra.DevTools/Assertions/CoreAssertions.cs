@@ -35,7 +35,8 @@ namespace Subterra.DevTools
             return !dead && parts >= ctx.TrackedPartCount;
         }
 
-        // vesselLanded — the tracked vessel is touching the ground.
+        // vesselLanded — the tracked vessel is off rails and touching the ground (a packed vessel's Landed
+        // flag is only the pin set by a teleport).
         private static bool VesselLanded(ConfigNode node, TestContext ctx)
         {
             Vessel vessel = ctx.TrackedVessel;
@@ -45,8 +46,8 @@ namespace Subterra.DevTools
                 return false;
             }
 
-            ctx.Detail = Invariant($"{vessel.GetDisplayName()}: {vessel.situation} at {vessel.mainBody.bodyName}, {vessel.heightFromTerrain:F1} m above terrain");
-            return vessel.Landed;
+            ctx.Detail = Invariant($"{vessel.GetDisplayName()}: {vessel.situation}{(vessel.packed ? " (packed)" : "")} at {vessel.mainBody.bodyName}, altitude {vessel.altitude:F1} m, {vessel.heightFromTerrain:F1} m above terrain");
+            return !vessel.packed && vessel.Landed;
         }
 
         // logContains text = "…" — a message logged since the DevTools assembly loaded contains the

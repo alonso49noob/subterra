@@ -113,7 +113,7 @@ SUBTERRA_BODY
 
 1. **Serenity Skylight**: Lowlands, cerca del ecuador; tragaluz de ~100 m de diámetro y ~100 m de hondo (como el pozo del Mar de la Tranquilidad); primer objetivo fácil.
 2. **Great Gallery**: Northern Basin; cámara de ~500 m.
-3. **Kerman Chain**: Midlands; tubo de ~25 km con 5 tragaluces en fila.
+3. **Kerman Chain**: Midlands; tubo de ~20 km con 5 tragaluces en fila (Task 36: no hay tramo suave de 25 km en Midlands).
 4. **Frostvault**: Poles; tramo siempre a oscuras con hielo de agua.
 
 La posición exacta se fija en M7 muestreando los mapas de biomas y alturas de la Mun (terreno llano de mar, sin cráteres grandes encima del trazado).

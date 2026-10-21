@@ -38,6 +38,9 @@ namespace Subterra.DevTools
                 var biomes = site.RequireArg("biome").Split(',').Select(s => s.Trim()).ToList();
                 double length = site.ArgDouble("length", 2000);
                 double latMin = site.ArgDouble("latMin", -85), latMax = site.ArgDouble("latMax", 85);
+                double slopeLimit = site.ArgDouble("maxSlope", 3);
+                int inBiome = 0;
+                double bestSlope = double.MaxValue, bestReach = 0;
                 var candidates = new List<(double score, double lat, double lon, double heading, double maxSlope, double spread, double meanAlt)>();
                 var rng = new System.Random(name.GetHashCode() & 0x7fffffff);
                 int tries = 0;
@@ -52,10 +55,18 @@ namespace Subterra.DevTools
                         continue;
                     }
 
+                    inBiome++;
                     for (int h = 0; h < 8; h++)
                     {
                         double heading = h * 45;
-                        if (Track(body, biomes, lat, lon, heading, length, out double maxSlope, out double spread, out double meanAlt))
+                        bool ok = Track(body, biomes, lat, lon, heading, length, slopeLimit, out double maxSlope, out double spread, out double meanAlt, out double reach);
+                        bestReach = Math.Max(bestReach, reach);
+                        if (reach >= length - Step)
+                        {
+                            bestSlope = Math.Min(bestSlope, maxSlope);
+                        }
+
+                        if (ok)
                         {
                             candidates.Add((spread + maxSlope * 2, lat, lon, heading, maxSlope, spread, meanAlt));
                         }
@@ -68,7 +79,7 @@ namespace Subterra.DevTools
                     }
                 }
 
-                report.AppendLine(Invariant($"{name} ({string.Join("/", biomes)}, {length} m): {candidates.Count} candidates from {tries} starts"));
+                report.AppendLine(Invariant($"{name} ({string.Join("/", biomes)}, {length} m, max slope {slopeLimit}°): {candidates.Count} candidates from {tries} starts ({inBiome} in the biome; longest in-biome track {bestReach:F0} m; gentlest full-length track {(bestSlope == double.MaxValue ? "none" : bestSlope.ToString("F2") + "°")})"));
                 foreach (var c in candidates.OrderBy(c => c.score).Take(5))
                 {
                     BodyFrame.ToLatLon(Along(c.lat, c.lon, c.heading, length, body.Radius), out double endLat, out double endLon);
@@ -80,12 +91,13 @@ namespace Subterra.DevTools
             ctx.Pass("sitefinder.txt");
         }
 
-        private static bool Track(CelestialBody body, List<string> biomes, double lat, double lon, double heading, double length,
-            out double maxSlope, out double spread, out double meanAlt)
+        private static bool Track(CelestialBody body, List<string> biomes, double lat, double lon, double heading, double length, double slopeLimit,
+            out double maxSlope, out double spread, out double meanAlt, out double reach)
         {
             maxSlope = 0;
             spread = 0;
             meanAlt = 0;
+            reach = 0;
             int n = (int)(length / Step) + 1;
             var heights = new double[n];
             for (int i = 0; i < n; i++)
@@ -97,16 +109,18 @@ namespace Subterra.DevTools
                     return false;
                 }
 
+                reach = i * Step;
                 heights[i] = KspSampler.SurfaceRadius(body, la, lo) - body.Radius;
                 if (i > 0)
                 {
                     double slope = Math.Atan(Math.Abs(heights[i] - heights[i - 1]) / Step) * 180 / Math.PI;
                     maxSlope = Math.Max(maxSlope, slope);
-                    if (maxSlope >= 3)
-                    {
-                        return false;
-                    }
                 }
+            }
+
+            if (maxSlope >= slopeLimit)
+            {
+                return false;
             }
 
             meanAlt = heights.Average();
