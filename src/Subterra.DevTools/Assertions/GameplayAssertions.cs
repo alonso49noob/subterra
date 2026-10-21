@@ -39,18 +39,20 @@ namespace Subterra.DevTools
             return true;
         }
 
-        // ambientBelow fraction = 0.05 — ambient light is under that fraction of the level saved when entering the cave.
+        // ambientBelow fraction = 0.05 — the ambient light rendered this frame is under that fraction of KSP's
+        // outside level. Read from the controller: during Update, KSP's DynamicAmbientLight has already put
+        // its own value back (the darkening is applied in LateUpdate, before rendering).
         private static bool AmbientBelow(ConfigNode node, TestContext ctx)
         {
             double fraction = node.ArgDouble("fraction", 0.05);
-            Color? saved = LightController.SavedAmbient;
-            if (!saved.HasValue)
+            Color? outside = LightController.OutsideAmbient, applied = LightController.AppliedAmbient;
+            if (!outside.HasValue || !applied.HasValue)
             {
                 ctx.Detail = "the light controller is not active (camera not in a cave?)";
                 return false;
             }
 
-            float now = RenderSettings.ambientLight.grayscale, before = saved.Value.grayscale;
+            float now = applied.Value.grayscale, before = outside.Value.grayscale;
             ctx.Detail = Invariant($"ambient {now:F4} vs {before:F4} outside, sky {UndergroundTracker.Camera.Sky:F2}");
             return now <= before * fraction + 1e-4f;
         }

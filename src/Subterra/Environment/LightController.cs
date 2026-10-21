@@ -5,20 +5,28 @@ namespace Subterra
     /// <summary>
     /// Darkness under ground: ambient light scaled by the camera's sky visibility, and the sun switched
     /// off when the camera is farther from every opening than the shadow distance (otherwise light would
-    /// leak through long tubes). Originals are restored when leaving the cave, on scene change and on destroy.
+    /// leak through long tubes). KSP's DynamicAmbientLight rewrites the ambient light in every Update, so
+    /// it is scaled again in each LateUpdate (after it, before rendering) from KSP's fresh value; if KSP did
+    /// not write it this frame, the last outside value is reused so the scaling never compounds. Originals
+    /// are restored when leaving the cave, on scene change and on destroy.
     /// </summary>
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public sealed class LightController : MonoBehaviour
     {
-        private static Color? savedAmbient;
+        private static Color? outside;
+        private static Color? applied;
         private static float? savedSun;
         private static Light sun;
 
-        public static Color? SavedAmbient => savedAmbient;
+        /// <summary>Ambient light KSP wanted this frame, before the cave darkening (null when idle).</summary>
+        public static Color? OutsideAmbient => outside;
+
+        /// <summary>Ambient light the controller rendered with this frame (null when idle).</summary>
+        public static Color? AppliedAmbient => applied;
 
         public static float? SavedSunIntensity => savedSun;
 
-        public static bool Active => savedAmbient.HasValue;
+        public static bool Active => applied.HasValue;
 
         private void Start()
         {
@@ -44,13 +52,20 @@ namespace Subterra
                     return;
                 }
 
-                if (!savedAmbient.HasValue)
+                if (!applied.HasValue)
                 {
-                    savedAmbient = RenderSettings.ambientLight;
                     sun = Sun();
                 }
 
-                RenderSettings.ambientLight = savedAmbient.Value * Mathf.Clamp01(camera.Sky);
+                // A value other than the one written last frame is KSP's new outside light.
+                Color current = RenderSettings.ambientLight;
+                if (!outside.HasValue || !applied.HasValue || current != applied.Value)
+                {
+                    outside = current;
+                }
+
+                applied = outside.Value * Mathf.Clamp01(camera.Sky);
+                RenderSettings.ambientLight = applied.Value;
 
                 // The sun is only touched while it is switched off; near an opening KSP keeps control of it.
                 bool off = sun != null && FarFromOpenings(camera);
@@ -73,9 +88,10 @@ namespace Subterra
 
         public static void Restore()
         {
-            if (savedAmbient.HasValue)
+            // Only undo our own darkening: if KSP already wrote a new value, keep it.
+            if (outside.HasValue && applied.HasValue && RenderSettings.ambientLight == applied.Value)
             {
-                RenderSettings.ambientLight = savedAmbient.Value;
+                RenderSettings.ambientLight = outside.Value;
             }
 
             if (sun != null && savedSun.HasValue)
@@ -83,7 +99,8 @@ namespace Subterra
                 sun.intensity = savedSun.Value;
             }
 
-            savedAmbient = null;
+            outside = null;
+            applied = null;
             savedSun = null;
             sun = null;
         }
