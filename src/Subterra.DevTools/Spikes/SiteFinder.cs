@@ -87,8 +87,10 @@ namespace Subterra.DevTools
                 }
             }
 
-            File.WriteAllText(Path.Combine(ctx.ResultsDir, "sitefinder.txt"), report.ToString());
-            ctx.Pass("sitefinder.txt");
+            // One file per body (a scenario may search several).
+            string file = body.bodyName == "Mun" ? "sitefinder.txt" : $"sitefinder-{body.bodyName}.txt";
+            File.WriteAllText(Path.Combine(ctx.ResultsDir, file), report.ToString());
+            ctx.Pass(file);
         }
 
         private static bool Track(CelestialBody body, List<string> biomes, double lat, double lon, double heading, double length, double slopeLimit,
