@@ -291,8 +291,8 @@ namespace Subterra.Core.Tests.Radar
                 Assert.Equal(DetectionLevel.Detected, seis.Level);
                 AssertFinite(seis);
                 AssertFinite(Gpr(t, Surface, Down));
-                AssertFinite(Eco(t, 30000, Rock));
-                AssertFinite(Plomada(t));
+                Assert.Equal(DetectionLevel.None, Eco(t, 30000, Rock).Level);
+                Assert.Equal(DetectionLevel.None, Plomada(t).Level);
             }
 
             Detection gpr = Gpr(Column(TargetKind.LayerBoundary), Surface, Down);
@@ -317,6 +317,8 @@ namespace Subterra.Core.Tests.Radar
             Assert.Equal(30000, eco.AltitudeBest);
             Assert.Equal(250000, eco.AltitudeMax);
             Assert.Equal(0.05, Instrument.Plomada().SensitivityMGal);
+            Assert.Equal(10000, Instrument.Plomada().AltitudeMin);
+            Assert.Equal(30000, Instrument.Plomada().AltitudeBest);
             Assert.Equal(200000, Instrument.Plomada().AltitudeMax);
             Assert.Equal(60, Instrument.Zahori(false).FrequencyMHz);
             Assert.Equal(500, Instrument.Zahori(true).FrequencyMHz);

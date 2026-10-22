@@ -41,13 +41,13 @@ namespace Subterra.Core.Radar
             AltitudeMax = 250000,
         };
 
-        /// <summary>Plomada, the gravimeter: sigma 0.05 mGal, useful from 10 to 200 km.</summary>
+        /// <summary>Plomada, the gravimeter: sigma 0.05 mGal, useful from 10 to 200 km, best at 30 km.</summary>
         public static Instrument Plomada() => new Instrument
         {
             Kind = InstrumentKind.Gravimeter,
             SensitivityMGal = 0.05,
             AltitudeMin = 10000,
-            AltitudeBest = 10000,
+            AltitudeBest = 30000,
             AltitudeMax = 200000,
         };
 
