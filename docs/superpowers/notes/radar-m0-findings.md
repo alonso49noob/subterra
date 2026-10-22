@@ -3,6 +3,13 @@
 Cuatro spikes (tareas 1 a 4 del plan del radar). Las capturas están en `build/test-runs/<hora>-<escenario>-<perfil>/`
 (esa carpeta no va al repositorio); aquí se citan las rutas.
 
+| Spike | Resultado |
+|---|---|
+| 1. Capa sobre el cuerpo escalado | Sí en stock y full, con `Unlit/Transparent` (cola 3000), malla propia de 128 × 64 y radio sacado de la PQS (no de la malla). Scatterer sin probar. |
+| 2. Capa de SCANsat | SCANsat dibuja la abundancia del postfix y solo en las celdas escaneadas. Con `GLOBAL_RESOURCE` nulo lo oculta (`HideZeroResources`); con uno no nulo aparece. No se puede limitar un escáner a un recurso: la opción preferida de la spec no existe. |
+| 3. Geófono en el suelo por EVA | Sí, sin DLC: `StoreCargoPartAtSlot` + `DeployGroundPart` (reflexión). Desde un rover, con `ejectionForce = 0`. |
+| 4. Celdas de un cuerpo no activo | Sí: diferencia 0 m y 0 biomas distintos; se puede generar cualquier cuerpo. |
+
 ## 1. Capa sobre el cuerpo escalado (Task 1)
 
 **Pregunta.** ¿Una esfera hija de `body.scaledBody`, un 0,5 % mayor, con material transparente y una textura de
@@ -194,3 +201,31 @@ la pieza puede seguir moviéndose en una pendiente.
   cero, para que se separe) y probar en pendiente.
 - No se comprobó cómo muestra la estación de seguimiento un vessel de tipo `Unknown`; revisarlo antes de decidir el
   nombre y el tipo del geófono.
+
+## 4. Generar celdas de un cuerpo que no es el activo (Task 4)
+
+**Pregunta.** Con la nave en órbita de Kerbin, ¿`KspSampler.Fill(mun, …)` (`pqsController.GetSurfaceHeight` más el mapa de biomas)
+da las mismas alturas y biomas que con la nave en la Mun? (spec §4.4)
+
+**Qué se corrió.** Escenario `m6-offbody`: el spike `OffBodyCell` muestrea 100 puntos fijos (semilla 1234, uniformes sobre la
+esfera) con `KspSampler.Fill` y compara con el primer muestreo de ese cuerpo. Versión final, perfil `stock`
+(`build/test-runs/20261022-091647-m6-offbody-stock`): se muestrean la Mun y Duna con la nave en la pista de Kerbin (cuerpos
+**que no han sido activos en la partida**), luego con la nave en la Mun, luego en órbita circular de Kerbin a 300 km (después de
+haber visitado la Mun), y luego en Duna. Una versión anterior (Mun cerca / Mun desde la órbita de Kerbin) se corrió en stock
+(`20261022-091318-m6-offbody-stock`) y en `full`, con Kopernicus y Parallax (`20261022-091504-m6-offbody-full`); la versión
+final solo se corrió en stock.
+
+**Qué se vio.**
+- Diferencia máxima de altura: **0,0000 m** en las cuatro comparaciones; biomas distintos: **0 de 100** (stock y full). 13 y
+  10 biomas distintos aparecen en los 100 puntos de la Mun y de Duna, y ninguno devolvió `null`.
+- Mientras la nave estaba en otro cuerpo, `pqsController.isActive` valía `False` (la esfera de la PQS sigue activa en la
+  jerarquía) y aun así `GetSurfaceHeight` dio lo mismo. No hubo excepciones.
+- Costo: 0,009 a 0,013 ms por punto (100 puntos en 1,3 ms) en los dos perfiles, igual con el cuerpo activo o sin él. Una celda de
+  64 × 64 puntos serían unos 50 ms en total: hay que repartirla por cuadros con el presupuesto de `KspSampler.Fill`.
+
+**Respuesta.** Sí: `KspSampler.Fill` da exactamente las mismas alturas y biomas para cualquier cuerpo, esté o no activo, incluso
+cuerpos que no se visitaron en la partida. La detección perezosa puede generar celdas de cualquier cuerpo; no hace falta
+limitarla al cuerpo activo.
+
+**Recomendación.** Quitar la restricción "solo el cuerpo activo" de la spec §4.4. Sin comprobar: cuerpos de Kopernicus propios
+(solo se probó la Mun en `full`) y OPM/MPE; Scatterer no interviene.
