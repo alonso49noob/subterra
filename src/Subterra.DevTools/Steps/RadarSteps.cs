@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Linq;
 using Subterra.Core.Radar;
 using static System.FormattableString;
 
@@ -12,6 +13,7 @@ namespace Subterra.DevTools
         internal static void Register()
         {
             StepRegistry.Register("radarMark", RadarMark);
+            StepRegistry.Register("setResourceAmount", SetResourceAmount);
         }
 
         // radarMark body = Mun lat = 0 lon = 0 altitude = 30000 halfWidth = 2000 instrument = OrbitalRadar hint = MN-test#0
@@ -57,6 +59,27 @@ namespace Subterra.DevTools
 
             ctx.Pass(detail);
             yield break;
+        }
+
+        // setResourceAmount name = ElectricCharge amount = 0 - sets the amount of that resource in every part of the
+        // tracked vessel that holds it (capped at the part's capacity); a fraction = 0.5 fills that share instead.
+        private static IEnumerator SetResourceAmount(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+            string name = node.RequireArg("name");
+            var resources = vessel.parts.SelectMany(p => p.Resources.Cast<PartResource>()).Where(r => r.resourceName == name).ToList();
+            if (resources.Count == 0)
+            {
+                throw new InvalidOperationException($"no {name} on {vessel.GetDisplayName()}");
+            }
+
+            foreach (PartResource r in resources)
+            {
+                r.amount = node.HasValue("fraction") ? r.maxAmount * node.ArgDouble("fraction", 1) : Math.Min(r.maxAmount, node.ArgDouble("amount", 0));
+            }
+
+            yield return null;
+            ctx.Pass(Invariant($"{name} in {resources.Count} part(s): {resources.Sum(r => r.amount):F1}/{resources.Sum(r => r.maxAmount):F1}"));
         }
 
         internal static InstrumentKind ParseInstrument(ConfigNode node)

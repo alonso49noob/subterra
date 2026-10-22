@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using Subterra.Core.Excavation;
 using Subterra.Core.Model;
@@ -70,14 +71,34 @@ namespace Subterra.DevTools
         }
 
         // moduleEvent module = ModuleSubterraCoreDrill event = StartDrilling — runs a module's KSPEvent.
+        // With all = true it runs on every module of that name on the tracked vessel (not only the first).
         private static IEnumerator ModuleEvent(ConfigNode node, TestContext ctx)
         {
-            PartModule module = Find(ctx, node.RequireArg("module"));
+            string moduleName = node.RequireArg("module");
             string name = node.RequireArg("event");
-            BaseEvent e = module.Events[name] ?? throw new ArgumentException($"no event {name}");
-            e.Invoke();
+            var modules = new List<PartModule>();
+            if (node.ArgBool("all", false))
+            {
+                Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+                modules.AddRange(vessel.parts.SelectMany(p => p.Modules.Cast<PartModule>()).Where(m => m.moduleName == moduleName));
+                if (modules.Count == 0)
+                {
+                    throw new InvalidOperationException($"no {moduleName} on {vessel.GetDisplayName()}");
+                }
+            }
+            else
+            {
+                modules.Add(Find(ctx, moduleName));
+            }
+
+            foreach (PartModule module in modules)
+            {
+                BaseEvent e = module.Events[name] ?? throw new ArgumentException($"no event {name}");
+                e.Invoke();
+            }
+
             yield return null;
-            ctx.Pass($"{module.moduleName}.{name}");
+            ctx.Pass($"{moduleName}.{name} x{modules.Count}");
         }
 
         // addResource name = Water max = 50 amount = 0 — a tank of that resource on the tracked vessel's root part.
