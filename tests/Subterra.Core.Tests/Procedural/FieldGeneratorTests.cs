@@ -184,7 +184,7 @@ namespace Subterra.Core.Tests.Procedural
         // Networks are the same in every save and for every player (Lucas's ruling: maps must stay valid),
         // so the generator's output is pinned. If this fails, a change moved existing networks: undo it, or,
         // if it is deliberate, note it in the CHANGELOG and update the fingerprint.
-        private const string Fingerprint = "FA2B82ACF24DB6A3";
+        private const string Fingerprint = "EF7EB44298E1C67A";
 
         [Fact]
         public void OutputIsPinned()
@@ -269,6 +269,28 @@ namespace Subterra.Core.Tests.Procedural
                     Assert.True(net.IsInside(net.ToLocal(mid.FloorCenter + mid.Up * (mid.Height * 0.5))), $"{s.Name} edge {e.From}-{e.To} is closed");
                 }
             }
+        }
+
+        [Fact]
+        public void LavaNetworksBranchAndLoop()
+        {
+            List<SiteSpec> sites = FieldGenerator.Generate(new FieldSpec { Name = "MunMaria", Biomes = { "Lowlands" }, NetworksPer10k = 40, BranchChance = 0.6, Length = new Range(8000, 20000) }, "Mun", "MN", Grid, Cell, Terrain, Terrain);
+            int junctions = 0, loops = 0;
+            foreach (SiteSpec s in sites)
+            {
+                var degree = new int[s.Nodes.Count];
+                foreach (EdgeSpec e in s.Edges)
+                {
+                    degree[e.From]++;
+                    degree[e.To]++;
+                }
+
+                junctions += degree.Count(d => d >= 3);
+                loops += s.Edges.Count - (s.Nodes.Count - 1);
+            }
+
+            Assert.True(junctions >= sites.Count * 2, $"{junctions} junctions in {sites.Count} networks");
+            Assert.True(loops > 0, "no branch rejoins its trunk");
         }
 
         [Fact]

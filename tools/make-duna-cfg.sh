@@ -96,7 +96,7 @@ cat <<'EOF'
 		length = 1500, 15000
 		roofDepth = 15, 150
 		skylightSpacing = 1500, 5000
-		branchChance = 0.25
+		branchChance = 0.65
 		chamberChance = 0.1
 		// Most tubes show nothing at the surface: found by drilling, digging or radar.
 		hiddenChance = 0.75
@@ -111,7 +111,7 @@ cat <<'EOF'
 		length = 500, 5000
 		roofDepth = 10, 90
 		skylightSpacing = 1200, 4000
-		branchChance = 0.15
+		branchChance = 0.4
 		chamberChance = 0.08
 		hiddenChance = 0.75
 		seed = 32
@@ -174,7 +174,7 @@ cat <<'EOF'
 		length = 800, 8000
 		roofDepth = 15, 100
 		skylightSpacing = 1500, 5000
-		branchChance = 0.15
+		branchChance = 0.4
 		chamberChance = 0.08
 		hiddenChance = 0.6
 		seed = 41

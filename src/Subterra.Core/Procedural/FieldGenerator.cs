@@ -222,41 +222,98 @@ namespace Subterra.Core.Procedural
                 previous = along[best];
             }
 
-            // Branches from interior trunk nodes, with a chamber at the junction now and then.
-            int trunkCount = trunk.Count;
-            for (int i = 1; i < trunkCount - 1; i++)
+            // A network, not a corridor: branches leave the trunk (and branches leave them), some coming back into the
+            // trunk further on (braided tubes, as lava finds side paths and rejoins), chambers at some junctions.
+            var trunkIndices = new List<int>();
+            for (int i = 0; i < trunk.Count; i++)
             {
-                if (rng.NextDouble() >= f.BranchChance * 0.2)
+                trunkIndices.Add(i);
+            }
+
+            AddBranches(f, rng, walker, site, trunkIndices, trunkIndices, length, depth, 1);
+
+            return site;
+        }
+
+        /// <summary>Deepest branching: branches of the trunk (1) and branches of those (2).</summary>
+        private const int MaxBranchOrder = 2;
+
+        /// <summary>Share of branches that come back into the trunk when their end passes near it (a loop).</summary>
+        private const double RejoinChance = 0.45;
+
+        /// <summary>A branch end this close (m) to a trunk node further on joins it.</summary>
+        private const double RejoinDistance = 1500;
+
+        // Branches from the interior nodes of `chain` (node indices in order): each a downhill walk leaving at 25–55°,
+        // narrower than its parent; some rejoin the trunk; first-order branches branch again.
+        private static void AddBranches(FieldSpec f, Rng rng, Walker walker, SiteSpec site, List<int> chain, List<int> trunk,
+            double length, double depth, int order)
+        {
+            for (int k = 1; k < chain.Count - 1; k++)
+            {
+                if (rng.NextDouble() >= f.BranchChance * (order == 1 ? 0.45 : 0.25))
                 {
                     continue;
                 }
 
-                Vec3d heading = walker.Heading(trunk[i], trunk[i + 1]);
-                double angle = rng.Range(30, 60) * (rng.NextDouble() < 0.5 ? -1 : 1) * BodyFrame.Deg2Rad;
-                Vec3d start = walker.Rotate(trunk[i], heading, angle);
-                List<Vec3d> branch = walker.Walk(trunk[i], start, length * rng.Range(0.1, 0.4), rng);
+                int i = chain[k];
+                Vec3d p = Direction(site.Nodes[i]);
+                Vec3d heading = walker.Heading(p, Direction(site.Nodes[chain[k + 1]]));
+                double angle = rng.Range(25, 55) * (rng.NextDouble() < 0.5 ? -1 : 1) * BodyFrame.Deg2Rad;
+                Vec3d start = walker.Rotate(p, heading, angle);
+                List<Vec3d> branch = walker.Walk(p, start, length * rng.Range(0.15, 0.45) / order, rng);
                 if (branch.Count < 2)
                 {
                     continue;
                 }
 
-                double branchWidth = Math.Max(BodySpecWidthMin, site.Nodes[i].Width * rng.Range(0.3, 0.6));
+                double branchWidth = Math.Max(BodySpecWidthMin, site.Nodes[i].Width * rng.Range(0.35, 0.7));
+                var indices = new List<int> { i };
                 int previousIndex = i;
                 for (int j = 1; j < branch.Count; j++)
                 {
                     site.Nodes.Add(MakeNode(branch[j], depth, branchWidth, rng));
                     site.Edges.Add(new EdgeSpec { From = previousIndex, To = site.Nodes.Count - 1 });
                     previousIndex = site.Nodes.Count - 1;
+                    indices.Add(previousIndex);
+                }
+
+                // Back into the trunk: the nearest trunk node beyond the junction, if the branch ends close to it.
+                if (rng.NextDouble() < RejoinChance)
+                {
+                    Vec3d end = branch[branch.Count - 1];
+                    int best = -1;
+                    double bestDistance = RejoinDistance;
+                    int from = trunk.IndexOf(i);
+                    for (int t = Math.Max(0, from) + 2; t < trunk.Count; t++)
+                    {
+                        double d = BodyFrame.SurfaceDistance(end, Direction(site.Nodes[trunk[t]]), walker.Radius);
+                        if (d < bestDistance)
+                        {
+                            bestDistance = d;
+                            best = trunk[t];
+                        }
+                    }
+
+                    if (best >= 0)
+                    {
+                        site.Edges.Add(new EdgeSpec { From = previousIndex, To = best });
+                    }
                 }
 
                 if (site.Nodes[i].Feature == NodeFeature.None && rng.NextDouble() < f.ChamberChance)
                 {
                     site.Nodes[i].Feature = NodeFeature.Chamber;
                 }
-            }
 
-            return site;
+                if (order < MaxBranchOrder)
+                {
+                    AddBranches(f, rng, walker, site, indices, trunk, length, depth, order + 1);
+                }
+            }
         }
+
+        private static Vec3d Direction(NodeSpec node) => BodyFrame.Direction(node.Lat, node.Lon);
 
         // Karst: a passage per level (two or three levels, 30–80 m apart), each lower one starting a step from a node of the
         // one above (a steep ramp between them); tall, narrow, winding passages; rooms at some joins; dolines (rooms
@@ -452,7 +509,7 @@ namespace Subterra.Core.Procedural
             }
 
             /// <summary>Largest change of heading between two steps (radians).</summary>
-            private const double MaxTurn = 18 * Math.PI / 180;
+            private const double MaxTurn = 24 * Math.PI / 180;
 
             // `heading` turned back towards `previous` (both tangent at p) if they are more than MaxTurn apart.
             private static Vec3d LimitTurn(Vec3d p, Vec3d previous, Vec3d heading)

@@ -390,6 +390,12 @@ namespace Subterra
             if (patches.TryGetValue(quad, out GameObject go) && go != null && quad.meshRenderer != null)
             {
                 go.GetComponent<MeshRenderer>().enabled = quad.meshRenderer.enabled;
+                if (quad.meshRenderer.HasPropertyBlock())
+                {
+                    var block = new MaterialPropertyBlock();
+                    quad.meshRenderer.GetPropertyBlock(block);
+                    go.GetComponent<MeshRenderer>().SetPropertyBlock(block);
+                }
             }
         }
 
@@ -531,7 +537,17 @@ namespace Subterra
             var renderer = go.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = quad.meshRenderer != null ? quad.meshRenderer.sharedMaterial : sphere.surfaceMaterial;
             renderer.shadowCastingMode = quad.meshRenderer != null ? quad.meshRenderer.shadowCastingMode : ShadowCastingMode.On;
-            renderer.receiveShadows = true;
+            renderer.receiveShadows = quad.meshRenderer == null || quad.meshRenderer.receiveShadows;
+            renderer.lightProbeUsage = quad.meshRenderer != null ? quad.meshRenderer.lightProbeUsage : LightProbeUsage.Off;
+            renderer.reflectionProbeUsage = quad.meshRenderer != null ? quad.meshRenderer.reflectionProbeUsage : ReflectionProbeUsage.Off;
+            if (quad.meshRenderer != null && quad.meshRenderer.HasPropertyBlock())
+            {
+                // KSP gives each quad its own shader values (fading, tiling): the patch takes the same.
+                var block = new MaterialPropertyBlock();
+                quad.meshRenderer.GetPropertyBlock(block);
+                renderer.SetPropertyBlock(block);
+            }
+
             if (quad.meshCollider != null)
             {
                 go.AddComponent<MeshCollider>().sharedMesh = mesh;
