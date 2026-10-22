@@ -48,6 +48,9 @@ namespace Subterra.Core.Model
         /// underground lake. Visual (swimming comes with part 4); it spreads through the cave within 1.5 widths.</summary>
         public double Water { get; set; }
 
+        /// <summary>How far that water spreads from the node (m; 0 = 1.5 widths): one level over a whole lake of rooms.</summary>
+        public double WaterReach { get; set; }
+
         /// <summary>Colour of that water (r, g, b; null = clear dark green-blue).</summary>
         public float[] WaterColour { get; set; }
     }

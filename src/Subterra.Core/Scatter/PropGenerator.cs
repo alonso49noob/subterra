@@ -11,7 +11,7 @@ namespace Subterra.Core.Scatter
     /// </summary>
     public static class PropGenerator
     {
-        public static readonly string[] Names = { "Boulder01", "Boulder02", "Boulder03", "RubbleCone01", "Lavacicle01", "PahoehoeSlab01", "IceCluster01", "GeodeCrystal01", "GlowPatch01", "Fungus01", "KrakenRibs01", "KrakenBone01" };
+        public static readonly string[] Names = { "Boulder01", "Boulder02", "Boulder03", "RubbleCone01", "Lavacicle01", "PahoehoeSlab01", "IceCluster01", "GeodeCrystal01", "GlowPatch01", "GlowMat01", "Fungus01", "KrakenRibs01", "KrakenBone01" };
 
         /// <summary>The prop for a model url or name (the part after the last '/'); null if unknown.</summary>
         public static MeshData Build(string model, int lod)
@@ -41,7 +41,8 @@ namespace Subterra.Core.Scatter
                 case "PahoehoeSlab01": return Shape(subdivisions, seed, p => new Vec3(p.X * 1.6f, (p.Y + 1) * 0.12f, p.Z * 1.2f), 0.06f, baseAtZero: false);
                 case "IceCluster01": return Crystals(lod == 0 ? 2 : 1, seed);
                 case "GeodeCrystal01": return Crystals(lod == 0 ? 2 : 1, seed, 7, 1.5f, 2.2f);
-                case "GlowPatch01": return Patch(lod == 0 ? 24 : 12, seed);
+                case "GlowPatch01": return Patch(lod == 0 ? 24 : 12, seed, -1);
+                case "GlowMat01": return Patch(lod == 0 ? 24 : 12, seed, 1);
                 case "Fungus01": return Fungi(lod == 0 ? 2 : 1, seed);
                 case "KrakenRibs01": return Ribcage(lod == 0 ? 2 : 1, seed);
                 case "KrakenBone01": return Bone(lod == 0 ? 2 : 1, seed);
@@ -132,32 +133,33 @@ namespace Subterra.Core.Scatter
             return mesh;
         }
 
-        // A soft patch of light on a ceiling: a disc 1 m across (radius 1 at scale 1) a little under the rock, facing down,
-        // its edge wavy; UVs centred at (0.5, 0.5) so a radial texture fades it out towards the edge.
-        private static MeshData Patch(int segments, ulong seed)
+        // A soft patch of light: a disc of radius 1 (at scale 1) just off the rock, facing away from it (`side` -1: hanging
+        // under a ceiling, the prop's up into the rock; +1: lying on a floor or a wall), its edge wavy; UVs centred at
+        // (0.5, 0.5) so a radial texture fades it out towards the edge.
+        private static MeshData Patch(int segments, ulong seed, int side)
         {
             var rng = new Rng(seed);
             var mesh = new MeshData();
-            mesh.Vertices.Add(new Vec3(0, -0.12f, 0));
+            mesh.Vertices.Add(new Vec3(0, side * 0.12f, 0));
             mesh.Uvs.Add(new Vec2(0.5f, 0.5f));
             double phase = rng.Range(0, 2 * Math.PI);
             for (int i = 0; i < segments; i++)
             {
                 double a = 2 * Math.PI * i / segments;
                 float r = (float)(1 + 0.18 * Math.Sin(3 * a + phase) + 0.1 * Math.Sin(5 * a + 2 * phase));
-                mesh.Vertices.Add(new Vec3((float)Math.Cos(a) * r, -0.04f, (float)Math.Sin(a) * r));
+                mesh.Vertices.Add(new Vec3((float)Math.Cos(a) * r, side * 0.04f, (float)Math.Sin(a) * r));
                 mesh.Uvs.Add(new Vec2(0.5f + 0.5f * (float)Math.Cos(a), 0.5f + 0.5f * (float)Math.Sin(a)));
             }
 
             for (int i = 0; i < segments; i++)
             {
-                // Wound to face down (y < 0), into the cave.
-                mesh.Triangles.AddRange(new[] { 0, 1 + i, 1 + (i + 1) % segments });
+                // Wound to face away from the rock, into the cave.
+                mesh.Triangles.AddRange(side < 0 ? new[] { 0, 1 + i, 1 + (i + 1) % segments } : new[] { 0, 1 + (i + 1) % segments, 1 + i });
             }
 
             foreach (Vec3 _ in mesh.Vertices)
             {
-                mesh.Normals.Add(new Vec3(0, -1, 0));
+                mesh.Normals.Add(new Vec3(0, side, 0));
             }
 
             mesh.SkirtTriangleStart = mesh.Triangles.Count;

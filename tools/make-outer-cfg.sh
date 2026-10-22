@@ -88,6 +88,7 @@ field LaytheIslands lava "Dunes, Shores, Crescent Bay, Crater Island, Peaks" 2 "
 common_scatters
 scatter Lavacicles "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 0.5 "0.5, 1.5" 1 false
 glow GlowFungi "Subterra/Props/Fungus01" floor "TubeGallery, TubeChamber, TubeBranch" 0.2 "0.4, 1.8" "0.4,0.7,1.0" 18 0 false 0.04 0.55
+glow GlowMoss "Subterra/Props/GlowMat01" wall "TubeGallery, TubeChamber, TubeBranch" 0.08 "2, 7" "0.2,0.4,0.65" 0 0 false 0.03 0.45
 echo "}"
 } > "$out"; echo "wrote $out"
 

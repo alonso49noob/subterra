@@ -9,7 +9,7 @@ namespace Subterra.Core.Tests.Scatter
 {
     public class PropGeneratorTests
     {
-        public static IEnumerable<object[]> AllProps() => PropGenerator.Names.Where(n => n != "GlowPatch01").SelectMany(n => new[] { new object[] { n, 0 }, new object[] { n, 1 } });
+        public static IEnumerable<object[]> AllProps() => PropGenerator.Names.Where(n => n != "GlowPatch01" && n != "GlowMat01").SelectMany(n => new[] { new object[] { n, 0 }, new object[] { n, 1 } });
 
         [Theory, MemberData(nameof(AllProps))]
         public void ClosedOutwardAndSmall(string name, int lod)
@@ -90,6 +90,18 @@ namespace Subterra.Core.Tests.Scatter
             }
 
             return Enumerable.Range(0, m.Vertices.Count).Select(v => sums[Find(v)].sum / sums[Find(v)].n).ToArray();
+        }
+
+        [Fact]
+        public void GlowMatFacesUpOffTheRock()
+        {
+            MeshData m = PropGenerator.Build("GlowMat01", 0);
+            Assert.All(m.Vertices, v => Assert.True(v.Y > 0));
+            for (int i = 0; i < m.Triangles.Count; i += 3)
+            {
+                Vec3 a = m.Vertices[m.Triangles[i]], b = m.Vertices[m.Triangles[i + 1]], c = m.Vertices[m.Triangles[i + 2]];
+                Assert.True(Vec3.Cross(b - a, c - a).Y > 0);
+            }
         }
 
         [Fact]

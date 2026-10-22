@@ -87,7 +87,7 @@ namespace Subterra.Core.Tubes
                     if (node.Water > 0)
                     {
                         PathPoint p = Nodes[i];
-                        waters.Add(new WaterSurface(ToLocal(p.FloorCenter + p.Up * node.Water), p.Up.ToVec3(), (float)(1.5 * node.Width), node.WaterColour));
+                        waters.Add(new WaterSurface(ToLocal(p.FloorCenter + p.Up * node.Water), p.Up.ToVec3(), (float)(node.WaterReach > 0 ? node.WaterReach : 1.5 * node.Width), node.WaterColour));
                     }
                 }
 
