@@ -137,3 +137,60 @@ depuración de la reflexión (dos volcados de API, una que falló por un cast, c
 - Abrir el mapa grande por código: `SCANappLauncher.Instance.BigMap = true`, luego `SCAN_UI_BigMap.Instance.CurrentCelestialBody
   = <nombre localizado>` (`SCANUtil.displayNameFromBodyName`) y `CurrentResource`/`ResourceToggle`; la posición sale de
   `SCAN_Settings_Config.Instance.BigMapPosition` (x desde la izquierda, -y desde arriba) y debe fijarse antes de abrirlo.
+
+## 3. Colocar un geófono en el suelo por EVA sin el DLC (Task 3)
+
+**Pregunta.** Con el perfil stock y sin el DLC, ¿un kerbal en EVA puede sacar de su inventario una pieza con
+`ModuleCargoPart` y dejarla en el suelo como vessel aterrizado y quieto? ¿Se automatiza llamando la misma API? ¿Y soltarla
+desde un rover con un desacoplador?
+
+**Qué se corrió.** Escenario `m6-groundpart` (stock, `-Cfg none`): Crater Crawler a la Mun, `eva`, spike `GroundPart` (el
+kerbal guarda un `sensorAccelerometer` en su inventario por código y lo deja a 3 m, sobre el terreno), 10 s,
+`quicksave`/`quickload` y spike `GroundPartCheck`; después `scene KSC`, Bug-E Buggy a la Mun y spike `RoverDrop` (dispara su
+`stackDecouplerMini`). Informe de cada spike en `groundpart.txt` de la carpeta de la ejecución.
+- Con el DLC (en el perfil `stock` de `tools/test-ksp.ps1`, `SquadExpansion` queda enlazado): `build/test-runs/
+  20261022-090516-m6-groundpart-stock` (la versión del desacoplador de esa ejecución usaba la fuerza de expulsión por
+  defecto).
+- **Sin el DLC de verdad:** el perfil stock sigue llevando `SquadExpansion`, así que se corrió una copia desechable de
+  `tools/test-ksp.ps1` (`build/test-ksp-nodlc.ps1`, no está en el repositorio) sin ese enlace:
+  `build/test-runs/20261022-091001-m6-groundpart-stock`; el spike registra `ExpansionsLoader.IsAnyExpansionInstalled() =
+  False`, Serenity (Breaking Ground) `False`, MakingHistory `False`. Mismos resultados en la parte de EVA.
+- Otras cuatro ejecuciones de depuración (inventario lleno; NRE de la interfaz al lanzar dos naves seguidas sin pasar por el
+  KSC; `setNoon` desarmó la nave).
+
+**Qué se vio.**
+- La pieza (`sensorAccelerometer`, `Squad/Parts/Science/...`, módulos `ModuleEnviroSensor`, `ModuleScienceExperiment`,
+  `ModuleCargoPart`; `packedVolume` 5, `stackableQuantity` 1, masa 0,005 t) es del juego base; no usa nada del DLC.
+- El inventario del kerbal en EVA tiene **2 casillas**, `volumeCapacity` 27, `massCapacity` 0,049 t, y viene lleno (paracaídas
+  y combustible de EVA): hay que vaciar una casilla (`ClearPartAtSlot(0)`).
+- `ModuleInventoryPart.StoreCargoPartAtSlot("sensorAccelerometer", slot)` (público, `bool`) la guarda.
+  `ModuleInventoryPart.DeployGroundPart(StoredPart, Vector3 posicionMundo, Quaternion rotacion)` (**no público**, se llama
+  por reflexión `typeof(ModuleInventoryPart).GetMethod("DeployGroundPart", Public | NonPublic | Instance)`) con
+  `inventory.storedParts[slot]` crea el vessel. `DeployGroundPart` **no quita** la pieza del inventario: hay que llamar a
+  `ClearPartAtSlot(slot)` después (el flujo manual lo hace él).
+- El vessel resultante: `situation = LANDED`, `Landed = True`, `vesselType = Unknown` (no `Debris`), 1 pieza,
+  `srfSpeed` ≈ 0,001 m/s a los 2 s y a los 10 s (a los 0,5 s está empaquetado, a los 2 s ya no), altura estable (2629,33 m).
+  Tras `quicksave`/`quickload` sigue ahí: 1 vessel hecho de esa pieza, `LANDED`, `srfSpeed` 0.
+- `AbleToPlaceParts` vale `False` fuera del modo de construcción de EVA, y la llamada funciona igual.
+- Desde el rover: `ModuleDecouple.Decouple()` (en `ModuleDecouplerBase`) separa la pieza y KSP la deja como vessel
+  `Debris`. Con la fuerza por defecto (`ejectionForce` 50) sale disparada a 49 m/s en suborbital (primera ejecución). Con
+  `ejectionForce = 0` cae a 0,7 m del rover, `LANDED`, pero **sigue deslizándose** (0,12 a 0,17 m/s en 7 s; la pieza
+  cilíndrica rueda por la pendiente) y es `Debris`: hay que cambiarle `vesselType` (se cambió a `Probe` y KSP lo respetó) o
+  el limpiador de escombros se lo lleva. No se probó con un desacoplador radial ni con un geófono real.
+
+**Respuesta.** Sí: en el juego base, sin DLC, un kerbal en EVA deja una pieza de inventario como vessel aterrizado y quieto, y
+se automatiza con la API de arriba; el desacoplador del rover funciona con `ejectionForce = 0` y cambiando el tipo, pero
+la pieza puede seguir moviéndose en una pendiente.
+
+**Recomendación para las tareas posteriores (21, geófonos).**
+- Escenarios (`seismic` o similar): la secuencia exacta es `ClearPartAtSlot` → `StoreCargoPartAtSlot` → `DeployGroundPart`
+  (reflexión) → `ClearPartAtSlot`; copiar `GroundPartSpike.GroundPart`. El jugador usa el modo de construcción de EVA de
+  stock (no hace falta código nuestro para eso).
+- La pieza del geófono: `ModuleCargoPart` con `stackableQuantity` > 1 y masa pequeña, porque la casilla de un kerbal
+  y su límite de 0,049 t dan para poco (hacen falta 3 geófonos como mínimo). Hay que decidir cómo recibe `vesselType`
+  (`Unknown` sirve: no lo borra el limpiador de escombros); no depender de que lo ponga KSP si se suelta con un
+  desacoplador.
+- Los geófonos desacoplables de rover quedan como alternativa de la spec; para esa vía poner `ejectionForce` pequeña (no
+  cero, para que se separe) y probar en pendiente.
+- No se comprobó cómo muestra la estación de seguimiento un vessel de tipo `Unknown`; revisarlo antes de decidir el
+  nombre y el tipo del geófono.
