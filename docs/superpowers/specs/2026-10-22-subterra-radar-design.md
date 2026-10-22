@@ -112,8 +112,9 @@ Valores iniciales **[Claude, revisar]**:
 | Zahorí, modo alto | 500 MHz | 70 dB | ~20 m | ~400 m | ~0,1 m vertical, ~1 m horizontal a 10 m |
 
 **Gravímetro (Plomada).** Δg en la vertical de un cilindro hueco = 2πG·Δρ·R²/z, o de una esfera =
-(4/3)πG·Δρ·R³/z², con z = profundidad + altura. Es Pista si Δg ≥ σ (sensibilidad; inicial 0,3 mGal
-**[Claude, revisar]**: un tubo de 500 m de ancho se ve desde 20 km). Incertidumbre de posición = z (la gravedad
+(4/3)πG·Δρ·R³/z², con z = profundidad + altura. Es Pista si Δg ≥ σ (sensibilidad; inicial 0,05 mGal
+**[Claude, revisar]**: desde 20 km se ven los tubos de unos 180 m de ancho o más, como la Gran Galería de 250 m;
+GRAIL llegaba a ~0,01–0,05 mGal. Con 0,3 mGal no se vería ninguna red de la Mun, que no pasan de 350 m). Incertidumbre de posición = z (la gravedad
 suaviza a esa escala).
 
 **Sísmico (geófonos + fuente).**
