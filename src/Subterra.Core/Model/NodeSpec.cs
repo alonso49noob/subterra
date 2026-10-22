@@ -28,5 +28,11 @@ namespace Subterra.Core.Model
         public NodeFeature Feature { get; set; }
 
         public double SkylightRadius { get; set; }
+
+        /// <summary>
+        /// Roof altitude over the body's datum (m), instead of a depth under the local terrain (NaN: unset). For deep
+        /// networks under a feature whose terrain changes a lot (the Mohole): the tube keeps its level whatever is above.
+        /// </summary>
+        public double Altitude { get; set; } = double.NaN;
     }
 }

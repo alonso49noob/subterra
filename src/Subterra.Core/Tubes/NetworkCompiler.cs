@@ -45,7 +45,7 @@ namespace Subterra.Core.Tubes
             var nodePoints = new PathPoint[site.Nodes.Count];
             for (int i = 0; i < site.Nodes.Count; i++)
             {
-                nodePoints[i] = TubePath.NodePoint(site, i, heights, warnings);
+                nodePoints[i] = TubePath.NodePoint(site, i, heights, warnings, bodyRadius);
             }
 
             Vec3d anchor = nodePoints[0].FloorCenter;

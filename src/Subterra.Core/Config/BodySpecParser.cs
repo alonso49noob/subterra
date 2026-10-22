@@ -292,6 +292,7 @@ namespace Subterra.Core.Config
                 Height = r.Double(node, "height", 25),
                 Feature = r.Enum(node, "feature", NodeFeature.None),
                 SkylightRadius = r.Double(node, "skylightRadius", 0),
+                Altitude = node.GetValue("altitude") == null ? double.NaN : r.Double(node, "altitude", double.NaN),
             };
 
             if (double.IsNaN(n.Lat) || double.IsNaN(n.Lon) || Math.Abs(n.Lat) > 90)

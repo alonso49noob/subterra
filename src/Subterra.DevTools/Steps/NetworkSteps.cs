@@ -16,6 +16,7 @@ namespace Subterra.DevTools
         {
             StepRegistry.Register("teleportToNetwork", TeleportToNetwork);
             StepRegistry.Register("networkInfo", NetworkInfo);
+            StepRegistry.Register("terrainProfile", TerrainProfile);
         }
 
         /// <summary>The network named by <c>site</c> (a named site, or <c>procedural</c> = the nearest generated one).</summary>
@@ -37,6 +38,35 @@ namespace Subterra.DevTools
                 .OrderBy(n => Vec3d.Distance(n.Anchor, here))
                 .FirstOrDefault();
             return nearest ?? throw new InvalidOperationException("no procedural network generated yet");
+        }
+
+        // terrainProfile body = Moho lat0 = 88 lon0 = 0 lat1 = 88 lon1 = 180 samples = 200 — logs the terrain altitude along a
+        // great circle (diagnostics: to measure a feature such as the Mohole).
+        private static IEnumerator TerrainProfile(ConfigNode node, TestContext ctx)
+        {
+            CelestialBody body = FlightGlobals.GetBodyByName(node.Arg("body", "Moho")) ?? throw new ArgumentException("unknown body");
+            var a = Subterra.Core.Geo.BodyFrame.Direction(node.ArgDouble("lat0", 88), node.ArgDouble("lon0", 0));
+            var b = Subterra.Core.Geo.BodyFrame.Direction(node.ArgDouble("lat1", 88), node.ArgDouble("lon1", 180));
+            int n = (int)node.ArgDouble("samples", 200);
+            var lines = new System.Text.StringBuilder();
+            double min = double.MaxValue, minLat = 0, minLon = 0;
+            for (int i = 0; i <= n; i++)
+            {
+                Vec3d d = (a * (1 - (double)i / n) + b * ((double)i / n)).Normalized;
+                Subterra.Core.Geo.BodyFrame.ToLatLon(d, out double lat, out double lon);
+                double alt = KspSampler.SurfaceRadius(body, lat, lon) - body.Radius;
+                lines.AppendLine(Invariant($"  {lat:F4}, {lon:F4}: {alt:F0} m"));
+                if (alt < min)
+                {
+                    min = alt;
+                    minLat = lat;
+                    minLon = lon;
+                }
+            }
+
+            Debug.Log("[Subterra.DevTools] terrain profile on " + body.bodyName + System.Environment.NewLine + lines);
+            yield return null;
+            ctx.Pass(Invariant($"lowest {min:F0} m at {minLat:F4}, {minLon:F4}"));
         }
 
         // networkInfo site = procedural — logs the network's nodes (feature, roof depth, width, height, terrain) and where its void

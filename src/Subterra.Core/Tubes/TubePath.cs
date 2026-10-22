@@ -79,6 +79,12 @@ namespace Subterra.Core.Tubes
                     surface = Math.Min(surface, heights.SurfaceRadius(la, lo));
                 }
                 double depth = Lerp(depthFrom, depthTo, u);
+                if (!double.IsNaN(from.Altitude) && !double.IsNaN(to.Altitude))
+                {
+                    // A level given as an altitude: the roof follows it (never thinner than the roof rule).
+                    double roof = bodyRadius + Lerp(from.Altitude, to.Altitude, u);
+                    depth = Math.Max(MinRoof(Lerp(from.Width, to.Width, u)), surface - roof);
+                }
                 double width = Lerp(from.Width, to.Width, u);
                 double height = Lerp(from.Height, to.Height, u);
                 Vec3d up = BodyFrame.Direction(lat, lon);
@@ -99,11 +105,15 @@ namespace Subterra.Core.Tubes
         }
 
         /// <summary>Single-node sites (a lone skylight or chamber) have no edges: their one path point.</summary>
-        public static PathPoint NodePoint(SiteSpec site, int nodeIndex, IHeightSampler heights, List<string> warnings)
+        public static PathPoint NodePoint(SiteSpec site, int nodeIndex, IHeightSampler heights, List<string> warnings, double bodyRadius = 0)
         {
             NodeSpec node = site.Nodes[nodeIndex];
             double depth = RoofDepth(site, nodeIndex, warnings);
             double surface = heights.SurfaceRadius(node.Lat, node.Lon);
+            if (!double.IsNaN(node.Altitude) && bodyRadius > 0)
+            {
+                depth = Math.Max(MinRoof(node.Width), surface - (bodyRadius + node.Altitude));
+            }
             Vec3d up = BodyFrame.Direction(node.Lat, node.Lon);
             return new PathPoint
             {

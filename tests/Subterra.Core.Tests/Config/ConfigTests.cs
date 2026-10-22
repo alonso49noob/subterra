@@ -120,6 +120,12 @@ SUBTERRA_BODY
             Assert.Empty(minmus.Warnings);
             Assert.Equal(new[] { "MinmusFlatsGallery", "MinmusIceCaves", "MinmusCentralGeode" }, minmus.Value.Sites.Select(s => s.Name));
             Assert.Equal(NodeFeature.Geode, minmus.Value.Sites.Single(s => s.Name == "MinmusCentralGeode").Nodes[0].Feature);
+
+            var moho = Parse("Data/shipped-Moho.cfg");
+            Assert.Empty(moho.Warnings);
+            Assert.Equal(new[] { "Mohole", "MohoPlainsTubes", "MohoThermalRefuge" }, moho.Value.Sites.Select(s => s.Name));
+            Assert.Equal(-2400, moho.Value.Sites[0].Nodes.Last().Altitude, 6);
+            Assert.True(double.IsNaN(moho.Value.Sites[1].Nodes[0].Altitude));
         }
 
         [Fact]

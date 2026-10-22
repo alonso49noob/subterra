@@ -52,6 +52,20 @@ namespace Subterra.Core.Tests.Tubes
         private static Vec3 FloorAt(double meters) => At(Net, 0, Lon0 + Deg(meters), R - 68);
 
         [Fact]
+        public void AltitudeNodesKeepTheirLevelWhateverIsAbove()
+        {
+            var site = new SiteSpec { Name = "Levels", IsNamed = true };
+            site.Nodes.Add(new NodeSpec { Lat = 0, Lon = Lon0, Depth = 50, Altitude = -300, Width = 60, Height = 30 });
+            site.Nodes.Add(new NodeSpec { Lat = 0, Lon = Lon0 + Deg(1000), Depth = 50, Altitude = -500, Width = 60, Height = 30 });
+            site.Edges.Add(new EdgeSpec { From = 0, To = 1, Sinuosity = 0 });
+            TubeNetwork net = Compile(site);
+            // Roof 300 m under the datum at the first node (flat terrain at the datum), 500 m at the second.
+            Assert.True(net.IsInside(At(net, 0, Lon0, R - 300 - 15)));
+            Assert.True(net.IsInside(At(net, 0, Lon0 + Deg(1000), R - 500 - 15)));
+            Assert.False(net.IsInside(At(net, 0, Lon0, R - 60)));
+        }
+
+        [Fact]
         public void GeodeIsASealedCrystalRoom()
         {
             var site = new SiteSpec { Name = "Geode", IsNamed = true };
