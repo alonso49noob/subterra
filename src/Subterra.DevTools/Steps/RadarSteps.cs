@@ -16,6 +16,7 @@ namespace Subterra.DevTools
             StepRegistry.Register("radarMark", RadarMark);
             StepRegistry.Register("setResourceAmount", SetResourceAmount);
             StepRegistry.Register("subPoint", SubPointStep);
+            StepRegistry.Register("subPointAt", SubPointAt);
             StepRegistry.Register("radarSetLastScan", RadarSetLastScan);
         }
 
@@ -42,6 +43,25 @@ namespace Subterra.DevTools
             }
 
             ctx.Pass(Invariant($"{name}: {v.mainBody.bodyName} lat {v.latitude:F3} lon {v.longitude:F3} alt {v.altitude:F0} m at UT {now:F0}; ") + string.Join("; ", lines));
+            yield break;
+        }
+
+        // subPointAt name = ghost back = 600 / subPointAt name = pe1 periapsisAgo = 1 - records as a point where
+        // OrbitalScanner.SubPoint puts the active vessel, with the orbit it has now, back seconds ago, or at its
+        // periapsis passage that many orbits before the coming one (a predicted point, not a flown one: subPoint
+        // logs show the prediction matches flown points).
+        private static IEnumerator SubPointAt(ConfigNode node, TestContext ctx)
+        {
+            string name = node.RequireArg("name");
+            Vessel v = FlightGlobals.ActiveVessel ?? throw new InvalidOperationException("no active vessel");
+            Orbit orbit = v.orbit;
+            double now = Planetarium.GetUniversalTime();
+            double ut = node.HasValue("periapsisAgo")
+                ? now + orbit.timeToPe - node.ArgDouble("periapsisAgo", 1) * orbit.period
+                : now - node.ArgDouble("back", 0);
+            OrbitalScanner.SubPoint(orbit, ut, out double lat, out double lon, out double alt);
+            ctx.Snapshots[PointPrefix + name] = new Vector3d(lat, lon, ut);
+            ctx.Pass(Invariant($"{name}: predicted {v.mainBody.bodyName} lat {lat:F3} lon {lon:F3} alt {alt:F0} m at UT {ut:F0} ({now - ut:F0} s ago)"));
             yield break;
         }
 

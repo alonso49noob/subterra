@@ -38,7 +38,16 @@ namespace Subterra
         /// <summary>Samples between two looks at the clock inside a walk.</summary>
         private const int ClockStride = 32;
 
+        /// <summary>
+        /// How far (m) the orbit of last tick and the current one may put the vessel apart at the start of the
+        /// backlog before the orbit counts as changed: well above the drift of a coasting vessel's orbit between two
+        /// ticks, below a swath (decidido por Claude, revisar).
+        /// </summary>
+        private const double OrbitChangeMetres = 1000;
+
         private readonly List<Instrument> instruments = new List<Instrument>();
+        private readonly List<WalkGroup> walks = new List<WalkGroup>();
+        private readonly Dictionary<Guid, Track> tracks = new Dictionary<Guid, Track>();
         private readonly Dictionary<AvailablePart, List<ModuleSubterraRadar>> prefabModules = new Dictionary<AvailablePart, List<ModuleSubterraRadar>>();
         private readonly HashSet<Guid> failed = new HashSet<Guid>();
         private readonly Stopwatch watch = new Stopwatch();
@@ -172,12 +181,10 @@ namespace Subterra
             bool canScan = body != null && orbit != null && BodyRegistry.Instance.TryGet(body, out _)
                 && situation != Vessel.Situations.LANDED && situation != Vessel.Situations.SPLASHED && situation != Vessel.Situations.PRELAUNCH;
 
-            CoverageGrid echo = null, gravity = null;
-            int echoVersion = 0, gravityVersion = 0;
-            bool marked = false;
-            double markLat = 0, markLon = 0;
-            int stepsEach = Math.Max(1, MaxStepsPerVessel / instruments.Count);
-
+            // Instruments that walk now, grouped: identical instruments (same kind, frequency and window) on one
+            // vessel paint the same swath, so the group walks the track once, from the earliest marker.
+            walks.Clear();
+            double earliest = now;
             foreach (Instrument instrument in instruments)
             {
                 double from = instrument.LastScanUT;
@@ -190,10 +197,11 @@ namespace Subterra
                     from = now;
                 }
 
-                // A loaded instrument that is off, unpowered or blocked marks nothing, and its marker still moves
-                // to now, so a later resume does not back-fill the gap (decidido por Claude, revisar). The same for a
-                // vessel on the ground or around a body Subterra does not handle (Jool): its past was on another
-                // orbit, and walking it with the current one would mark the wrong places.
+                // An instrument that does not scan now marks nothing and its marker still moves to now, so a later
+                // resume does not back-fill the gap (decidido por Claude, revisar). The same for a vessel on the
+                // ground or around a body Subterra does not handle (Jool): its past was on another orbit, and walking
+                // it with the current one would mark the wrong places. An unloaded instrument that does not scan is
+                // left alone (no per-tick writes into idle saves).
                 if (!instrument.Active || !canScan)
                 {
                     if (instrument.Snapshot == null || instrument.Active)
@@ -204,12 +212,48 @@ namespace Subterra
                     continue;
                 }
 
+                WalkGroup group = null;
+                foreach (WalkGroup g in walks)
+                {
+                    if (g.Lead.Kind == instrument.Kind && g.Lead.FrequencyMHz == instrument.FrequencyMHz
+                        && g.Lead.AltitudeMin == instrument.AltitudeMin && g.Lead.AltitudeMax == instrument.AltitudeMax)
+                    {
+                        group = g;
+                        break;
+                    }
+                }
+
+                if (group == null)
+                {
+                    group = new WalkGroup { Lead = instrument, From = from };
+                    walks.Add(group);
+                }
+
+                group.Members.Add(instrument);
+                group.From = Math.Min(group.From, from);
+                earliest = Math.Min(earliest, from);
+            }
+
+            if (walks.Count == 0)
+            {
+                tracks.Remove(v.id);
+                return;
+            }
+
+            double clamp = OrbitChangeClamp(v, orbit, body, earliest, now);
+            CoverageGrid echo = null, gravity = null;
+            int echoVersion = 0, gravityVersion = 0;
+            bool marked = false;
+            double markLat = 0, markLon = 0;
+            int stepsEach = Math.Max(1, MaxStepsPerVessel / walks.Count);
+            foreach (WalkGroup group in walks)
+            {
                 CoverageGrid grid;
-                if (instrument.Kind == InstrumentKind.Gravimeter)
+                if (group.Lead.Kind == InstrumentKind.Gravimeter)
                 {
                     if (gravity == null)
                     {
-                        gravity = scenario.Coverage(body.bodyName, InstrumentKind.Gravimeter);
+                        gravity = scenario.Coverage(bodyName, InstrumentKind.Gravimeter);
                         gravityVersion = gravity.Version;
                     }
 
@@ -219,21 +263,62 @@ namespace Subterra
                 {
                     if (echo == null)
                     {
-                        echo = scenario.Coverage(body.bodyName, InstrumentKind.OrbitalRadar);
+                        echo = scenario.Coverage(bodyName, InstrumentKind.OrbitalRadar);
                         echoVersion = echo.Version;
                     }
 
                     grid = echo;
                 }
 
-                double reached = Walk(instrument, orbit, body, from, now, stepsEach, grid, ref marked, ref markLat, ref markLon);
-                instrument.Save(reached, bodyName);
+                double reached = Walk(group.Lead, orbit, body, Math.Max(group.From, clamp), now, stepsEach, grid, ref marked, ref markLat, ref markLon);
+                foreach (Instrument member in group.Members)
+                {
+                    member.Save(reached, bodyName);
+                }
             }
 
             if (marked && (echo != null && echo.Version != echoVersion || gravity != null && gravity.Version != gravityVersion))
             {
-                CoverageChanged?.Invoke(body.bodyName, markLat, markLon);
+                CoverageChanged?.Invoke(bodyName, markLat, markLon);
             }
+        }
+
+        /// <summary>
+        /// The earliest UT the backlog may be walked from with the vessel's current orbit. The track is rebuilt from
+        /// the orbit the vessel has NOW, which is only right while that orbit has not changed: if the player stops a
+        /// warp whose backlog is not walked yet and burns (or the orbit is set by other means), the old backlog
+        /// would be painted along the new orbit, where the vessel never flew. So the orbit used last tick is kept per
+        /// vessel; when the new one puts the vessel more than <see cref="OrbitChangeMetres"/> elsewhere at the start
+        /// of the backlog, the backlog older than last tick is dropped and logged (decidido por Claude, revisar). The
+        /// positions are compared rather than the elements, which are ill-defined for circular or equatorial orbits.
+        /// </summary>
+        private double OrbitChangeClamp(Vessel v, Orbit orbit, CelestialBody body, double earliest, double now)
+        {
+            double clamp = double.NegativeInfinity;
+            if (tracks.TryGetValue(v.id, out Track last))
+            {
+                if (last.Body == body && earliest < last.TickUT)
+                {
+                    double moved = (last.Orbit.getRelativePositionAtUT(earliest) - orbit.getRelativePositionAtUT(earliest)).magnitude;
+                    if (moved > OrbitChangeMetres)
+                    {
+                        clamp = last.TickUT;
+                        Log.Info(FormattableString.Invariant(
+                            $"Orbital scan: orbit of {v.GetDisplayName()} changed ({moved / 1000:F1} km apart at UT {earliest:F0}); {last.TickUT - earliest:F0} s of unwalked track dropped"));
+                    }
+                }
+            }
+            else
+            {
+                last = new Track { Orbit = new Orbit() };
+                tracks[v.id] = last;
+            }
+
+            last.Orbit.SetOrbit(orbit.inclination, orbit.eccentricity, orbit.semiMajorAxis, orbit.LAN, orbit.argumentOfPeriapsis,
+                orbit.meanAnomalyAtEpoch, orbit.epoch, body);
+            last.Body = body;
+            last.TickUT = now;
+            return clamp;
         }
 
         /// <summary>
@@ -397,6 +482,22 @@ namespace Subterra
             return lon;
         }
 
+        /// <summary>Identical instruments of one vessel that walk the track together.</summary>
+        private sealed class WalkGroup
+        {
+            public readonly List<Instrument> Members = new List<Instrument>();
+            public Instrument Lead;
+            public double From;
+        }
+
+        /// <summary>The orbit a vessel's track was rebuilt with last tick, and when.</summary>
+        private sealed class Track
+        {
+            public Orbit Orbit;
+            public CelestialBody Body;
+            public double TickUT;
+        }
+
         /// <summary>One orbital instrument, loaded (module) or not (snapshot + prefab config).</summary>
         private sealed class Instrument
         {
@@ -412,8 +513,10 @@ namespace Subterra
             public string LastScanBody;
 
             /// <summary>
-            /// Whether it scans now. Loaded: the module's live state (on, powered, in its situation). Unloaded: the
-            /// saved scanning flag only; no electricity check in the background (decidido por Claude, revisar).
+            /// Whether it scans now (the altitude window is checked per sample by the walk). Loaded: switched on and
+            /// powered now; a tick that lands outside the window must not drop the in-window part of the backlog, so
+            /// OutOfAltitude counts as active. Unloaded: switched on and powered when the vessel was saved (spec 4.3,
+            /// ruling R24); nothing is drawn in the background.
             /// </summary>
             public bool Active;
 
@@ -428,7 +531,7 @@ namespace Subterra
                     AltitudeMax = m.altitudeMax,
                     LastScanUT = m.lastScanUT,
                     LastScanBody = m.lastScanBody ?? "",
-                    Active = m.scanning && m.IsScanningNow,
+                    Active = m.scanning && (m.IsScanningNow || m.Block == ScanBlock.OutOfAltitude),
                 };
             }
 
@@ -436,6 +539,8 @@ namespace Subterra
             {
                 ConfigNode values = s.moduleValues;
                 bool.TryParse(values?.GetValue("scanning"), out bool scanning);
+                // Saves from before the field existed have no value: count them as powered.
+                bool powered = !bool.TryParse(values?.GetValue("poweredWhenSaved"), out bool saved) || saved;
                 double.TryParse(values?.GetValue("lastScanUT"), NumberStyles.Float, CultureInfo.InvariantCulture, out double last);
                 return new Instrument
                 {
@@ -446,7 +551,7 @@ namespace Subterra
                     AltitudeMax = config.altitudeMax,
                     LastScanUT = last,
                     LastScanBody = values?.GetValue("lastScanBody") ?? "",
-                    Active = scanning,
+                    Active = scanning && powered,
                 };
             }
 

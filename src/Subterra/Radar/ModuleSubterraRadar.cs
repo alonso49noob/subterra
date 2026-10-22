@@ -24,7 +24,9 @@ namespace Subterra
     /// Power: while <see cref="scanning"/> is on, the part draws <see cref="powerUse"/> EC/s from the vessel every
     /// physics step. If the electricity runs out, <see cref="scanning"/> stays on (decidido por Claude, revisar):
     /// the status reads "no power" and the scan resumes by itself when charge is back, so a night pass over the
-    /// dark side does not make the player press Start again. Only loaded, unpacked vessels scan.
+    /// dark side does not make the player press Start again. Charge is drawn here, on loaded vessels (packed on rails
+    /// too). Unloaded vessels draw nothing: <see cref="OrbitalScanner"/> keeps scanning in the background only if the
+    /// instrument was on and powered when the vessel was saved (<see cref="poweredWhenSaved"/>, spec 4.3).
     /// </summary>
     public sealed class ModuleSubterraRadar : PartModule
     {
@@ -69,6 +71,12 @@ namespace Subterra
         /// only the scanner and <see cref="StartScan"/> move it).
         /// </summary>
         [KSPField(isPersistant = true)] public double lastScanUT;
+
+        /// <summary>
+        /// Whether the last step had electricity (false only after a "no power" step). Saved with the vessel, so an
+        /// unloaded vessel scans in the background only if it was powered when it was unloaded (spec 4.3).
+        /// </summary>
+        [KSPField(isPersistant = true)] public bool poweredWhenSaved = true;
 
         /// <summary>The body <see cref="lastScanUT"/> belongs to: after a change of body the scanner starts afresh.</summary>
         [KSPField(isPersistant = true)] public string lastScanBody = "";
@@ -232,6 +240,7 @@ namespace Subterra
             }
 
             block = Evaluate(powered);
+            poweredWhenSaved = block != ScanBlock.NoPower;
             if (block == ScanBlock.None)
             {
                 IsScanningNow = true;

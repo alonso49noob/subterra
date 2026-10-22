@@ -79,7 +79,7 @@ namespace Subterra.DevTools
 
         // coverageAt body = Mun lat = 0 lon = 0 maxAltitude = 31000 instrument = OrbitalRadar
         // coverageAt at = vessel vessel = Radar A / coverageAt at = a - the coverage grid has a scan at that point
-        // made from at most maxAltitude metres (default: any). at = vessel takes the sub-point of the active vessel,
+        // made from at most maxAltitude metres (default: any); covered = false asserts it has none. at = vessel takes the sub-point of the active vessel,
         // or of the named one (loaded or not: from its orbit now); at = <name> a point recorded by subPoint. body
         // defaults to that vessel's body (the active vessel's for a recorded point).
         private static bool CoverageAt(ConfigNode node, TestContext ctx)
@@ -144,9 +144,11 @@ namespace Subterra.DevTools
             InstrumentKind kind = RadarSteps.ParseInstrument(node);
             double max = node.ArgDouble("maxAltitude", double.PositiveInfinity);
             double? best = scenario.Coverage(bodyName, kind).BestAltitude(lat, lon);
+            bool covered = node.ArgBool("covered", true);
             ctx.Detail = Invariant($"{bodyName} {kind} at lat {lat:F3} lon {lon:F3}: ")
-                + (best.HasValue ? Invariant($"best altitude {best.Value:F0} m (max {max:F0})") : "not covered");
-            return best.HasValue && best.Value <= max;
+                + (best.HasValue ? Invariant($"best altitude {best.Value:F0} m (max {max:F0})") : "not covered")
+                + (covered ? "" : " (expected not covered)");
+            return covered ? best.HasValue && best.Value <= max : !best.HasValue;
         }
 
         private static List<ModuleSubterraRadar> RadarModules(TestContext ctx)
