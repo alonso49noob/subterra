@@ -23,7 +23,11 @@ namespace Subterra
 
         public static RadarScenario Instance { get; private set; }
 
-        /// <summary>The coverage grid of a body for an instrument; created empty if missing. Safe from any thread.</summary>
+        /// <summary>
+        /// The coverage grid of a body for an instrument; created empty if missing. Safe from any thread. A reload
+        /// (OnLoad) replaces the grid objects, so consumers must fetch the grid again here and compare its identity,
+        /// not only its Version, to notice a reload.
+        /// </summary>
         public CoverageGrid Coverage(string body, InstrumentKind kind)
         {
             string key = Key(body, kind);
@@ -89,6 +93,8 @@ namespace Subterra
 
         public override void OnLoad(ConfigNode node)
         {
+            // The module always matches its save: forget what was here (grids are replaced by new objects below).
+            Detections.Clear();
             lock (gate)
             {
                 grids.Clear();

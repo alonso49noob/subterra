@@ -230,5 +230,25 @@ namespace Subterra.Core.Tests.Radar
         {
             Assert.Null(new DetectionStore().Get("nope"));
         }
+
+        [Fact]
+        public void ClearForgetsEverythingAndStaysUsable()
+        {
+            var store = new DetectionStore();
+            var raised = 0;
+            store.Apply("Mun", T("a", "net1", 0), Det());
+            store.Apply("Mun", T("b", "net2", 0), Hint());
+            store.LevelRaised += (n, l) => raised++;
+
+            store.Clear();
+
+            Assert.Null(store.Get("net1"));
+            Assert.Empty(store.All);
+            Assert.False(store.IsPrimitiveDetected("net1", 0));
+            Assert.Equal(0, raised);
+            Assert.True(store.Apply("Mun", T("a", "net1", 0), Hint()));
+            Assert.Equal(1, raised);
+            Assert.Equal(DetectionLevel.Hint, store.Get("net1").Level);
+        }
     }
 }

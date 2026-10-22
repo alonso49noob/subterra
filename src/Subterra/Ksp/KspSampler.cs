@@ -13,6 +13,12 @@ namespace Subterra
         public static double SurfaceRadius(CelestialBody body, double lat, double lon) =>
             body.pqsController.GetSurfaceHeight(BodyFrame.Direction(lat, lon).ToKsp());
 
+        // CBAttributeMapSO.GetAtt keeps scratch state in instance fields (bilinear coordinates, neighbour colours), so it
+        // is not thread-safe. One lock for every caller (main thread and the radar's workers); it is almost never
+        // contended and a lookup is a few array reads (decidido por Claude, revisar).
+        private static readonly object BiomeGate = new object();
+
+        /// <summary>Surface biome name at the point, or null if the body has no biome map. Safe from any thread.</summary>
         public static string Biome(CelestialBody body, double lat, double lon)
         {
             if (body.BiomeMap == null)
@@ -20,8 +26,11 @@ namespace Subterra
                 return null;
             }
 
-            CBAttributeMapSO.MapAttribute attribute = body.BiomeMap.GetAtt(lat * BodyFrame.Deg2Rad, lon * BodyFrame.Deg2Rad);
-            return attribute?.name;
+            lock (BiomeGate)
+            {
+                CBAttributeMapSO.MapAttribute attribute = body.BiomeMap.GetAtt(lat * BodyFrame.Deg2Rad, lon * BodyFrame.Deg2Rad);
+                return attribute?.name;
+            }
         }
     }
 }

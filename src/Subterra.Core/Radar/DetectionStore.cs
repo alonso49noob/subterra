@@ -213,6 +213,12 @@ namespace Subterra.Core.Radar
             return improved;
         }
 
+        /// <summary>Forgets every record. Does not fire <see cref="LevelRaised"/>.</summary>
+        public void Clear()
+        {
+            lock (_lock) _byNetwork.Clear();
+        }
+
         /// <summary>A copy of the record for the network, or null if nothing was found there.</summary>
         public NetworkDetection Get(string networkId)
         {
