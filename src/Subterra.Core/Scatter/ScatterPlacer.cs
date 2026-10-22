@@ -8,12 +8,12 @@ namespace Subterra.Core.Scatter
 {
     /// <summary>
     /// Places props over a chunk's cave surface: by triangle area (density per 100 m²), surface type
-    /// from the face normal against the local vertical, zone filter, noise mask; seeded per chunk.
+    /// from the face normal against the local vertical, zone filter, noise mask, roof thickness; seeded per chunk.
     /// </summary>
     public static class ScatterPlacer
     {
         public static List<ScatterInstance> Place(MeshData chunk, ScatterSpec spec, ulong chunkSeed,
-            Func<Vec3, Vec3> localUp, Func<Vec3, ZoneKind> zoneAt, Func<Vec3, bool> inRubbleZone)
+            Func<Vec3, Vec3> localUp, Func<Vec3, ZoneKind> zoneAt, Func<Vec3, bool> inRubbleZone, Func<Vec3, double> roofAt = null)
         {
             var result = new List<ScatterInstance>();
             var rng = new Rng(chunkSeed);
@@ -76,6 +76,12 @@ namespace Subterra.Core.Scatter
                     }
 
                     if (mask != null && (Noise.Fbm(p * (float)spec.NoiseFrequency, mask, 3) + 1) / 2 <= spec.NoiseThreshold)
+                    {
+                        continue;
+                    }
+
+                    // Thin roofs only (light through the rock or ice): the rock between the point and the ground above.
+                    if (spec.MaxRoof > 0 && roofAt != null && roofAt(p) > spec.MaxRoof)
                     {
                         continue;
                     }

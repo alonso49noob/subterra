@@ -1,10 +1,11 @@
 # Shared helpers for tools/make-<body>-cfg.sh: each prints one cfg node (tabs as KSP writes them).
 lerp() { awk -v a="$1" -v b="$2" -v t="$3" 'BEGIN { printf "%.5f", a + (b - a) * t }'; }
 
-node() { # lat lon depth width height [feature [radius]]
+node() { # lat lon depth width height [feature [radius [water [waterColour]]]]
   printf '\t\tNODE\n\t\t{\n\t\t\tlat = %s\n\t\t\tlon = %s\n\t\t\tdepth = %s\n\t\t\twidth = %s\n\t\t\theight = %s\n' "$1" "$2" "$3" "$4" "$5"
   [ -n "${6:-}" ] && printf '\t\t\tfeature = %s\n' "$6"
   [ -n "${7:-}" ] && printf '\t\t\tskylightRadius = %s\n' "$7"
+  water "${8:-}" "${9:-}"
   printf '\t\t}\n'
 }
 # Side lava benches (5th argument) are left out of the shipped sites: their sharp step broke into fragments under
@@ -30,4 +31,18 @@ rule() { printf '\tENRICHMENT\n\t{\n\t\tresource = %s\n' "$1"; [ -n "$2" ] && pr
 # Terrain relief (PQSMod_SubterraRelief): a volcano cone with a crater.
 volcano() { # name lat lon radius height craterRadius craterDepth
   printf '\tRELIEF\n\t{\n\t\tname = %s\n\t\tkind = volcano\n\t\tlat = %s\n\t\tlon = %s\n\t\tradius = %s\n\t\theight = %s\n\t\tcraterRadius = %s\n\t\tcraterDepth = %s\n\t}\n' "$@"
+}
+# A glowing scatter (light from the props: GlowLights): fungi on floors, daylight through thin roofs on ceilings.
+glow() { # name model placement zones density scale colour lightRange maxRoof daylight noiseFreq noiseThreshold
+  printf '\tCAVE_SCATTER\n\t{\n\t\tname = %s\n\t\tmodel = %s\n\t\tplacement = %s\n' "$1" "$2" "$3"
+  [ -n "$4" ] && printf '\t\tzones = %s\n' "$4"
+  printf '\t\tdensity = %s\n\t\tscale = %s\n\t\tscalePower = 2\n\t\talignToSurface = 1\n\t\tglow = %s\n\t\tglowLight = %s\n' "$5" "$6" "$7" "$8"
+  [ "$9" != "0" ] && printf '\t\tmaxRoof = %s\n' "$9"
+  printf '\t\tdaylight = %s\n\t\tnoiseMask\n\t\t{\n\t\t\tfrequency = %s\n\t\t\tthreshold = %s\n\t\t}\n\t\tlodDistances = 100, 400\n\t\tcollide = false\n\t}\n' "${10}" "${11}" "${12}"
+}
+# Still water in a node (metres over its floor) and its colour; nothing when empty. Used inside node/anode.
+water() {
+  [ -n "${1:-}" ] && printf '\t\t\twater = %s\n' "$1"
+  [ -n "${2:-}" ] && printf '\t\t\twaterColour = %s\n' "$2"
+  return 0
 }

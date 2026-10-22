@@ -91,7 +91,10 @@ namespace Subterra
             go.AddComponent<MeshFilter>().sharedMesh = visual;
             var renderer = go.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = material;
-            renderer.shadowCastingMode = ShadowCastingMode.On;
+            // Glowing props are light, not things in it: they neither cast nor take shadows.
+            bool glow = scatter.Spec?.Glow != null;
+            renderer.shadowCastingMode = glow ? ShadowCastingMode.Off : ShadowCastingMode.On;
+            renderer.receiveShadows = !glow;
             renderer.enabled = Visible;
             Scatters.Add(new ScatterPart { Data = scatter, Object = go, Renderer = renderer, Visual = visual });
         }

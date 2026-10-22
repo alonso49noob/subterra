@@ -444,6 +444,58 @@ namespace Subterra
             go.transform.localPosition = net.Anchor.ToKsp();
             go.transform.localRotation = Quaternion.identity;
             roots[net.Id] = go.transform;
+            AddWaters(net, go.transform);
+        }
+
+        // Still water levels (WaterSurface): meshed on a worker, then laid in the network's root (they go when it goes).
+        private void AddWaters(TubeNetwork net, Transform root)
+        {
+            IReadOnlyList<WaterSurface> waters = net.Waters;
+            if (waters.Count == 0)
+            {
+                return;
+            }
+
+            WorkerPool.Shared.Enqueue(() =>
+            {
+                var meshes = new List<(PreparedMesh mesh, WaterSurface water)>();
+                try
+                {
+                    foreach (WaterSurface water in waters)
+                    {
+                        MeshData data = WaterMesher.Build(net.Sdf, water);
+                        if (!data.IsEmpty)
+                        {
+                            meshes.Add((MeshUploader.Prepare(data), water));
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    fromWorkers.Enqueue(() => Log.Error($"Water of {net.Id} failed: {e}"));
+                    return;
+                }
+
+                fromWorkers.Enqueue(() =>
+                {
+                    if (root == null)
+                    {
+                        return;
+                    }
+
+                    foreach (var (mesh, water) in meshes)
+                    {
+                        var go = new GameObject("SubterraWater") { layer = ChunkObject.Layer };
+                        go.transform.SetParent(root, false);
+                        go.AddComponent<MeshFilter>().sharedMesh = MeshUploader.Upload(mesh, net.Id + " water", readable: false);
+                        var renderer = go.AddComponent<MeshRenderer>();
+                        renderer.sharedMaterial = MaterialFactory.Water(water.Colour);
+                        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    }
+
+                    Log.Info($"Water: {meshes.Count} level(s) in {net.Id}");
+                });
+            });
         }
 
         // Starts meshing jobs for wanted chunks, in plan order, up to the job limit.
@@ -553,7 +605,7 @@ namespace Subterra
 
                     using (SubterraClock.Measure("ChunkStreamer.Step.Scatter"))
                     {
-                        chunk.AddScatter(scatter, MeshUploader.Upload(scatterVisual, chunk.Key + " " + scatter.Model, readable: false), PropLibrary.MaterialFor(scatter.Model, body));
+                        chunk.AddScatter(scatter, MeshUploader.Upload(scatterVisual, chunk.Key + " " + scatter.Model, readable: false), PropLibrary.MaterialFor(scatter.Spec, scatter.Model, body));
                     }
 
                     chunk.Bytes += scatter.Visual.ByteSize + (scatter.Collider?.ByteSize ?? 0);

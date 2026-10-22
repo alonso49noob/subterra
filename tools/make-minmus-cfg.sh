@@ -45,11 +45,11 @@ node "${FLATS[2]}" "${FLATS[3]}" 40 110 30 end
 edge 0 1 0.35 0.04; edge 1 2 0.35 0.04
 printf '\t}\n'
 
-# Slope Caves: a winding ice tube in the slopes.
+# Slope Caves: a winding ice tube in the slopes, under a thin roof of ice (green daylight shows through it).
 site_head MinmusIceCaves
 node "${SLOPES[0]}" "${SLOPES[1]}" 20 40 20 skylight 12
-node "$(lerp ${SLOPES[0]} ${SLOPES[2]} 0.5)" "$(lerp ${SLOPES[1]} ${SLOPES[3]} 0.5)" 35 50 25
-node "${SLOPES[2]}" "${SLOPES[3]}" 45 60 30 end
+node "$(lerp ${SLOPES[0]} ${SLOPES[2]} 0.5)" "$(lerp ${SLOPES[1]} ${SLOPES[3]} 0.5)" 12 50 25
+node "${SLOPES[2]}" "${SLOPES[3]}" 30 60 30 end
 edge 0 1 0.5 0.06; edge 1 2 0.5 0.06
 printf '\t}\n'
 
@@ -76,6 +76,8 @@ cat <<'EOF'
 EOF
 scatter IceCrystals "Subterra/Props/IceCluster01" floor "TubeGallery, TubeChamber, TubeBranch, FrozenVault" 0.9 "0.4, 1.8" 0.8 false 0.02 0.3 1.5 0.15
 scatter IceDrips "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 0.5 "0.5, 1.5" 1 false
+# Sunlight through thin mint ice: soft green patches on ceilings under 25 m of ice or less, fading at night.
+glow IceGlow "Subterra/Props/GlowPatch01" ceiling "" 0.25 "3, 9" "0.55,1.0,0.78" 30 25 true 0.015 0.2
 scatter SkylightRubble "Subterra/Props/RubbleCone01, Subterra/Props/Boulder03" skylightRubble "" 2 "0.5, 3.5" 0.5 true 0.02 0.3 2.5 0.25
 scatter GeodeCrystalsFloor "Subterra/Props/GeodeCrystal01" floor "Geode" 6 "0.6, 3" 0.9 false 0.02 -1 2 0.1
 scatter GeodeCrystalsWalls "Subterra/Props/GeodeCrystal01" wall "Geode" 5 "0.5, 2.5" 1 false 0.02 -1 2

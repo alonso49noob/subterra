@@ -40,5 +40,12 @@ namespace Subterra.Core.Model
         /// networks under a feature whose terrain changes a lot (the Mohole): the tube keeps its level whatever is above.
         /// </summary>
         public double Altitude { get; set; } = double.NaN;
+
+        /// <summary>Still water filling the cave at the node up to this height over its floor (m; 0 = dry): a cenote, an
+        /// underground lake. Visual (swimming comes with part 4); it spreads through the cave within 1.5 widths.</summary>
+        public double Water { get; set; }
+
+        /// <summary>Colour of that water (r, g, b; null = clear dark green-blue).</summary>
+        public float[] WaterColour { get; set; }
     }
 }

@@ -49,7 +49,7 @@ printf '\t}\n'
 # Explodium Aquifer: a karst passage half full of explodium, with a pump-ready chamber.
 site_head EveAquifer
 node "${AQUIFER[0]}" "${AQUIFER[1]}" 25 40 30 skylight 15
-node "$(lerp ${AQUIFER[0]} ${AQUIFER[2]} 0.5)" "$(lerp ${AQUIFER[1]} ${AQUIFER[3]} 0.5)" 60 120 50 chamber
+node "$(lerp ${AQUIFER[0]} ${AQUIFER[2]} 0.5)" "$(lerp ${AQUIFER[1]} ${AQUIFER[3]} 0.5)" 60 120 50 chamber "" 15 "0.30,0.14,0.34"
 node "${AQUIFER[2]}" "${AQUIFER[3]}" 80 40 30 end
 edge 0 1 0.5 0.1; edge 1 2 0.5 0.1
 printf '\t}\n'
@@ -87,6 +87,7 @@ printf '\t}\n'
 field LaytheIslands lava "Dunes, Shores, Crescent Bay, Crater Island, Peaks" 2 "10, 60" "800, 6000" "10, 60" "800, 3000" 0.6 0.1 0.6 92
 common_scatters
 scatter Lavacicles "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 0.5 "0.5, 1.5" 1 false
+glow GlowFungi "Subterra/Props/Fungus01" floor "TubeGallery, TubeChamber, TubeBranch" 0.2 "0.4, 1.8" "0.4,0.7,1.0" 18 0 false 0.04 0.55
 echo "}"
 } > "$out"; echo "wrote $out"
 

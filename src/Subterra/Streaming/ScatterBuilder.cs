@@ -12,6 +12,7 @@ namespace Subterra
     public sealed class ScatterMesh
     {
         public string Scatter;
+        public ScatterSpec Spec;
         public string Model;
         public MeshData Visual;
         public MeshData Collider;
@@ -36,7 +37,7 @@ namespace Subterra
             foreach (ScatterSpec spec in scatters)
             {
                 List<ScatterInstance> placed = ScatterPlacer.Place(chunk, spec, ScatterPlacer.ChunkSeed(key, spec.Name),
-                    p => net.UpAt(p), p => net.ZoneAt(p).Kind, p => InRubbleZone(net, p));
+                    p => net.UpAt(p), p => net.ZoneAt(p).Kind, p => InRubbleZone(net, p), p => -net.AboveSurface(p));
                 if (placed.Count == 0)
                 {
                     continue;
@@ -59,6 +60,7 @@ namespace Subterra
                     var scatter = new ScatterMesh
                     {
                         Scatter = spec.Name,
+                        Spec = spec,
                         Model = spec.Models[m],
                         Visual = ScatterMerger.Merge(prop, subset, out int dropped),
                         Instances = subset.Count - dropped,

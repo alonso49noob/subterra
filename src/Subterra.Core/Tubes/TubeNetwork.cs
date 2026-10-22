@@ -75,6 +75,26 @@ namespace Subterra.Core.Tubes
         /// <summary>The graph it was compiled from.</summary>
         public SiteSpec Site { get; }
 
+        /// <summary>Still water in the cave: one level per node with <c>water</c> (none for procedural networks).</summary>
+        public IReadOnlyList<WaterSurface> Waters
+        {
+            get
+            {
+                var waters = new List<WaterSurface>();
+                for (int i = 0; Site != null && i < Site.Nodes.Count && i < Nodes.Count; i++)
+                {
+                    NodeSpec node = Site.Nodes[i];
+                    if (node.Water > 0)
+                    {
+                        PathPoint p = Nodes[i];
+                        waters.Add(new WaterSurface(ToLocal(p.FloorCenter + p.Up * node.Water), p.Up.ToVec3(), (float)(1.5 * node.Width), node.WaterColour));
+                    }
+                }
+
+                return waters;
+            }
+        }
+
         /// <summary>
         /// The same network with <paramref name="extra"/> primitives (already in this network's frame) added, and
         /// extra terrain samples for them: a dug tunnel joined into it. The wall noise keeps its seed (the id),

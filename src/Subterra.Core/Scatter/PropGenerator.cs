@@ -11,7 +11,7 @@ namespace Subterra.Core.Scatter
     /// </summary>
     public static class PropGenerator
     {
-        public static readonly string[] Names = { "Boulder01", "Boulder02", "Boulder03", "RubbleCone01", "Lavacicle01", "PahoehoeSlab01", "IceCluster01", "GeodeCrystal01" };
+        public static readonly string[] Names = { "Boulder01", "Boulder02", "Boulder03", "RubbleCone01", "Lavacicle01", "PahoehoeSlab01", "IceCluster01", "GeodeCrystal01", "GlowPatch01", "Fungus01" };
 
         /// <summary>The prop for a model url or name (the part after the last '/'); null if unknown.</summary>
         public static MeshData Build(string model, int lod)
@@ -41,6 +41,8 @@ namespace Subterra.Core.Scatter
                 case "PahoehoeSlab01": return Shape(subdivisions, seed, p => new Vec3(p.X * 1.6f, (p.Y + 1) * 0.12f, p.Z * 1.2f), 0.06f, baseAtZero: false);
                 case "IceCluster01": return Crystals(lod == 0 ? 2 : 1, seed);
                 case "GeodeCrystal01": return Crystals(lod == 0 ? 2 : 1, seed, 7, 1.5f, 2.2f);
+                case "GlowPatch01": return Patch(lod == 0 ? 24 : 12, seed);
+                case "Fungus01": return Fungi(lod == 0 ? 2 : 1, seed);
                 default: return null;
             }
         }
@@ -126,6 +128,76 @@ namespace Subterra.Core.Scatter
 
             Finish(mesh);
             return mesh;
+        }
+
+        // A soft patch of light on a ceiling: a disc 1 m across (radius 1 at scale 1) a little under the rock, facing down,
+        // its edge wavy; UVs centred at (0.5, 0.5) so a radial texture fades it out towards the edge.
+        private static MeshData Patch(int segments, ulong seed)
+        {
+            var rng = new Rng(seed);
+            var mesh = new MeshData();
+            mesh.Vertices.Add(new Vec3(0, -0.12f, 0));
+            mesh.Uvs.Add(new Vec2(0.5f, 0.5f));
+            double phase = rng.Range(0, 2 * Math.PI);
+            for (int i = 0; i < segments; i++)
+            {
+                double a = 2 * Math.PI * i / segments;
+                float r = (float)(1 + 0.18 * Math.Sin(3 * a + phase) + 0.1 * Math.Sin(5 * a + 2 * phase));
+                mesh.Vertices.Add(new Vec3((float)Math.Cos(a) * r, -0.04f, (float)Math.Sin(a) * r));
+                mesh.Uvs.Add(new Vec2(0.5f + 0.5f * (float)Math.Cos(a), 0.5f + 0.5f * (float)Math.Sin(a)));
+            }
+
+            for (int i = 0; i < segments; i++)
+            {
+                // Wound to face down (y < 0), into the cave.
+                mesh.Triangles.AddRange(new[] { 0, 1 + i, 1 + (i + 1) % segments });
+            }
+
+            foreach (Vec3 _ in mesh.Vertices)
+            {
+                mesh.Normals.Add(new Vec3(0, -1, 0));
+            }
+
+            mesh.SkirtTriangleStart = mesh.Triangles.Count;
+            return mesh;
+        }
+
+        // A clump of mushrooms about 1 m tall: thin stems, flat caps, of several sizes leaning apart.
+        private static MeshData Fungi(int subdivisions, ulong seed)
+        {
+            var rng = new Rng(seed);
+            var mesh = new MeshData();
+            int count = 3 + (int)(rng.NextDouble() * 4);
+            for (int c = 0; c < count; c++)
+            {
+                double angle = rng.Range(0, 2 * Math.PI), off = c == 0 ? 0 : rng.Range(0.15, 0.45);
+                float size = c == 0 ? 1f : (float)rng.Range(0.35, 0.8);
+                var foot = new Vec3((float)(Math.Cos(angle) * off), 0, (float)(Math.Sin(angle) * off));
+                var axis = new Vec3(foot.X * 0.5f, 1, foot.Z * 0.5f).Normalized;
+                float height = size * (float)rng.Range(0.8, 1.1), capRadius = size * (float)rng.Range(0.28, 0.4);
+                Part(mesh, subdivisions, u => foot + axis * ((u.Y + 1) * 0.5f * height) + new Vec3(u.X, 0, u.Z) * (0.05f * size));
+                Vec3 top = foot + axis * height;
+                Part(mesh, subdivisions, u => top + new Vec3(u.X * capRadius, Math.Max(u.Y, -0.3f) * capRadius * 0.45f, u.Z * capRadius));
+            }
+
+            Finish(mesh);
+            return mesh;
+        }
+
+        // Appends a unit icosphere moved through `shape`.
+        private static void Part(MeshData mesh, int subdivisions, Func<Vec3, Vec3> shape)
+        {
+            Icosphere(subdivisions, out List<Vec3> unit, out List<int> tris);
+            int offset = mesh.Vertices.Count;
+            foreach (Vec3 u in unit)
+            {
+                mesh.Vertices.Add(shape(u));
+            }
+
+            foreach (int i in tris)
+            {
+                mesh.Triangles.Add(i + offset);
+            }
         }
 
         // Smooth normals from the faces, box UVs (1 m per tile).

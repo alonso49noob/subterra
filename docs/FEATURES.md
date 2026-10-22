@@ -98,34 +98,46 @@ Frame cost while digging: about 0.2 ms per frame on average, under 3 ms at worst
 
 
 -------------------------------------------------------------------------------
-PART 3 - Caves on other bodies                                         [PLANNED]
+PART 3 - Caves on other bodies                                     [IN PROGRESS]
 -------------------------------------------------------------------------------
-Design written; work starts after part 2.
-
 Engine additions
-  [PLANNED] Air in caves (pressure follows altitude; deep Eve caves crush parts).
-  [PLANNED] Karst caves (multi-level galleries, shafts, big chambers, sinkholes).
-  [PLANNED] Long vertical chimneys with ledges (kimberlite pipe, the Mohole).
-  [PLANNED] Geodes and giant crystals in sealed chambers (Kerbin 4-7 km deep; optional "movie" mantle geode,
-            off by default).
-  [PLANNED] Ice rock material and light through thin ice.
-  [PLANNED] Still water surfaces in caves (visual; swimming comes in part 4).
-  [PLANNED] Cave life (bioluminescent fungi and worms) on Kerbin and Laythe.
-  [PLANNED] Volcanoes as entrances to lava tubes; "Journey to the Centre of Kerbin" route (Jules Verne nod).
-
-Bodies
-  [PLANNED] Kerbin: karst, underground rivers, cenotes, sea caves, kimberlite pipe, a cave near the KSC.
-  [PLANNED] Mun: 300-500 networks plus small highland pits (most already in part 1).
-  [PLANNED] Minmus: mint-ice caves and a central geode.
-  [PLANNED] Duna: pit chains over lava tubes, volcano flank tubes, polar ice caves; 500-800 networks.
-  [PLANNED] Ike: old tubes and tidal trenches. Gilly: gaps in a rubble pile, a tunnel right through.
-  [PLANNED] Eve: explodium rivers and aquifers, gas pockets, salt domes.
-  [PLANNED] Moho: the Mohole as the roof of a giant emptied magma chamber; a thermal refuge.
-  [PLANNED] Dres (Ceres analogue): canyon caves, brine under the bright spot.
-  [PLANNED] Laythe: island lava tubes, sea caves, submerged tubes, life.
-  [PLANNED] Bop: huge inner caverns (likely a captured comet), with a discreet Kraken nod.
-  [PLANNED] Tylo: a great cave system; Vall, Pol, Eeloo: small ice caves.
+  [DONE] Air in caves (pressure follows altitude).
+  [DONE] Karst caves (multi-level galleries, shafts, big chambers, sinkholes).
+  [DONE] Cave networks instead of single corridors: curved trunks with branches, loops and passages that dive
+         50-180 m down to deeper levels.
+  [DONE] Long vertical chimneys with ledges (Kerbin's kimberlite pipe, the Mohole on Moho).
+  [DONE] Geodes: sealed crystal chambers (Kerbin 4 km deep, Minmus's centre) you reach by digging.
+  [DONE] Terrain relief: volcanoes (cone + crater) and sinuous rilles (trench + intact bridges).
+  [DONE] Volcanoes as entrances to lava tubes; "Journey to the Centre of Kerbin" route (Jules Verne nod):
+         down Sneffels, across the Lidenbrock chamber 3 km under the datum, up Stromboli.
+  [DONE] Kerman Rille on the Mun: a 700 m wide, 120 m deep sinuous trench over a lava tube; under its two
+         bridges the tube goes on as a cave and opens into the trench again (Hadley Rille analogue).
+  [DONE] Holes cut cleanly into the terrain (no black discs from orbit, no gaps at the edge).
+  [DONE] Light through thin ice: green patches of daylight on the ceilings of Minmus ice caves under 25 m of
+         ice or less, fading at night. [Claude, revisar]
+  [DONE] Cave life: glowing fungi on Kerbin (teal) and Laythe (blue), giant ones in big chambers (the
+         Lidenbrock forest of mushrooms); the nearest light the cave around them (6 lights at most). [Claude, revisar]
+  [DONE] Still water in caves (visual; swimming comes in part 4): pools in the Kerbin cenotes, the Lidenbrock
+         Sea under the Verne route, explodium in Eve's aquifer. [Claude, revisar]
   [PLANNED] Theia remnants deep in Kerbin's mantle.
+
+Bodies (every stock body has named sites + procedural fields; 15 in all)
+  [DONE] Kerbin: KSC cave, Great Hall, cenotes, kimberlite chimney to a deep geode, Verne route; karst in
+         the highlands, cenote field on the coast, desert lava tubes.
+  [DONE] Mun: Serenity skylight, Great Gallery, Kerman pit chain, Frostvault, Kerman Rille; maria, highland
+         and polar ice networks.
+  [DONE] Minmus: flats gallery, ice caves, central geode.
+  [DONE] Duna: pit chain (catena), volcano flank tubes, polar ice caves, canyon caves.
+  [DONE] Ike: tidal trench. Gilly: a tunnel right through, gaps in the rubble.
+  [DONE] Eve: aquifer, salt dome, karst. Moho: the Mohole, plains tubes, a thermal refuge.
+  [DONE] Dres: canyon caves. Laythe: island lava tubes. Bop: huge caverns, the Kraken chamber.
+  [DONE] Tylo: a great cave system and highland caves. Vall, Pol, Eeloo: small ice caves.
+  [PLANNED] Kerbin sea caves and underground rivers, Laythe sea caves (need part 4/5 water).
+  [PLANNED] Polish: Bop's Kraken bones (placeholder prop), chamber edges.
+
+After part 3 (Lucas's request)
+  [PLANNED] Configs for Parallax and other graphics mods (Scatterer, EVE, TUFX); Parallax textures for cave
+            walls and rocks; full bug check with them installed.
 
 
 -------------------------------------------------------------------------------

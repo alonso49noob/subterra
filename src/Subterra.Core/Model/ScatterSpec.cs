@@ -47,5 +47,17 @@ namespace Subterra.Core.Model
         public double Lod1Distance { get; set; } = 400;
 
         public bool Collide { get; set; }
+
+        /// <summary>Light the props give off (r, g, b; null = none): they are drawn unlit in this colour, as light itself.</summary>
+        public float[] Glow { get; set; }
+
+        /// <summary>Range (m) of the point lights placed among the nearest glowing props (0 = no lights, the props only glow).</summary>
+        public double GlowLight { get; set; }
+
+        /// <summary>Only where the rock over the cave is at most this thick (m; 0 = anywhere): light through a thin roof.</summary>
+        public double MaxRoof { get; set; }
+
+        /// <summary>The glow follows the daylight on the surface above (sunlight through the roof), not a light of its own.</summary>
+        public bool Daylight { get; set; }
     }
 }

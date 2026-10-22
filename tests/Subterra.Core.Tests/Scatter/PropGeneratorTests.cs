@@ -9,7 +9,7 @@ namespace Subterra.Core.Tests.Scatter
 {
     public class PropGeneratorTests
     {
-        public static IEnumerable<object[]> AllProps() => PropGenerator.Names.SelectMany(n => new[] { new object[] { n, 0 }, new object[] { n, 1 } });
+        public static IEnumerable<object[]> AllProps() => PropGenerator.Names.Where(n => n != "GlowPatch01").SelectMany(n => new[] { new object[] { n, 0 }, new object[] { n, 1 } });
 
         [Theory, MemberData(nameof(AllProps))]
         public void ClosedOutwardAndSmall(string name, int lod)
@@ -31,20 +31,53 @@ namespace Subterra.Core.Tests.Scatter
 
             Assert.All(uses.Values, n => Assert.Equal(2, n));
 
-            // Outward: the face normal points away from the centroid of its own closed part for most faces.
-            Vec3 centre = m.Vertices.Aggregate(Vec3.Zero, (s, v) => s + v) / m.Vertices.Count;
+            // Outward: the face normal points away from the centroid of its own closed part (connected piece) for most faces.
+            Vec3[] centre = PartCentres(m);
             int outward = 0, total = 0;
             for (int i = 0; i < m.Triangles.Count; i += 3)
             {
                 Vec3 a = m.Vertices[m.Triangles[i]], b = m.Vertices[m.Triangles[i + 1]], c = m.Vertices[m.Triangles[i + 2]];
                 total++;
-                if (Vec3.Dot(Vec3.Cross(b - a, c - a), (a + b + c) / 3f - centre) > 0)
+                if (Vec3.Dot(Vec3.Cross(b - a, c - a), (a + b + c) / 3f - centre[m.Triangles[i]]) > 0)
                 {
                     outward++;
                 }
             }
 
             Assert.True(outward >= 0.9 * total || name == "IceCluster01" && outward >= 0.7 * total, $"{outward}/{total} outward");
+        }
+
+        // Per vertex: the centroid of the connected piece it belongs to.
+        private static Vec3[] PartCentres(MeshData m)
+        {
+            var parent = Enumerable.Range(0, m.Vertices.Count).ToArray();
+            int Find(int x) => parent[x] == x ? x : parent[x] = Find(parent[x]);
+            for (int i = 0; i < m.Triangles.Count; i += 3)
+            {
+                parent[Find(m.Triangles[i + 1])] = Find(m.Triangles[i]);
+                parent[Find(m.Triangles[i + 2])] = Find(m.Triangles[i]);
+            }
+
+            var sums = new Dictionary<int, (Vec3 sum, int n)>();
+            for (int v = 0; v < m.Vertices.Count; v++)
+            {
+                sums.TryGetValue(Find(v), out var s);
+                sums[Find(v)] = (s.sum + m.Vertices[v], s.n + 1);
+            }
+
+            return Enumerable.Range(0, m.Vertices.Count).Select(v => sums[Find(v)].sum / sums[Find(v)].n).ToArray();
+        }
+
+        [Fact]
+        public void GlowPatchFacesDownUnderTheCeiling()
+        {
+            MeshData m = PropGenerator.Build("GlowPatch01", 0);
+            Assert.All(m.Vertices, v => Assert.True(v.Y < 0));
+            for (int i = 0; i < m.Triangles.Count; i += 3)
+            {
+                Vec3 a = m.Vertices[m.Triangles[i]], b = m.Vertices[m.Triangles[i + 1]], c = m.Vertices[m.Triangles[i + 2]];
+                Assert.True(Vec3.Cross(b - a, c - a).Y < 0);
+            }
         }
 
         [Fact]

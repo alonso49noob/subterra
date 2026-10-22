@@ -12,10 +12,11 @@ HALL=(19.2686 -68.4758 19.0997 -68.2972)       # Highlands north of the KSC, 2.4
 CENOTES=(13.5387 -94.4506 13.5385 -94.1560)    # Shores/Grasslands, 3 km, 313 m
 KIMBERLITE=(29.9861 -141.6186)                 # Grasslands, flat, 661 m
 
-anode() { # lat lon altitude width height [feature [skylightRadius]]
+anode() { # lat lon altitude width height [feature [skylightRadius [water]]]
   printf '\t\tNODE\n\t\t{\n\t\t\tlat = %s\n\t\t\tlon = %s\n\t\t\taltitude = %s\n\t\t\tdepth = 50\n\t\t\twidth = %s\n\t\t\theight = %s\n' "$1" "$2" "$3" "$4" "$5"
   [ -n "${6:-}" ] && printf '\t\t\tfeature = %s\n' "$6"
   [ -n "${7:-}" ] && printf '\t\t\tskylightRadius = %s\n' "$7"
+  water "${8:-}"
   printf '\t\t}\n'
 }
 
@@ -66,11 +67,11 @@ node "${HALL[2]}" "${HALL[3]}" 120 60 50 end
 edge 0 1 0.4 0.1; edge 1 2 0.5 0.1
 printf '\t}\n'
 
-# Cenotes: three sinkholes along a passage near the coast.
+# Cenotes: three sinkholes along a passage near the coast, each with a pool of still water 12 m deep.
 site_head KerbinCenotes
 for i in 0 1 2 3 4 5 6; do
   t=$(awk -v i=$i 'BEGIN { printf "%.3f", i / 6 }')
-  if [ $((i % 3)) -eq 0 ]; then node "$(lerp ${CENOTES[0]} ${CENOTES[2]} $t)" "$(lerp ${CENOTES[1]} ${CENOTES[3]} $t)" 20 70 35 skylight 30
+  if [ $((i % 3)) -eq 0 ]; then node "$(lerp ${CENOTES[0]} ${CENOTES[2]} $t)" "$(lerp ${CENOTES[1]} ${CENOTES[3]} $t)" 20 70 35 skylight 30 12
   else node "$(lerp ${CENOTES[0]} ${CENOTES[2]} $t)" "$(lerp ${CENOTES[1]} ${CENOTES[3]} $t)" 30 40 30; fi
 done
 for i in 0 1 2 3 4 5; do edge $i $((i + 1)) 0.5 0.1; done
@@ -104,7 +105,7 @@ node -8.33 1.45 30 60 40 skylight 25
 anode -8.33 1.75 1200 60 35
 anode -8.33 2.10 -200 80 40
 anode -8.33 2.45 -1600 100 45
-anode -8.33 2.88 -3000 500 200 chamber
+anode -8.33 2.88 -3000 500 200 chamber "" 40
 anode -8.33 3.30 -1600 100 45
 anode -8.33 3.70 -200 80 40
 anode -8.33 4.05 1100 60 35
@@ -162,6 +163,10 @@ EOF
 scatter BreakdownBoulders "Subterra/Props/Boulder01, Subterra/Props/Boulder02, Subterra/Props/Boulder03" floor "TubeGallery, TubeChamber, TubeBranch" 1.2 "0.3, 4" 0.6 true 0.035 0.62 3 0.3
 scatter SkylightRubble "Subterra/Props/RubbleCone01, Subterra/Props/Boulder03" skylightRubble "" 2.5 "0.6, 4.5" 0.5 true 0.02 0.3 2.5 0.25
 scatter Stalactites "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 1.2 "0.5, 2.5" 1 false 0.03 0.4 2
+# Glowing fungi (bioluminescent, like Mycena): clumps on the floors of caves with air and water, and a few giant ones
+# in the big chambers (the Lidenbrock Sea had its forest of mushrooms).
+glow GlowFungi "Subterra/Props/Fungus01" floor "TubeGallery, TubeChamber, TubeBranch" 0.25 "0.6, 2.2" "0.35,0.95,0.85" 18 0 false 0.04 0.55
+glow GiantFungi "Subterra/Props/Fungus01" floor "TubeChamber" 0.02 "4, 14" "0.45,0.8,1.0" 40 0 false 0.01 0.5
 scatter GeodeCrystalsFloor "Subterra/Props/GeodeCrystal01" floor "Geode" 6 "0.6, 3" 0.9 false 0.02 -1 2 0.1
 scatter GeodeCrystalsWalls "Subterra/Props/GeodeCrystal01" wall "Geode" 5 "0.5, 2.5" 1 false 0.02 -1 2
 scatter GeodeCrystalsRoof "Subterra/Props/GeodeCrystal01" ceiling "Geode" 5 "0.5, 2.5" 1 false 0.02 -1 2

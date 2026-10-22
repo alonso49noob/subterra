@@ -195,6 +195,36 @@ namespace Subterra
             return material;
         }
 
+        /// <summary>Still cave water: dark and see-through (the floor shows under it near the edge), glossy where a lamp
+        /// catches it, its surface rippled by the ice normal map. Shared per colour.</summary>
+        public static Material Water(float[] colour)
+        {
+            Color c = colour == null ? new Color(0.10f, 0.20f, 0.22f) : new Color(colour[0], colour[1], colour[2]);
+            string key = string.Format(System.Globalization.CultureInfo.InvariantCulture, "#water {0:F2} {1:F2} {2:F2}", c.r, c.g, c.b);
+            if (ByLayer.TryGetValue(key, out Material material) && material != null)
+            {
+                return material;
+            }
+
+            Shader shader = Shader.Find("KSP/Alpha/Translucent Specular") ?? Shader.Find("KSP/Alpha/Translucent") ?? Shader.Find("Legacy Shaders/Transparent/Specular");
+            material = new Material(shader) { name = "Subterra water" };
+            material.SetTexture("_MainTex", Texture2D.whiteTexture);
+            if (material.HasProperty("_BumpMap"))
+            {
+                material.SetTexture("_BumpMap", Texture("Ice_n", true));
+            }
+
+            material.SetColor("_Color", new Color(c.r, c.g, c.b, 0.82f));
+            if (material.HasProperty("_SpecColor"))
+            {
+                material.SetColor("_SpecColor", new Color(0.5f, 0.5f, 0.5f));
+                material.SetFloat("_Shininess", 0.6f);
+            }
+
+            ByLayer[key] = material;
+            return material;
+        }
+
         /// <summary>A Bumped Specular material from GameData/Subterra/Textures (procedural fallback).</summary>
         public static Material Create(string albedoName, string normalName, Color tint)
         {

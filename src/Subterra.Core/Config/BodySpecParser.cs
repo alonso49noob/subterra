@@ -174,22 +174,7 @@ namespace Subterra.Core.Config
             string tint = node.GetValue("tint");
             if (tint != null)
             {
-                List<string> parts = SplitList(tint);
-                var rgb = new float[3];
-                bool ok = parts.Count == 3;
-                for (int i = 0; ok && i < 3; i++)
-                {
-                    ok = float.TryParse(parts[i], NumberStyles.Float, CultureInfo.InvariantCulture, out rgb[i]);
-                }
-
-                if (ok)
-                {
-                    layer.Tint = rgb;
-                }
-                else
-                {
-                    r.Warn($"'tint' is not r, g, b: {tint}; using grey");
-                }
+                layer.Tint = r.Colour(tint, "tint") ?? layer.Tint;
             }
 
             foreach (CfgNode y in node.GetNodes("YIELD"))
@@ -305,6 +290,13 @@ namespace Subterra.Core.Config
                 Altitude = node.GetValue("altitude") == null ? double.NaN : r.Double(node, "altitude", double.NaN),
             };
 
+            n.Water = Math.Max(0, r.Double(node, "water", 0));
+            string waterColour = node.GetValue("waterColour");
+            if (waterColour != null)
+            {
+                n.WaterColour = r.Colour(waterColour, "waterColour");
+            }
+
             if (double.IsNaN(n.Lat) || double.IsNaN(n.Lon) || Math.Abs(n.Lat) > 90)
             {
                 r.Warn("lat/lon out of range");
@@ -323,6 +315,12 @@ namespace Subterra.Core.Config
                 }
 
                 n.SkylightRadius = Clamp(n.SkylightRadius, 5, n.Width / 2, r, "skylightRadius");
+            }
+
+            if (n.Water >= n.Height)
+            {
+                r.Warn($"water {Inv(n.Water)} m fills the cave to its roof; using {Inv(n.Height / 2)} m");
+                n.Water = n.Height / 2;
             }
 
             return n;
@@ -451,6 +449,16 @@ namespace Subterra.Core.Config
                 Collide = r.Bool(node, "collide", false),
             };
 
+            string glow = node.GetValue("glow");
+            if (!string.IsNullOrEmpty(glow))
+            {
+                scatter.Glow = r.Colour(glow, "glow");
+                scatter.GlowLight = Math.Max(0, r.Double(node, "glowLight", 0));
+                scatter.Daylight = r.Bool(node, "daylight", false);
+            }
+
+            scatter.MaxRoof = Math.Max(0, r.Double(node, "maxRoof", 0));
+
             foreach (string zone in SplitList(node.GetValue("zones")))
             {
                 if (Enum.TryParse(zone, true, out ZoneKind kind) && kind != ZoneKind.None)
@@ -570,6 +578,26 @@ namespace Subterra.Core.Config
             }
 
             public Reader Sub(string name) => new Reader(context + " > " + name, warnings);
+
+            /// <summary>"r, g, b" as three floats; null (with a warning) if it is not.</summary>
+            public float[] Colour(string text, string key)
+            {
+                List<string> parts = SplitList(text);
+                var rgb = new float[3];
+                bool ok = parts.Count == 3;
+                for (int i = 0; ok && i < 3; i++)
+                {
+                    ok = float.TryParse(parts[i], NumberStyles.Float, CultureInfo.InvariantCulture, out rgb[i]);
+                }
+
+                if (!ok)
+                {
+                    Warn($"'{key}' is not r, g, b: {text}; ignored");
+                    return null;
+                }
+
+                return rgb;
+            }
 
             public void Warn(string message) => warnings.Add(context + ": " + message);
 
