@@ -30,7 +30,23 @@ namespace Subterra.DevTools
             string site = node.RequireArg("site");
             if (!string.Equals(site, "procedural", StringComparison.OrdinalIgnoreCase))
             {
-                return runtime.Catalog.Find("site:" + site) ?? throw new ArgumentException($"no named site '{site}' on {vessel.mainBody.bodyName}");
+                TubeNetwork named = runtime.Catalog.Find("site:" + site);
+                if (named != null)
+                {
+                    return named;
+                }
+
+                // Right after a teleport to another body the vessel can still count as on the old one: look everywhere.
+                foreach (CelestialBody other in FlightGlobals.Bodies)
+                {
+                    if (BodyRegistry.Instance.TryGet(other, out BodyRuntime candidate) && (named = candidate.Catalog.Find("site:" + site)) != null)
+                    {
+                        runtime = candidate;
+                        return named;
+                    }
+                }
+
+                throw new ArgumentException($"no named site '{site}' on any body");
             }
 
             Vec3d here = Frames.ToBody(vessel.mainBody, vessel.GetWorldPos3D());
@@ -173,18 +189,21 @@ namespace Subterra.DevTools
             bool hold = node.ArgBool("hold", false);
             Vec3d target = NodePosition(net, index, inside, offsetUp);
 
-            ctx.Release();
-            yield return ctx.WaitFor(() => !vessel.packed, 60, "the vessel to go off rails");
-
-            // The network's own body: right after a teleport to another body the vessel can still be switching
-            // sphere of influence, and placing it from the old body's frame sent it far off (once into a solar orbit).
+            // Placed in the network's own body's frame, and its orbit restarted around that body. Right after a teleport
+            // to another body the vessel can still count as on the old one (its sphere of influence not switched yet);
+            // releasing a hold then restarted its orbit around the old body, which sent it back to Kerbin or far off.
+            // So the hold is dropped without a release, and the vessel stays on rails until placed.
             CelestialBody body = FlightGlobals.GetBodyByName(net.Body) ?? throw new InvalidOperationException($"no body {net.Body}");
-            yield return ctx.WaitFor(() => vessel.mainBody == body, 30, $"the vessel to be in {body.bodyName}'s sphere of influence");
+            ctx.Forget();
+            yield return ctx.WaitFor(() => vessel.loaded, 60, "the vessel to be loaded");
             // Like the cheat menu's SetVesselPosition: on rails first (moving an unpacked vessel far in one
             // frame gives its parts a huge velocity), moved while pinned (Landed = idle orbit driver);
             // KSP — or Subterra's load guard, inside a cave — lets it go.
             OrbitPhysicsManager.HoldVesselUnpack(2);
-            vessel.GoOnRails();
+            if (!vessel.packed)
+            {
+                vessel.GoOnRails();
+            }
             vessel.Landed = true;
             // Keep the vessel's attitude to the local vertical (it lands upright, not as it stood on the other side).
             Vector3d world = Frames.ToWorld(body, target);
@@ -195,16 +214,61 @@ namespace Subterra.DevTools
             Vector3 oldUp = node.ArgBool("upright", false) ? -vessel.transform.forward : (vessel.transform.position - body.position).normalized;
             vessel.SetRotation(Quaternion.FromToRotation(oldUp, newUp) * vessel.transform.rotation);
             vessel.SetPosition(world);
-            body.GetLatLonAlt(vessel.transform.position, out vessel.latitude, out vessel.longitude, out vessel.altitude);
-            TestContext.RestOrbitHere(vessel);
+            // Latitude, longitude and altitude from the target itself, not from the transform: right after a teleport to
+            // another body the transform (and the floating origin) can still be far off, which put the vessel 100 000 km away.
+            Core.Geo.BodyFrame.ToLatLon(target, out vessel.latitude, out vessel.longitude);
+            vessel.altitude = target.Length - body.Radius;
+            TestContext.RestOrbitHere(vessel, body);
             vessel.Landed = true;
             yield return null;
+            if (inside)
+            {
+                PropGuard.Watch(vessel);
+            }
+
             if (hold)
             {
                 ctx.Hold(vessel);
             }
 
             ctx.Pass(Invariant($"{net.Id} node {index} {(inside ? "inside" : "above")} {offsetUp} m: altitude {vessel.altitude:F1} m{(hold ? ", held" : "")} (before: {axes})"));
+        }
+    }
+}
+
+namespace Subterra.DevTools
+{
+    /// <summary>
+    /// For the first seconds after a teleport into a cave: turns off the colliders of scattered props (boulders) the
+    /// vessel lands on or in. A vessel dropped onto a boulder, which no driver would do, was punched apart by KSP.
+    /// </summary>
+    internal sealed class PropGuard : UnityEngine.MonoBehaviour
+    {
+        private Vessel vessel;
+        private float until;
+
+        public static void Watch(Vessel vessel)
+        {
+            var guard = new UnityEngine.GameObject("SubterraTestPropGuard").AddComponent<PropGuard>();
+            guard.vessel = vessel;
+            guard.until = UnityEngine.Time.time + 15f;
+        }
+
+        private void FixedUpdate()
+        {
+            if (vessel == null || UnityEngine.Time.time > until)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            foreach (UnityEngine.Collider c in UnityEngine.Physics.OverlapSphere(vessel.GetWorldPos3D(), 8f, 1 << 15, UnityEngine.QueryTriggerInteraction.Ignore))
+            {
+                if (c.enabled && c.gameObject.name.StartsWith("SubterraScatter", System.StringComparison.Ordinal))
+                {
+                    c.enabled = false;
+                }
+            }
         }
     }
 }

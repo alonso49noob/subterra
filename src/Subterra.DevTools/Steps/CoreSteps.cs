@@ -24,6 +24,7 @@ namespace Subterra.DevTools
             StepRegistry.Register("teleport", Teleport);
             StepRegistry.Register("release", Release);
             StepRegistry.Register("wait", Wait);
+            StepRegistry.Register("cameraInfo", CameraInfo);
             StepRegistry.Register("waitUntil", WaitUntil);
             StepRegistry.Register("eva", Eva);
             StepRegistry.Register("setPosition", SetPosition);
@@ -173,6 +174,19 @@ namespace Subterra.DevTools
         private static IEnumerator Wait(ConfigNode node, TestContext ctx)
         {
             yield return new WaitForSeconds((float)node.ArgDouble("seconds", 1));
+        }
+
+        // cameraInfo — every enabled camera: its depth, near and far planes, and whether it draws layer 15 (caves, terrain).
+        private static IEnumerator CameraInfo(ConfigNode node, TestContext ctx)
+        {
+            var parts = new System.Collections.Generic.List<string>();
+            foreach (Camera c in Camera.allCameras)
+            {
+                parts.Add(System.FormattableString.Invariant($"{c.name} depth {c.depth} near {c.nearClipPlane:F2} far {c.farClipPlane:F0} layer15 {((c.cullingMask & (1 << 15)) != 0)}"));
+            }
+
+            ctx.Pass(string.Join("; ", parts));
+            yield break;
         }
 
         // waitUntil what = <assertion> timeout = 30 (+ the assertion's values) — checks every frame;

@@ -22,7 +22,7 @@ namespace Subterra.DevTools
             Vessel vessel = ctx.TrackedVessel;
             bool expect = node.ArgBool("expect", true);
             bool? shown = vessel == null || SkylightRenderer.Instance == null ? null : SkylightRenderer.Instance.CapVisibleNear(vessel.GetWorldPos3D());
-            ctx.Detail = shown == null ? "no skylight tracked" : $"cap {(shown.Value ? "shown" : "hidden")}, {SkylightRenderer.Instance.RimCount} rims built";
+            ctx.Detail = shown == null ? "no skylight tracked" : $"cap {(shown.Value ? "shown" : "hidden")}, {SkylightRenderer.Instance.RimCount} rims built; nearest {SkylightRenderer.Instance.DescribeNearest(vessel.GetWorldPos3D())}";
             return shown == expect;
         }
 
