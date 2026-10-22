@@ -31,6 +31,22 @@ namespace Subterra.Core.Tests.Config
         private static ParseResult<BodySpec> Parse(string path) =>
             BodySpecParser.Parse(CfgText.Parse(File.ReadAllText(Path.Combine(System.AppContext.BaseDirectory, path)))[0]);
 
+        [Fact]
+        public void EveryShippedBodyParsesCleanly()
+        {
+            string dir = Path.Combine(System.AppContext.BaseDirectory, "Data", "bodies");
+            string[] files = Directory.GetFiles(dir, "*.cfg", SearchOption.AllDirectories);
+            Assert.True(files.Length >= 15, $"{files.Length} body cfgs");
+            var prefixes = new System.Collections.Generic.HashSet<string>();
+            foreach (string file in files)
+            {
+                var r = BodySpecParser.Parse(CfgText.Parse(File.ReadAllText(file))[0]);
+                Assert.True(r.Warnings.Count == 0, Path.GetFileName(file) + ": " + string.Join("; ", r.Warnings));
+                Assert.NotEmpty(r.Value.Sites);
+                Assert.True(prefixes.Add(r.Value.IdPrefix), "duplicate id prefix " + r.Value.IdPrefix);
+            }
+        }
+
         private static ParseResult<BodySpec> ParseText(string text) => BodySpecParser.Parse(CfgText.Parse(text)[0]);
 
         private const string TwoNodes = @"

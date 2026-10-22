@@ -14,6 +14,8 @@ site_head() { printf '\tTUBE_SITE\n\t{\n\t\tname = %s\n\t\tdisplayName = #Subter
 layer() { printf '\t\tLAYER\n\t\t{\n\t\t\tname = %s\n\t\t\tdisplayName = #Subterra_Layer_%s\n\t\t\ttop = %s\n\t\t\tbottom = %s\n\t\t\thardness = %s\n\t\t\tdensity = %s\n\t\t\tgradient = %s\n\t\t\ttint = %s\n' "$1" "$1" "$2" "$3" "$4" "$5" "$6" "$7"; [ -n "${8:-}" ] && printf '\t\t\twhere = %s\n' "$8"
   # Optional 9th argument "Resource:rate": what a well pump draws from the layer.
   if [ -n "${9:-}" ]; then printf '\t\t\tYIELD\n\t\t\t{\n\t\t\t\tresource = %s\n\t\t\t\trate = %s\n\t\t\t}\n' "${9%%:*}" "${9#*:}"; fi
+  # Optional 10th argument "Resource:chance": gas pockets a core drill can strike in the layer.
+  if [ -n "${10:-}" ]; then printf '\t\t\tgasResource = %s\n\t\t\tgasChance = %s\n' "${10%%:*}" "${10#*:}"; fi
   printf '\t\t}\n'; }
 # Optional 9th–12th: noise mask frequency and threshold (clusters), scalePower (mostly small sizes), sink.
 scatter() { # name models placement zones density scale align collide [noiseFreq noiseThreshold scalePower sink]

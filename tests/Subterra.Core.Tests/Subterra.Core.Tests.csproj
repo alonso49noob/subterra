@@ -18,6 +18,7 @@
     <None Include="..\..\GameData\Subterra\Bodies\Minmus\Minmus.cfg" Link="Data\shipped-Minmus.cfg" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\GameData\Subterra\Bodies\Moho\Moho.cfg" Link="Data\shipped-Moho.cfg" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\GameData\Subterra\Bodies\Kerbin\Kerbin.cfg" Link="Data\shipped-Kerbin.cfg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\GameData\Subterra\Bodies\**\*.cfg" Link="Data\bodies\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Subterra.Core\Subterra.Core.csproj" />
