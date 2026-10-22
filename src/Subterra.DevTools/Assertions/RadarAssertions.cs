@@ -22,6 +22,49 @@ namespace Subterra.DevTools
             StepRegistry.RegisterAssertion("hintCount", HintCount);
             StepRegistry.RegisterAssertion("noHintNarrowerThan", NoHintNarrowerThan);
             StepRegistry.RegisterAssertion("cellsReady", CellsReady);
+            StepRegistry.RegisterAssertion("mapOverlay", MapOverlayState);
+        }
+
+        // mapOverlay body = Mun uploads = 1 maxUploadMs = 4 lat = 0 lon = 0 alpha = 40 - the map overlay is on that body
+        // (body = none: hidden), has uploaded at least `uploads` textures, the last upload took at most maxUploadMs, and
+        // the texel at lat/lon has that alpha (alphaTolerance, default 0).
+        private static bool MapOverlayState(ConfigNode node, TestContext ctx)
+        {
+            MapOverlay overlay = MapOverlay.Instance;
+            if (overlay == null)
+            {
+                ctx.Detail = "no MapOverlay in this scene";
+                return false;
+            }
+
+            string body = node.Arg("body");
+            bool ok = true;
+            string shown = overlay.ShownBody != null ? overlay.ShownBody.bodyName : "none";
+            ctx.Detail = Invariant($"shown on {shown}, sphere {(overlay.SphereActive ? "active" : "off")}, {overlay.Uploads} upload(s), last {overlay.LastUploadMs:F2} ms, max {overlay.MaxUploadMs:F2} ms");
+            if (body != null)
+            {
+                ok &= shown == body && (body == "none" || overlay.SphereActive);
+            }
+
+            if (node.HasValue("uploads"))
+            {
+                ok &= overlay.Uploads >= (int)node.ArgDouble("uploads", 1);
+            }
+
+            if (node.HasValue("maxUploadMs"))
+            {
+                ok &= overlay.MaxUploadMs <= node.ArgDouble("maxUploadMs", 4);
+            }
+
+            if (node.HasValue("alpha"))
+            {
+                UnityEngine.Color32 pixel = overlay.PixelAt(node.ArgDouble("lat", 0), node.ArgDouble("lon", 0));
+                double expected = node.ArgDouble("alpha", 0);
+                ctx.Detail += Invariant($", texel ({pixel.r},{pixel.g},{pixel.b},{pixel.a})");
+                ok &= Math.Abs(pixel.a - expected) <= node.ArgDouble("alphaTolerance", 0);
+            }
+
+            return ok;
         }
 
         private static BodyRuntime RequireRuntime(string bodyName)

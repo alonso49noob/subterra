@@ -488,7 +488,7 @@ namespace Subterra.DevTools
             ctx.Pass($"{name}.png {width}x{height}");
         }
 
-        // scene name = KSC|MainMenu — leaving flight first saves the persistent game, like the pause menu.
+        // scene name = KSC|TrackingStation|MainMenu - leaving flight first saves the persistent game, like the pause menu.
         private static IEnumerator Scene(ConfigNode node, TestContext ctx)
         {
             string name = node.RequireArg("name");
@@ -501,9 +501,13 @@ namespace Subterra.DevTools
             {
                 target = GameScenes.MAINMENU;
             }
+            else if (string.Equals(name, "TrackingStation", StringComparison.OrdinalIgnoreCase))
+            {
+                target = GameScenes.TRACKSTATION;
+            }
             else
             {
-                throw new ArgumentException("name must be KSC or MainMenu");
+                throw new ArgumentException("name must be KSC, TrackingStation or MainMenu");
             }
 
             if (HighLogic.LoadedScene == target)

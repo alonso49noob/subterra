@@ -115,9 +115,10 @@ namespace Subterra.DevTools
         }
 
         // radarMark body = Mun lat = 0 lon = 0 altitude = 30000 halfWidth = 2000 instrument = OrbitalRadar hint = MN-test#0
-        // - marks the coverage grid as if a scan had passed there at that altitude and, if hint is given
-        // (<networkId>#<primitiveIndex>), applies a Hint detection of a synthetic target of that network at lat/lon
-        // (depth 50 m, uncertainty 1000 m).
+        // uncertainty = 1000 depth = 50 level = Hint - marks the coverage grid as if a scan had passed there at that
+        // altitude and, if hint is given (<networkId>#<primitiveIndex>), applies a detection of a synthetic target of
+        // that network at lat/lon (level Hint or Detected, at that depth, with that uncertainty in metres).
+        // halfWidth = 0 skips the swath (a detection without coverage).
         private static IEnumerator RadarMark(ConfigNode node, TestContext ctx)
         {
             RadarScenario scenario = RadarScenario.Instance ?? throw new InvalidOperationException("no RadarScenario (wrong scene?)");
@@ -129,8 +130,12 @@ namespace Subterra.DevTools
             double halfWidth = node.ArgDouble("halfWidth", 2000);
             InstrumentKind kind = ParseInstrument(node);
 
-            scenario.Coverage(bodyName, kind).MarkSwath(lat, lon, halfWidth, body.Radius, altitude);
-            string detail = Invariant($"{bodyName} {kind} lat {lat:F3} lon {lon:F3} altitude {altitude:F0} m halfWidth {halfWidth:F0} m");
+            string detail = Invariant($"{bodyName} {kind} lat {lat:F3} lon {lon:F3}");
+            if (halfWidth > 0)
+            {
+                scenario.Coverage(bodyName, kind).MarkSwath(lat, lon, halfWidth, body.Radius, altitude);
+                detail += Invariant($" altitude {altitude:F0} m halfWidth {halfWidth:F0} m");
+            }
 
             string hint = node.Arg("hint");
             if (!string.IsNullOrEmpty(hint))
@@ -141,6 +146,13 @@ namespace Subterra.DevTools
                     throw new ArgumentException("hint must be <networkId>#<primitiveIndex>: " + hint);
                 }
 
+                if (!Enum.TryParse(node.Arg("level", "Hint"), true, out DetectionLevel level) || level == DetectionLevel.None)
+                {
+                    throw new ArgumentException("level must be Hint or Detected");
+                }
+
+                double depth = node.ArgDouble("depth", 50);
+                double uncertainty = node.ArgDouble("uncertainty", 1000);
                 var target = new SubsurfaceTarget
                 {
                     Id = hint,
@@ -149,10 +161,10 @@ namespace Subterra.DevTools
                     PrimitiveIndex = index,
                     Lat = lat,
                     Lon = lon,
-                    Depth = 50,
+                    Depth = depth,
                 };
-                scenario.Detections.Apply(bodyName, target, new Detection(DetectionLevel.Hint, 1000, 50, 50));
-                detail += ", hint " + hint;
+                scenario.Detections.Apply(bodyName, target, new Detection(level, uncertainty, depth, depth));
+                detail += Invariant($", {level} {hint} depth {depth:F0} m uncertainty {uncertainty:F0} m");
             }
 
             ctx.Pass(detail);
