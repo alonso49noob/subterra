@@ -380,3 +380,16 @@ hundió; a veces nace en un cráter-fuente. Pedido para cuando los tubos de lava
 - **Juego:** se ven desde órbita a propósito (son el gran indicio de un tubo); los tramos cerrados son entradas.
 - **Dependencias:** las curvas suaves de los tubos (hecho); el PQSMod de altura (se comparte con los volcanes de la
   parte 3).
+
+## Compatibilidad gráfica (pedido de Lucas, 2026-10-21) — al terminar la parte 3
+
+- **Configs para Parallax Continued y otros mods gráficos** (Scatterer, EVE, TUFX, Kopernicus con texturas
+  propias): que todo funcione sin bugs con ellos (tragaluces recortados con Parallax activo, scatters de Parallax
+  fuera de los agujeros, luz y niebla de Scatterer/EVE dentro de las cuevas, TUFX bajo tierra).
+- **Texturas de Parallax en las rocas y en los túneles:** si Parallax está instalado, las rocas de las cuevas
+  (props) y las paredes/piso de los túneles usan las texturas de Parallax del cuerpo (las mismas del terreno de
+  alrededor), con su relieve. Sin Parallax, lo de ahora.
+- **Antes de usar sus texturas:** revisar la licencia de Parallax Continued y de sus packs de texturas (usar las
+  del usuario instalado, sin copiarlas al mod, si la licencia no permite redistribuir).
+- Pruebas: el perfil `full` (ya incluye Parallax) para todos los escenarios visuales, más un perfil con Scatterer,
+  EVE y TUFX.
