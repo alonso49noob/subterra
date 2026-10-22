@@ -23,6 +23,12 @@ namespace Subterra.Core.Sdf
 
         public Vec3 FloorCenter => floorCenter;
 
+        public Vec3 Up => up;
+
+        public float Radius => radius;
+
+        public float Height => height;
+
         public override float Distance(Vec3 p)
         {
             Vec3 q = p - floorCenter;
