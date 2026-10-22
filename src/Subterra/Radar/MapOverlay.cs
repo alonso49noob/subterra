@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using KSP.UI.Screens;
 using Subterra.Core.Radar;
 using UnityEngine;
@@ -29,7 +30,7 @@ namespace Subterra
     ///
     /// Repainting: at most once every <see cref="RepaintSeconds"/>, when the coverage grids (identity or Version)
     /// or the detections of the body changed. The paint runs on <see cref="WorkerPool.Shared"/>; the main thread
-    /// only uploads the finished bytes (one LoadRawTextureData + Apply), picked up here and not through
+    /// only uploads the finished bytes (one SetPixelData of level 0 + Apply with mipmaps), picked up here and not through
     /// <c>PumpMain</c>, which only the Flight scene pumps.
     /// </summary>
     public abstract class MapOverlay : MonoBehaviour
@@ -39,6 +40,9 @@ namespace Subterra
 
         /// <summary>Real seconds between two repaints at most.</summary>
         public const float RepaintSeconds = 2f;
+
+        /// <summary>Real seconds to wait before painting again after a paint failed.</summary>
+        public const float FailureBackoffSeconds = 10f;
 
         private const int LonSteps = 128;
         private const int LatSteps = 64;
@@ -69,7 +73,9 @@ namespace Subterra
         private CelestialBody failedBody;
         private float nextCheck;
         private bool painting;
-        private int generation;
+        private static int debugFailPaints;
+        private volatile int generation;
+        private bool paintFailureLogged;
 
         // What the texture in the sphere (or the paint under way) was made from.
         private CoverageGrid paintedEco;
@@ -91,11 +97,17 @@ namespace Subterra
         /// <summary>Textures uploaded in this scene (diagnostics).</summary>
         public int Uploads { get; private set; }
 
-        /// <summary>Main-thread milliseconds of the last upload (LoadRawTextureData + Apply).</summary>
+        /// <summary>Main-thread milliseconds of the last upload (SetPixelData + Apply).</summary>
         public double LastUploadMs { get; private set; }
 
         /// <summary>Largest upload so far in this scene (ms).</summary>
         public double MaxUploadMs { get; private set; }
+
+        /// <summary>Makes the next <paramref name="count"/> paints fail on the worker (tests of the failure path).</summary>
+        public static void FailNextPaints(int count) => Interlocked.Exchange(ref debugFailPaints, count);
+
+        /// <summary>Paints that failed in this scene (diagnostics).</summary>
+        public int PaintFailures { get; private set; }
 
         /// <summary>Paints finished in this scene (diagnostics).</summary>
         public int Paints { get; private set; }
@@ -437,11 +449,45 @@ namespace Subterra
             double radius = shown.Radius;
             WorkerPool.Shared.Enqueue(() =>
             {
+                // WorkerPool swallows exceptions, so this always posts a result (null pixels on failure): the main
+                // thread must learn that the paint is over or the overlay would wait for it forever.
                 var clock = Stopwatch.StartNew();
-                byte[] pixels = OverlayPainter.Paint(TextureWidth, TextureHeight, eco, plomada, detections, radius);
-                lock (resultGate)
+                byte[] pixels = null;
+                bool injected = false;
+                try
                 {
-                    ready = new PaintResult { Pixels = pixels, Generation = forGeneration, PaintMs = clock.Elapsed.TotalMilliseconds };
+                    if (Interlocked.Decrement(ref debugFailPaints) >= 0)
+                    {
+                        injected = true;
+                        throw new InvalidOperationException("paint failure requested by a test");
+                    }
+
+                    Interlocked.Exchange(ref debugFailPaints, 0);
+                    pixels = OverlayPainter.Paint(TextureWidth, TextureHeight, eco, plomada, detections, radius);
+                }
+                catch (Exception e)
+                {
+                    // A failure a test asked for is not an error (the scenario checks the log for errors).
+                    string text = $"MapOverlay: painting {name} failed: {e.Message}";
+                    if (injected)
+                    {
+                        Log.Warn(text);
+                    }
+                    else
+                    {
+                        Log.Error($"MapOverlay: painting {name} failed: {e}");
+                    }
+                }
+                finally
+                {
+                    lock (resultGate)
+                    {
+                        // A result for a sphere that is gone must not take the slot of the paint now in flight.
+                        if (forGeneration == generation)
+                        {
+                            ready = new PaintResult { Pixels = pixels, Generation = forGeneration, PaintMs = clock.Elapsed.TotalMilliseconds };
+                        }
+                    }
                 }
             });
         }
@@ -480,10 +526,30 @@ namespace Subterra
                 return;
             }
 
-            painting = false;
             if (result.Generation != generation || texture == null)
             {
-                return; // painted for a sphere that no longer exists
+                return; // painted for a sphere that no longer exists; the paint in flight (if any) is not this one
+            }
+
+            painting = false;
+            if (result.Pixels == null)
+            {
+                // The paint failed: forget what was "painted" so the next check paints again, after a longer wait.
+                paintedEco = null;
+                paintedPlomada = null;
+                paintedEcoVersion = -1;
+                paintedPlomadaVersion = -1;
+                paintedSignature = 0;
+                paintedAny = true;
+                PaintFailures++;
+                nextCheck = Time.realtimeSinceStartup + FailureBackoffSeconds;
+                if (!paintFailureLogged)
+                {
+                    paintFailureLogged = true;
+                    Log.Warn("MapOverlay: a paint failed; it is tried again in " + FailureBackoffSeconds + " s (logged once)");
+                }
+
+                return;
             }
 
             using (SubterraClock.Measure("MapOverlay.Upload"))

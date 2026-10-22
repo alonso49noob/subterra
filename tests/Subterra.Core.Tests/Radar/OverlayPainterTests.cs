@@ -49,7 +49,7 @@ namespace Subterra.Core.Tests.Radar
         }
 
         [Fact]
-        public void ScannedIsGrey()
+        public void ScannedIsTinted()
         {
             var eco = new CoverageGrid();
             eco.MarkSwath(10.1, 20.3, 0, MunRadius, 30000); // narrower than a cell: exactly the cell under the point
@@ -58,7 +58,7 @@ namespace Subterra.Core.Tests.Radar
 
             int x = OverlayPainter.ColumnOf(W, CoverageGrid.CellCenterLongitude(CoverageGrid.ColumnOf(20.3)));
             int y = OverlayPainter.RowOf(H, CoverageGrid.CellCenterLatitude(CoverageGrid.RowOf(10.1)));
-            Assert.Equal(((byte)128, (byte)128, (byte)128, (byte)40), Pixel(rgba, x, y));
+            Assert.Equal(((byte)120, (byte)160, (byte)220, (byte)48), Pixel(rgba, x, y));
             int painted = 0;
             for (int i = 3; i < rgba.Length; i += 4)
             {
@@ -81,8 +81,8 @@ namespace Subterra.Core.Tests.Radar
 
             byte[] rgba = OverlayPainter.Paint(W, H, eco, plomada, null, MunRadius);
 
-            Assert.Equal(40, AlphaAtCell(rgba, -40, -100));
-            Assert.Equal(40, AlphaAtCell(rgba, 40, 100));
+            Assert.Equal(48, AlphaAtCell(rgba, -40, -100));
+            Assert.Equal(48, AlphaAtCell(rgba, 40, 100));
         }
 
         [Fact]
@@ -109,8 +109,8 @@ namespace Subterra.Core.Tests.Radar
             Assert.InRange(radiusPx, 40.7 - 1, 40.7 + 1);
 
             // Nothing 2 px beyond the edge, along the row and along the meridian.
-            Assert.Equal(0, Alpha(rgba, right + 3, y));
-            Assert.Equal(0, Alpha(rgba, left - 3, y));
+            Assert.Equal(0, Alpha(rgba, right + 2, y));
+            Assert.Equal(0, Alpha(rgba, left - 2, y));
             int top = y;
             while (Alpha(rgba, centre, top + 1) != 0)
             {
@@ -118,7 +118,7 @@ namespace Subterra.Core.Tests.Radar
             }
 
             Assert.InRange(top - y + 1, 40.7 - 1, 40.7 + 1.5);
-            Assert.Equal(0, Alpha(rgba, centre, top + 3));
+            Assert.Equal(0, Alpha(rgba, centre, top + 2));
 
             (byte r, byte g, byte b, byte a) = Pixel(rgba, centre, y);
             Assert.Equal(((byte)255, (byte)220, (byte)0, (byte)140), (r, g, b, a));
@@ -239,7 +239,7 @@ namespace Subterra.Core.Tests.Radar
             var eco = new CoverageGrid();
             eco.MarkSwath(80, -170, 0, MunRadius, 30000);
             byte[] rgba = OverlayPainter.Paint(W, H, eco, null, null, MunRadius);
-            Assert.Equal(40, AlphaAtCell(rgba, 80, -170));
+            Assert.Equal(48, AlphaAtCell(rgba, 80, -170));
             Assert.True(OverlayPainter.RowOf(H, 80) > H * 3 / 4); // north is the high rows
             Assert.True(OverlayPainter.ColumnOf(W, -170) < W / 8); // west is the low columns
         }

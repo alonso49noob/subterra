@@ -13,7 +13,12 @@ namespace Subterra.Core.Radar
     /// </summary>
     public static class OverlayPainter
     {
-        public const byte ScannedAlpha = 40;
+        // decidido por Claude, revisar (ruling R29): plain grey (128,128,128,40) vanished on the Mun in daylight; a faint
+        // blue-grey stays visible on grey and on dark ground without competing with the yellow-to-purple discs.
+        public const byte ScannedRed = 120;
+        public const byte ScannedGreen = 160;
+        public const byte ScannedBlue = 220;
+        public const byte ScannedAlpha = 48;
         public const byte HintAlpha = 140;
         public const byte DetectedAlpha = 230;
 
@@ -64,11 +69,11 @@ namespace Subterra.Core.Radar
         }
 
         /// <summary>
-        /// The RGBA32 bytes (w * h * 4). Scanned ground (a cell either instrument scanned) is (128, 128, 128, 40);
+        /// The RGBA32 bytes (w * h * 4). Scanned ground (a cell either instrument scanned) is (120, 160, 220, 48);
         /// then each hint is a disc of radius <see cref="NetworkDetection.Uncertainty"/> in the colour of
         /// <c>DepthRamp(depthMid)</c> with alpha 140, and each detection a disc of the same colour with alpha 230 and
         /// radius max(Uncertainty, 2 px); detections go over hints, and within a level the larger discs go first, so
-        /// a small one is never hidden. Everything else is (128, 128, 128, 0): transparent, with a grey colour so
+        /// a small one is never hidden. Everything else is (120, 160, 220, 0): transparent, with the colour of the scanned tint so
         /// that texture filtering does not darken the edge of a coloured disc.
         /// <paramref name="eco"/> and <paramref name="plomada"/> may be null. The caller passes only the detections of
         /// the body shown; <paramref name="bodyRadius"/> (metres) turns the uncertainty into a size on the sphere
@@ -84,9 +89,9 @@ namespace Subterra.Core.Radar
             var pixels = new byte[w * h * 4];
             for (int i = 0; i < pixels.Length; i += 4)
             {
-                pixels[i] = 128;
-                pixels[i + 1] = 128;
-                pixels[i + 2] = 128;
+                pixels[i] = ScannedRed;
+                pixels[i + 1] = ScannedGreen;
+                pixels[i + 2] = ScannedBlue;
             }
 
             PaintScanned(pixels, w, h, eco);
@@ -193,9 +198,9 @@ namespace Subterra.Core.Radar
 
         private static void SetScanned(byte[] pixels, int i)
         {
-            pixels[i] = 128;
-            pixels[i + 1] = 128;
-            pixels[i + 2] = 128;
+            pixels[i] = ScannedRed;
+            pixels[i + 1] = ScannedGreen;
+            pixels[i + 2] = ScannedBlue;
             pixels[i + 3] = ScannedAlpha;
         }
 

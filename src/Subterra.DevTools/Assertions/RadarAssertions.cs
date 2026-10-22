@@ -51,6 +51,12 @@ namespace Subterra.DevTools
                 ok &= overlay.Uploads >= (int)node.ArgDouble("uploads", 1);
             }
 
+            if (node.HasValue("paintFailures"))
+            {
+                ctx.Detail += Invariant($", {overlay.PaintFailures} failed paint(s)");
+                ok &= overlay.PaintFailures >= (int)node.ArgDouble("paintFailures", 1);
+            }
+
             if (node.HasValue("maxUploadMs"))
             {
                 ok &= overlay.MaxUploadMs <= node.ArgDouble("maxUploadMs", 4);

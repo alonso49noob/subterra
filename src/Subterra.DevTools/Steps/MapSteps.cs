@@ -14,6 +14,16 @@ namespace Subterra.DevTools
         {
             StepRegistry.Register("mapView", MapViewStep);
             StepRegistry.Register("mapOverlayShown", MapOverlayShown);
+            StepRegistry.Register("mapOverlayFail", MapOverlayFail);
+        }
+
+        // mapOverlayFail count = 1 - the next paints of the map overlay throw on the worker (the failure path).
+        private static IEnumerator MapOverlayFail(ConfigNode node, TestContext ctx)
+        {
+            int count = (int)node.ArgDouble("count", 1);
+            MapOverlay.FailNextPaints(count);
+            yield return null;
+            ctx.Pass(count + " paint(s) will fail");
         }
 
         // mapOverlayShown on = false - presses the overlay's toolbar button (or releases it): the player's choice that
