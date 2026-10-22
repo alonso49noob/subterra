@@ -115,6 +115,11 @@ SUBTERRA_BODY
             Assert.Empty(tylo.Warnings);
             Assert.Equal(new[] { "TyloGreatSystem", "TyloHighlandCaves" }, tylo.Value.Sites.Select(s => s.Name));
             Assert.Equal(new[] { "TyloMara", "TyloHighlands" }, tylo.Value.Fields.Select(f => f.Name));
+
+            var minmus = Parse("Data/shipped-Minmus.cfg");
+            Assert.Empty(minmus.Warnings);
+            Assert.Equal(new[] { "MinmusFlatsGallery", "MinmusIceCaves", "MinmusCentralGeode" }, minmus.Value.Sites.Select(s => s.Name));
+            Assert.Equal(NodeFeature.Geode, minmus.Value.Sites.Single(s => s.Name == "MinmusCentralGeode").Nodes[0].Feature);
         }
 
         [Fact]
