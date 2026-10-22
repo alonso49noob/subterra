@@ -39,6 +39,8 @@ namespace Subterra.Core.Tests.Radar
         public void UnscannedCellIsNull()
         {
             Assert.Null(new CoverageGrid().BestAltitude(0, 0));
+            Assert.Null(new CoverageGrid().BestAltitude(double.PositiveInfinity, 0));
+            Assert.Null(new CoverageGrid().BestAltitude(0, double.NegativeInfinity));
         }
 
         [Fact]
@@ -239,7 +241,81 @@ namespace Subterra.Core.Tests.Radar
         {
             var grid = new CoverageGrid();
             grid.MarkTrack(0, 0, 0, 180, 20000, MunRadius, 30000);
-            Assert.True(Marked(grid, 0.125, 90.125) || Marked(grid, 89.875, 90.125) || CountMarked(grid) > 100);
+            Assert.True(CountMarked(grid) > 100);
+            // Whichever meridian it takes, the path goes over a pole, so the top or the bottom row has a marked cell,
+            // and the start (lon 0) and the end (lon 180) are marked.
+            bool overAPole = false;
+            for (int column = 0; column < CoverageGrid.Width; column++)
+            {
+                overAPole |= grid.GetCell(CoverageGrid.Height - 1, column) != 0 || grid.GetCell(0, column) != 0;
+            }
+
+            Assert.True(overAPole);
+            Assert.True(Marked(grid, 0.125, 0.125));
+            Assert.True(Marked(grid, 0.125, 179.875) || Marked(grid, -0.125, 179.875));
+        }
+
+        [Fact]
+        public void VersionNeverDecreasesAcrossATrack()
+        {
+            var grid = new CoverageGrid();
+            grid.MarkSwath(0, 0, 3000, MunRadius, 50000);
+            int before = grid.Version;
+
+            grid.MarkTrack(0, 0, 0, 20, 3000, MunRadius, 20000); // improves many cells, thousands of samples
+            Assert.Equal(before + 1, grid.Version);
+
+            before = grid.Version;
+            grid.MarkTrack(0, 0, 0, 20, 3000, MunRadius, 20000); // nothing improves
+            Assert.Equal(before, grid.Version);
+        }
+
+        [Fact]
+        public void NarrowSlantedTrackLeavesNoGaps()
+        {
+            // Off the equator, slanted, with a swath (50 m) far below the 872 m cell: the cell-size cap on the step
+            // and the "cell under the sample" rule must still mark every cell the path crosses.
+            const double lat0 = 40.05, lon0 = -20.03, lat1 = 40.9, lon1 = -12.07;
+            var grid = new CoverageGrid();
+            grid.MarkTrack(lat0, lon0, lat1, lon1, 50, MunRadius, 30000);
+
+            // Walk the same great circle finely (every ~10 m) with an independent interpolation and count how much of
+            // each cell's path lies inside it.
+            double[] p0 = Unit(lat0, lon0), p1 = Unit(lat1, lon1);
+            double theta = Math.Acos(p0[0] * p1[0] + p0[1] * p1[1] + p0[2] * p1[2]);
+            int points = (int)(theta * MunRadius / 10);
+            var metresInCell = new System.Collections.Generic.Dictionary<int, int>();
+            for (int i = 0; i <= points; i++)
+            {
+                double f = (double)i / points;
+                double w0 = Math.Sin((1 - f) * theta) / Math.Sin(theta), w1 = Math.Sin(f * theta) / Math.Sin(theta);
+                double x = w0 * p0[0] + w1 * p1[0], y = w0 * p0[1] + w1 * p1[1], z = w0 * p0[2] + w1 * p1[2];
+                double lat = Math.Asin(z) * 180 / Math.PI, lon = Math.Atan2(y, x) * 180 / Math.PI;
+                Assert.True(MarkedNear(grid, lat, lon), "gap at " + lat + "," + lon);
+
+                int key = CoverageGrid.RowOf(lat) * CoverageGrid.Width + CoverageGrid.ColumnOf(lon);
+                int so;
+                metresInCell.TryGetValue(key, out so);
+                metresInCell[key] = so + 10;
+            }
+
+            // Every cell with a real stretch of the path in it (the path is not just clipping its corner) is marked.
+            // A step of a whole equatorial cell (872 m) would let 668 m wide cells at 40 degrees slip through.
+            int bigCells = 0;
+            foreach (var pair in metresInCell)
+            {
+                if (pair.Value >= 650)
+                {
+                    bigCells++;
+                    Assert.True(grid.GetCell(pair.Key / CoverageGrid.Width, pair.Key % CoverageGrid.Width) != 0,
+                        "unmarked cell " + pair.Key / CoverageGrid.Width + "," + pair.Key % CoverageGrid.Width);
+                }
+            }
+
+            Assert.True(bigCells > 15);
+
+            // And the track is thin: nowhere near the bounding box.
+            Assert.True(CountMarked(grid) < 3 * 8 * 4 + 100);
         }
 
         [Fact]
@@ -319,6 +395,31 @@ namespace Subterra.Core.Tests.Radar
                     Assert.Equal(0, CountMarked(grid));
                 }
             }
+        }
+
+        private static bool MarkedNear(CoverageGrid grid, double lat, double lon)
+        {
+            int row = CoverageGrid.RowOf(lat);
+            int column = CoverageGrid.ColumnOf(lon);
+            for (int dr = -1; dr <= 1; dr++)
+            {
+                for (int dc = -1; dc <= 1; dc++)
+                {
+                    int r = row + dr, c = column + dc;
+                    if (r >= 0 && r < CoverageGrid.Height && c >= 0 && c < CoverageGrid.Width && grid.GetCell(r, c) != 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static double[] Unit(double lat, double lon)
+        {
+            double p = lat * Math.PI / 180, l = lon * Math.PI / 180;
+            return new[] { Math.Cos(p) * Math.Cos(l), Math.Cos(p) * Math.Sin(l), Math.Sin(p) };
         }
 
         private static int CountMarked(CoverageGrid grid)

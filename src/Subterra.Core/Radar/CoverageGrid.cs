@@ -9,7 +9,9 @@ namespace Subterra.Core.Radar
     /// the lowest altitude it was scanned from. One byte per cell, log-encoded (0 = never scanned; a larger byte is
     /// a lower altitude). Row 0 is latitude -90 and row 719 is +90; column 0 is longitude -180 and column 1439 is
     /// +180, so cell centres sit at -89.875 ... 89.875 and -179.875 ... 179.875.
-    /// Not thread-safe: the scanner marks it and the map layer reads it on the main thread.
+    /// Threading contract: one writer (the main thread) calls MarkSwath/MarkTrack. Other threads may read cells
+    /// racily (a byte is read or written atomically, and a cell only ever goes up) and should read
+    /// <see cref="Version"/> before reading the cells: a cell change is then never missed by the next version check.
     /// </summary>
     public sealed class CoverageGrid
     {
@@ -25,15 +27,17 @@ namespace Subterra.Core.Radar
         private const double ReferenceAltitude = 1000;
 
         private readonly byte[] _cells = new byte[Width * Height];
+        private volatile int _version;
 
         /// <summary>
-        /// Goes up by one for every call (MarkSwath, MarkTrack) that improved at least one cell, not for every cell;
+        /// Goes up by exactly one for every call (MarkSwath, MarkTrack) that improved at least one cell, not for every
+        /// cell or sample, and only after the cells were written; it never goes down. Safe to read from any thread.
         /// the map layer compares it with the value it last painted to know when to repaint.
         /// </summary>
-        public int Version { get; private set; }
+        public int Version => _version;
 
         /// <summary>
-        /// Altitude in metres to its byte: 255 - round(25·log2(altitude / 1000)) clamped to 1..255, so 1 km is 255 and
+        /// Altitude in metres to its byte: 255 - round(25Â·log2(altitude / 1000)) clamped to 1..255, so 1 km is 255 and
         /// every doubling of altitude costs 25. Never 0 (0 means unscanned), except for NaN.
         /// </summary>
         public static byte Encode(double altitude)
@@ -63,7 +67,7 @@ namespace Subterra.Core.Radar
         /// <summary>The lowest altitude the cell under (lat, lon) was scanned from, or null if it never was.</summary>
         public double? BestAltitude(double lat, double lon)
         {
-            if (double.IsNaN(lat) || double.IsNaN(lon) || double.IsInfinity(lon))
+            if (double.IsNaN(lat) || double.IsNaN(lon) || double.IsInfinity(lat) || double.IsInfinity(lon))
             {
                 return null;
             }
@@ -110,37 +114,43 @@ namespace Subterra.Core.Radar
                 return;
             }
 
+            if (MarkSwathCore(lat, lon, halfWidth / bodyRadius, code))
+            {
+                _version = _version + 1;
+            }
+        }
+
+        /// <summary>One swath without touching Version; rho is the angular radius in radians, code the byte to raise to.</summary>
+        private bool MarkSwathCore(double lat, double lon, double rho, byte code)
+        {
             lat = Math.Max(-90, Math.Min(90, lat));
             lon = NormalizeLongitude(lon);
             bool improved = Raise(RowOf(lat), ColumnOf(lon), code);
-
-            double rho = halfWidth / bodyRadius; // angular radius, radians
             if (rho > 0)
             {
                 improved |= MarkDisc(lat, lon, Math.Min(rho, Math.PI), code);
             }
 
-            if (improved)
-            {
-                Version++;
-            }
+            return improved;
         }
 
         /// <summary>
-        /// Marks the swath along the great circle (shortest way) from the first point to the second, sampling it every
-        /// min(halfWidth, size of a cell on the equator) metres so no cell between the two ends is skipped.
+        /// Marks the swath along the great circle (shortest way) from the first point to the second. Samples are taken
+        /// every min(max(halfWidth, cellSize / 2), cellSize) metres, cellSize being the width of a cell at the highest
+        /// latitude of the path (the equatorial length on the equator): consecutive samples are then in the same or
+        /// adjacent cells, the cell under each sample is always marked, so the marked cells form an unbroken chain, and
+        /// a very narrow swath costs no more than two samples per cell (decidido por Claude, revisar). A cell the path
+        /// only clips at a corner can still be missed. Version goes up once, at the end, if anything improved.
         /// </summary>
         public void MarkTrack(double lat0, double lon0, double lat1, double lon1, double halfWidth, double bodyRadius, double altitude)
         {
-            if (double.IsNaN(lat0) || double.IsNaN(lon0) || double.IsNaN(lat1) || double.IsNaN(lon1)
+            byte code = Encode(altitude);
+            if (code == 0 || double.IsNaN(lat0) || double.IsNaN(lon0) || double.IsNaN(lat1) || double.IsNaN(lon1)
                 || double.IsInfinity(lon0) || double.IsInfinity(lon1) || double.IsNaN(halfWidth)
-                || double.IsNaN(bodyRadius) || bodyRadius <= 0 || Encode(altitude) == 0)
+                || double.IsNaN(bodyRadius) || bodyRadius <= 0)
             {
                 return;
             }
-
-            double cellSize = bodyRadius * CellDegrees * Deg2Rad;
-            double step = halfWidth > 0 ? Math.Min(halfWidth, cellSize) : cellSize;
 
             double x0, y0, z0, x1, y1, z1;
             ToVector(lat0, lon0, out x0, out y0, out z0);
@@ -153,19 +163,11 @@ namespace Subterra.Core.Radar
             double dot = x0 * x1 + y0 * y1 + z0 * z1;
             double theta = Math.Atan2(sin, dot); // angle between the points, 0..pi
 
-            int segments = (int)Math.Ceiling(theta * bodyRadius / step);
-            if (segments < 1)
-            {
-                MarkSwath(lat0, lon0, halfWidth, bodyRadius, altitude);
-                return;
-            }
-
-            // A unit vector at 90 degrees from the start, in the plane of the path: slerp is then
-            // cos(a)·p0 + sin(a)·q. For antipodal points any plane will do.
+            // A unit vector at 90 degrees from the start, in the plane of the path: the path is
+            // cos(a)Â·p0 + sin(a)Â·q. For antipodal points any plane will do.
             double qx, qy, qz;
             if (sin > 1e-12)
             {
-                // q = (p1 - dot·p0) / sin(theta), which equals n × p0 normalised.
                 qx = (x1 - dot * x0) / sin;
                 qy = (y1 - dot * y0) / sin;
                 qz = (z1 - dot * z0) / sin;
@@ -184,7 +186,40 @@ namespace Subterra.Core.Radar
                 qz /= len;
             }
 
-            int versionBefore = Version;
+            // The narrowest cell the path crosses is at its highest latitude (a degree of longitude shrinks with
+            // the cosine), including the vertex of the great circle when it lies inside the arc.
+            double maxAbsZ = Math.Max(Math.Abs(z0), Math.Abs(z1));
+            double vertex = Math.Atan2(qz, z0);
+            if (vertex > 0 && vertex < theta)
+            {
+                maxAbsZ = Math.Max(maxAbsZ, Math.Abs(Math.Cos(vertex) * z0 + Math.Sin(vertex) * qz));
+            }
+
+            vertex = Math.Atan2(-qz, -z0);
+            if (vertex > 0 && vertex < theta)
+            {
+                maxAbsZ = Math.Max(maxAbsZ, Math.Abs(Math.Cos(vertex) * z0 + Math.Sin(vertex) * qz));
+            }
+
+            // decidido por Claude, revisar: the cell width is floored at 5 % of the equatorial one, so a track near a
+            // pole costs at most 20x the samples instead of growing without bound (the swath discs cover the rest).
+            double narrowest = Math.Max(0.05, Math.Sqrt(Math.Max(0, 1 - maxAbsZ * maxAbsZ)));
+            double cellSize = bodyRadius * CellDegrees * Deg2Rad * narrowest;
+            double step = Math.Min(Math.Max(halfWidth, cellSize / 2), cellSize);
+            double rho = halfWidth / bodyRadius;
+
+            int segments = (int)Math.Ceiling(theta * bodyRadius / step);
+            if (segments < 1)
+            {
+                if (MarkSwathCore(lat0, lon0, rho, code))
+                {
+                    _version = _version + 1;
+                }
+
+                return;
+            }
+
+            bool improved = false;
             for (int i = 0; i <= segments; i++)
             {
                 double a = theta * i / segments;
@@ -195,14 +230,12 @@ namespace Subterra.Core.Radar
                 double pz = c * z0 + s * qz;
                 double lat = Math.Asin(Math.Max(-1, Math.Min(1, pz))) * Rad2Deg;
                 double lon = Math.Atan2(py, px) * Rad2Deg;
-
-                // MarkSwath bumps Version per sample; the bumps are folded into one after the loop.
-                MarkSwath(lat, lon, halfWidth, bodyRadius, altitude);
+                improved |= MarkSwathCore(lat, lon, rho, code);
             }
 
-            if (Version != versionBefore)
+            if (improved)
             {
-                Version = versionBefore + 1;
+                _version = _version + 1;
             }
         }
 
