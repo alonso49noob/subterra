@@ -200,6 +200,21 @@ namespace Subterra.Core.Tests.Radar
         }
 
         [Fact]
+        public void GprHorizontalShotUsesPathLengthForFresnel()
+        {
+            // Shallow target (Depth 5) but 60 m away along a horizontal shot: the zone is the 60 m one.
+            var t = Tube(30, 10, 5, position: new Vec3d(R, 60, 0));
+            Detection d = Gpr(t, Surface, new Vec3d(0, 1, 0));
+            Assert.Equal(DetectionLevel.Detected, d.Level);
+            Assert.Equal(RadarPhysics.FresnelGround(60, 6, 60), d.Uncertainty, 9);
+            Assert.NotEqual(RadarPhysics.FresnelGround(60, 6, 5), d.Uncertainty);
+
+            // Width 3 m passes the half-zone check for 5 m (1.1 m) but not for 60 m (3.9 m).
+            var narrow = Tube(3, 10, 5, position: new Vec3d(R, 60, 0));
+            Assert.Equal(DetectionLevel.None, Gpr(narrow, Surface, new Vec3d(0, 1, 0)).Level);
+        }
+
+        [Fact]
         public void GprIgnoresGas() =>
             Assert.Equal(DetectionLevel.None, Gpr(Tube(20, 5, 80, kind: TargetKind.Gas), Surface, Down).Level);
 

@@ -126,7 +126,8 @@ namespace Subterra.Core.Radar
 
             double eps = Eps(t);
             double res = RadarPhysics.VerticalResolution(f, eps);
-            double fresnel = RadarPhysics.FresnelGround(f, eps, t.Depth);
+            // The Fresnel zone depends on the propagation path, i.e. the straight-line distance (ruling), not on Depth.
+            double fresnel = RadarPhysics.FresnelGround(f, eps, distance);
 
             // Layer boundaries are planes: no size requirement (their sizes may be infinite).
             if (t.Kind != TargetKind.LayerBoundary && (t.Height < 2 * res || t.Width < fresnel / 2))
