@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Subterra.Core.Geo;
 using Subterra.Core.Model;
+using Subterra.Core.Numerics;
 using Subterra.Core.Procedural;
 using Subterra.Core.Tubes;
 using UnityEngine;
@@ -33,9 +34,8 @@ namespace Subterra
 
         private readonly HashSet<(string, CellId)> inProgress = new HashSet<(string, CellId)>();
 
-        // Low-priority requests, first come first served, and the same keys for de-duplication.
-        private readonly Queue<(BodyRuntime runtime, CellId cell)> requests = new Queue<(BodyRuntime, CellId)>();
-        private readonly HashSet<(string, CellId)> requested = new HashSet<(string, CellId)>();
+        // Low-priority requests: the active body's cells nearest the active vessel first, then the other bodies'.
+        private readonly CellRequestQueue<BodyRuntime> requests = new CellRequestQueue<BodyRuntime>();
         private float nextCheck;
 
         public static CellScheduler Instance { get; private set; }
@@ -62,13 +62,11 @@ namespace Subterra
                 return;
             }
 
-            var key = (runtime.Body.bodyName, cell);
-            if (inProgress.Contains(key) || !requested.Add(key))
+            string body = runtime.Body.bodyName;
+            if (!inProgress.Contains((body, cell)))
             {
-                return;
+                requests.Add(body, cell, runtime.Catalog.Grid, runtime);
             }
-
-            requests.Enqueue((runtime, cell));
         }
 
         private void Awake()
@@ -154,20 +152,40 @@ namespace Subterra
             return missing;
         }
 
-        // Starts requested cells in the order they were asked for while there is a free slot.
+        // Starts one requested cell if there is a free slot: the current body's first, nearest the active vessel (or
+        // the camera) first; other bodies' in the order they were asked for (ruling R26). One per check (a second):
+        // starting a cell samples its first slice in the same frame, and a cell takes about a second anyway
+        // (decidido por Claude, revisar).
         private void StartRequestedCells()
         {
-            while (inProgress.Count < MaxConcurrentCells && requests.Count > 0)
+            if (requests.Count == 0 || inProgress.Count >= MaxConcurrentCells)
             {
-                (BodyRuntime runtime, CellId cell) = requests.Dequeue();
-                var key = (runtime.Body.bodyName, cell);
-                requested.Remove(key);
-                if (runtime.Catalog.IsCellReady(cell) || !inProgress.Add(key))
+                return;
+            }
+
+            // Only a Subterra body can have queued cells (and a PQS to measure from); around any other body (Jool) the
+            // queue is served in the order asked.
+            CelestialBody main = FlightGlobals.currentMainBody;
+            string activeBody = null;
+            Vec3d direction = Vec3d.Zero;
+            if (BodyRegistry.Instance.TryGet(main, out _) && main.pqsController != null)
+            {
+                Vessel active = FlightGlobals.ActiveVessel;
+                Vector3d world = active != null ? active.GetWorldPos3D() : (Vector3d)FlightCamera.fetch.mainCamera.transform.position;
+                direction = Frames.ToBody(main, world);
+                activeBody = main.bodyName;
+            }
+
+            while (inProgress.Count < MaxConcurrentCells
+                && requests.TryTake(activeBody, direction, out string body, out CellId cell, out BodyRuntime runtime))
+            {
+                if (runtime.Catalog.IsCellReady(cell) || !inProgress.Add((body, cell)))
                 {
                     continue;
                 }
 
                 StartCoroutine(Generate(runtime, cell));
+                return;
             }
         }
 

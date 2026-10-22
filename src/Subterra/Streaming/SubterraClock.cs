@@ -28,6 +28,12 @@ namespace Subterra
         private static bool currentCollected;
         private static int depth;
 
+        // Frames since the last ResetComponents (not limited to the window): sum, count, worst with and without a
+        // collection, collections, and what made the worst frame without one.
+        private static double sinceSum, sinceMax, sinceMaxWithoutGc;
+        private static int sinceFrames, sinceGcFrames;
+        private static string sinceWorst = "";
+
         public static Scope Measure(string name = "Subterra")
         {
             Roll();
@@ -87,6 +93,19 @@ namespace Subterra
         {
             ComponentMax.Clear();
             ComponentTotal.Clear();
+            sinceSum = sinceMax = sinceMaxWithoutGc = 0;
+            sinceFrames = sinceGcFrames = 0;
+            sinceWorst = "";
+        }
+
+        /// <summary>
+        /// Like <see cref="DetailedStats"/> over every frame since the last <see cref="ResetComponents"/> (the window
+        /// holds only 600 frames), plus the components of the worst frame without a collection ("name ms, ...").
+        /// </summary>
+        public static (double avg, double max, int frames, double maxWithoutGc, int gcFrames, string worst) SinceReset()
+        {
+            Roll();
+            return (sinceFrames == 0 ? 0 : sinceSum / sinceFrames, sinceMax, sinceFrames, sinceMaxWithoutGc, sinceGcFrames, sinceWorst);
         }
 
         /// <summary>Closes the previous frame's total; call at least once per frame (any Measure does).</summary>
@@ -106,6 +125,20 @@ namespace Subterra
                 for (int i = 0; i < skipped; i++)
                 {
                     Push(0, false);
+                }
+
+                sinceFrames += 1 + skipped;
+                sinceSum += currentMs;
+                sinceMax = Math.Max(sinceMax, currentMs);
+                if (currentCollected)
+                {
+                    sinceGcFrames++;
+                }
+                else if (currentMs > sinceMaxWithoutGc)
+                {
+                    sinceMaxWithoutGc = currentMs;
+                    sinceWorst = string.Join(", ", ComponentFrame.OrderByDescending(p => p.Value).Take(5)
+                        .Select(p => FormattableString.Invariant($"{p.Key} {p.Value:F1}")));
                 }
 
                 foreach (var pair in ComponentFrame)

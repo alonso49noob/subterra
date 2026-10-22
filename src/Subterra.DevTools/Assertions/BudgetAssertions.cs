@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Linq;
 using Subterra.Core.Procedural;
@@ -21,9 +22,19 @@ namespace Subterra.DevTools
         // subterraFrameBudget avgMs = 2 maxMs = 8 seconds = 5 maxGcFrames = 5 — Subterra's main-thread ms per frame
         // over the last seconds. The max leaves out frames where a garbage collection ran inside Subterra's work
         // (the collection stops the whole game and is charged to whoever runs); those are counted instead.
+        // With sinceReset = true it checks every frame since the last resetClock instead (seconds is ignored; the
+        // collection limit then defaults to 1 per 120 frames), and names the components of the worst frame.
         private static bool FrameBudget(ConfigNode node, TestContext ctx)
         {
             double avgLimit = node.ArgDouble("avgMs", 2), maxLimit = node.ArgDouble("maxMs", 8);
+            if (node.ArgBool("sinceReset", false))
+            {
+                var (sAvg, sMax, sFrames, sMaxWithoutGc, sGc, worst) = SubterraClock.SinceReset();
+                int sGcLimit = (int)node.ArgDouble("maxGcFrames", Math.Max(5, sFrames / 120));
+                ctx.Detail = Invariant($"since reset: avg {sAvg:F2} ms, max {sMaxWithoutGc:F2} ms without GC ({sMax:F2} ms with), {sGc} GC frames, over {sFrames} frames (limits {avgLimit}/{maxLimit}/{sGcLimit}); worst frame: {worst}; worst/total ms: {SubterraClock.Breakdown()}");
+                return sFrames > 0 && sAvg <= avgLimit && sMaxWithoutGc <= maxLimit && sGc <= sGcLimit;
+            }
+
             int gcLimit = (int)node.ArgDouble("maxGcFrames", 5);
             var (avg, max, frames, maxWithoutGc, gcFrames) = SubterraClock.DetailedStats((float)node.ArgDouble("seconds", 5));
             ctx.Detail = Invariant($"avg {avg:F2} ms, max {maxWithoutGc:F2} ms without GC ({max:F2} ms with), {gcFrames} GC frames, over {frames} frames (limits {avgLimit}/{maxLimit}/{gcLimit}); worst/total ms: {SubterraClock.Breakdown()}");

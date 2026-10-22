@@ -396,9 +396,14 @@ namespace Subterra
 
                 state.Busy = false;
                 state.Index = job.Index ?? state.Index;
-                state.Signatures = job.Signatures ?? state.Signatures;
                 if (job.Error != null)
                 {
+                    // The job's signatures (and what its survey remembered) may claim cells and targets whose
+                    // results were lost: forget both so every covered cell is looked at again (requested again if
+                    // missing) on the next tick.
+                    state.Signatures = null;
+                    state.Survey = BodyState.NewSurvey();
+                    state.Dirty = true;
                     if (!state.Failed)
                     {
                         state.Failed = true;
@@ -407,6 +412,8 @@ namespace Subterra
 
                     continue;
                 }
+
+                state.Signatures = job.Signatures ?? state.Signatures;
 
                 CellScheduler scheduler = CellScheduler.Instance;
                 CellGrid grid = state.Runtime.Catalog.Grid;
@@ -543,7 +550,7 @@ namespace Subterra
                 EchoVersion = GravityVersion = 0;
             }
 
-            private static OrbitalSurvey NewSurvey() => new OrbitalSurvey(Instrument.Eco(), Instrument.Plomada());
+            public static OrbitalSurvey NewSurvey() => new OrbitalSurvey(Instrument.Eco(), Instrument.Plomada());
         }
 
         /// <summary>One worker job for one body: its inputs and, once done, its results.</summary>

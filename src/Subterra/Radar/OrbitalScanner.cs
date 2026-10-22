@@ -29,14 +29,19 @@ namespace Subterra
         private const float TickSeconds = 1f;
 
         /// <summary>
+        /// Real seconds to the next tick while a backlog is left (a tick ran out of budget): ticks come faster, not
+        /// longer, so a warp catch-up keeps its pace while each frame stays within <see cref="TickBudgetMs"/>
+        /// (decidido por Claude, revisar; ruling R25).
+        /// </summary>
+        private const float CatchUpSeconds = 0.1f;
+
+        /// <summary>
         /// Main-thread time one tick may spend; the vessel being walked stops where it is and the rest wait for the
         /// next tick (decidido por Claude, revisar: the step cap alone is ~5-10 ms on a slow machine, over the 8 ms
-        /// worst-frame budget).
+        /// worst-frame budget). 3 ms leaves room for the lazy detector and the cell sampling in the same frame
+        /// (ruling R25).
         /// </summary>
-        private const double TickBudgetMs = 4;
-
-        /// <summary>Samples between two looks at the clock inside a walk.</summary>
-        private const int ClockStride = 32;
+        private const double TickBudgetMs = 3;
 
         /// <summary>
         /// How far (m) the orbit of last tick and the current one may put the vessel apart at the start of the
@@ -55,6 +60,9 @@ namespace Subterra
         private readonly HashSet<Guid> failed = new HashSet<Guid>();
         private readonly Stopwatch watch = new Stopwatch();
         private float nextTick;
+
+        // Set by a tick that stopped on the time budget with work left.
+        private bool behind;
         private int ticks;
         private int firstVessel;
 
@@ -114,6 +122,7 @@ namespace Subterra
             }
 
             nextTick = Time.realtimeSinceStartup + TickSeconds;
+            behind = false;
             RadarScenario scenario = RadarScenario.Instance;
             if (scenario == null || FlightGlobals.fetch == null || FlightGlobals.Vessels == null || HighLogic.LoadedSceneIsFlight && !FlightGlobals.ready)
             {
@@ -123,6 +132,11 @@ namespace Subterra
             using (SubterraClock.Measure("OrbitalScanner"))
             {
                 Tick(scenario);
+            }
+
+            if (behind)
+            {
+                nextTick = Time.realtimeSinceStartup + CatchUpSeconds;
             }
         }
 
@@ -150,6 +164,7 @@ namespace Subterra
                 if (watch.Elapsed.TotalMilliseconds > TickBudgetMs)
                 {
                     firstVessel = (firstVessel + k) % count;
+                    behind = true;
                     return;
                 }
 
@@ -390,8 +405,10 @@ namespace Subterra
             bool havePrevious = false;
             double prevLat = 0, prevLon = 0, prevAlt = 0;
             double t = from;
+            double slowest = 0;
             for (int steps = 1; ; steps++)
             {
+                double stepStart = watch.Elapsed.TotalMilliseconds;
                 SubPoint(orbit, t, out double lat, out double lon, out double alt);
                 bool inside = alt >= min && alt <= max;
                 if (inside)
@@ -418,8 +435,22 @@ namespace Subterra
                 prevLat = lat;
                 prevLon = lon;
                 prevAlt = alt;
-                if (t >= now || steps >= maxSteps || steps % ClockStride == 0 && watch.Elapsed.TotalMilliseconds > TickBudgetMs)
+
+                // The clock is read after every sample, and the walk stops when one more sample as slow as the
+                // slowest so far would not fit: one sample of a wide swath (the gravimeter's 2h, thousands of grid
+                // cells) costs about a millisecond, so checking every 32 samples overshot the budget by ~10 ms
+                // (ruling R25). At least two samples (one step forward) per walk, so a walk always advances.
+                double elapsed = watch.Elapsed.TotalMilliseconds;
+                slowest = Math.Max(slowest, elapsed - stepStart);
+                if (t >= now || steps >= maxSteps)
                 {
+                    behind |= t < now;
+                    return t;
+                }
+
+                if (steps >= 2 && elapsed + slowest > TickBudgetMs)
+                {
+                    behind = true;
                     return t;
                 }
 
