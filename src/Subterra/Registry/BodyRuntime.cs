@@ -23,6 +23,9 @@ namespace Subterra
 
         public Strata Strata { get; }
 
+        /// <summary>The body's terrain relief (volcanoes, rilles); null if it has none.</summary>
+        public Subterra.Core.Geo.ReliefField Relief { get; set; }
+
         public Geotherm Geotherm { get; }
     }
 }

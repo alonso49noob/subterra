@@ -12,6 +12,12 @@ namespace Subterra.Core.Model
 
         public bool IsNamed { get; set; }
 
+        /// <summary>
+        /// Depths are measured from the ground as it was before the body's relief (a tube under a rille keeps its level
+        /// where the trench sinks the ground over it). Clipping still uses the ground as it is.
+        /// </summary>
+        public bool UnderRelief { get; set; }
+
         /// <summary>The TUBE_FIELD a procedural network came from; null for named sites.</summary>
         public string Field { get; set; }
 

@@ -232,6 +232,7 @@ namespace Subterra.Core.Config
                 Name = name,
                 DisplayName = node.GetValue("displayName")?.Trim(),
                 IsNamed = true,
+                UnderRelief = r.Bool(node, "underRelief", false),
             };
 
             int index = 0;

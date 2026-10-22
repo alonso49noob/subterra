@@ -39,6 +39,7 @@ namespace Subterra
             mod.modEnabled = true;
             mod.requirements = PQS.ModiferRequirements.Default;
             mod.Field = new ReliefField(runtime.Spec.Reliefs, runtime.Body.Radius);
+            runtime.Relief = mod.Field;
             AccessTools.Method(typeof(PQS), "SetupMods").Invoke(pqs, null);
             if (pqs.isActive)
             {

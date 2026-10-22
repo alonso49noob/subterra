@@ -39,13 +39,14 @@ namespace Subterra.Core.Tubes
             }
         }
 
-        public static TubeNetwork Compile(SiteSpec site, string body, double bodyRadius, IHeightSampler heights, List<string> warnings)
+        public static TubeNetwork Compile(SiteSpec site, string body, double bodyRadius, IHeightSampler heights, List<string> warnings,
+            Func<double, double, double> relief = null)
         {
             string id = site.IsNamed ? "site:" + site.Name : site.Name;
             var nodePoints = new PathPoint[site.Nodes.Count];
             for (int i = 0; i < site.Nodes.Count; i++)
             {
-                nodePoints[i] = TubePath.NodePoint(site, i, heights, warnings, bodyRadius);
+                nodePoints[i] = TubePath.NodePoint(site, i, heights, warnings, bodyRadius, relief);
             }
 
             Vec3d anchor = nodePoints[0].FloorCenter;
@@ -54,7 +55,7 @@ namespace Subterra.Core.Tubes
             var paths = new List<List<PathPoint>>();
             foreach (EdgeSpec edge in site.Edges)
             {
-                paths.Add(TubePath.Build(site, edge, bodyRadius, heights, warnings));
+                paths.Add(TubePath.Build(site, edge, bodyRadius, heights, warnings, relief));
             }
 
             int[] groups = ChainGroups(site);
@@ -134,6 +135,21 @@ namespace Subterra.Core.Tubes
                         SurfaceRadius = p.SurfaceRadius,
                         ShaftBottom = Local(bottom),
                         Index = skylights.Count,
+                    });
+                }
+                else if (node.Feature == NodeFeature.Portal)
+                {
+                    skylights.Add(new Skylight
+                    {
+                        SurfaceCenter = Local(p.Up * p.SurfaceRadius),
+                        Up = up,
+                        Radius = (float)Math.Max(node.SkylightRadius, node.Width),
+                        Lat = node.Lat,
+                        Lon = node.Lon,
+                        SurfaceRadius = p.SurfaceRadius,
+                        ShaftBottom = Local(p.FloorCenter),
+                        Index = skylights.Count,
+                        Smooth = true,
                     });
                 }
                 else if (node.Feature == NodeFeature.Geode)

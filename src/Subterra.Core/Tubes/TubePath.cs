@@ -52,7 +52,7 @@ namespace Subterra.Core.Tubes
             return points;
         }
 
-        public static List<PathPoint> Build(SiteSpec site, EdgeSpec edge, double bodyRadius, IHeightSampler heights, List<string> warnings)
+        public static List<PathPoint> Build(SiteSpec site, EdgeSpec edge, double bodyRadius, IHeightSampler heights, List<string> warnings, Func<double, double, double> relief = null)
         {
             int edgeIndex = site.Edges.IndexOf(edge);
             if (edgeIndex < 0)
@@ -78,6 +78,20 @@ namespace Subterra.Core.Tubes
                     BodyFrame.ToLatLon(dir, out double la, out double lo);
                     surface = Math.Min(surface, heights.SurfaceRadius(la, lo));
                 }
+
+                // Under a relief (a rille), depths count from the ground as it was before it; the ground as it is stays the
+                // surface (for clipping).
+                double ground = surface;
+                if (relief != null && site.UnderRelief)
+                {
+                    ground = double.MaxValue;
+                    foreach (Vec3d dir in CrossSection(site, edgeIndex, dirs, i, bodyRadius))
+                    {
+                        BodyFrame.ToLatLon(dir, out double la, out double lo);
+                        ground = Math.Min(ground, heights.SurfaceRadius(la, lo) - relief(la, lo));
+                    }
+                }
+
                 double depth = Lerp(depthFrom, depthTo, u);
                 if (!double.IsNaN(from.Altitude) && !double.IsNaN(to.Altitude))
                 {
@@ -97,7 +111,7 @@ namespace Subterra.Core.Tubes
                     Height = height,
                     Up = up,
                     SurfaceRadius = surface,
-                    FloorCenter = up * (surface - depth - height),
+                    FloorCenter = up * (ground - depth - height),
                 });
             }
 
@@ -105,15 +119,18 @@ namespace Subterra.Core.Tubes
         }
 
         /// <summary>Single-node sites (a lone skylight or chamber) have no edges: their one path point.</summary>
-        public static PathPoint NodePoint(SiteSpec site, int nodeIndex, IHeightSampler heights, List<string> warnings, double bodyRadius = 0)
+        public static PathPoint NodePoint(SiteSpec site, int nodeIndex, IHeightSampler heights, List<string> warnings, double bodyRadius = 0,
+            Func<double, double, double> relief = null)
         {
             NodeSpec node = site.Nodes[nodeIndex];
             double depth = RoofDepth(site, nodeIndex, warnings);
             double surface = heights.SurfaceRadius(node.Lat, node.Lon);
+            double ground = relief != null && site.UnderRelief ? surface - relief(node.Lat, node.Lon) : surface;
             if (!double.IsNaN(node.Altitude) && bodyRadius > 0)
             {
                 depth = Math.Max(MinRoof(node.Width), surface - (bodyRadius + node.Altitude));
             }
+
             Vec3d up = BodyFrame.Direction(node.Lat, node.Lon);
             return new PathPoint
             {
@@ -124,7 +141,7 @@ namespace Subterra.Core.Tubes
                 Height = node.Height,
                 Up = up,
                 SurfaceRadius = surface,
-                FloorCenter = up * (surface - depth - node.Height),
+                FloorCenter = up * (ground - depth - node.Height),
             };
         }
 

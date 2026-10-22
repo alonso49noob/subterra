@@ -126,7 +126,7 @@ namespace Subterra
             PQSMod_SubterraRelief.Attach(runtime);
             foreach (SiteSpec site in spec.Sites)
             {
-                TubeNetwork network = CompileNamed(site, body);
+                TubeNetwork network = CompileNamed(site, body, runtime.Relief);
                 if (network != null)
                 {
                     runtime.Catalog.AddNamed(network);
@@ -143,7 +143,7 @@ namespace Subterra
         }
 
         // Heights are read straight from the PQS on the main thread: named sites are few and small.
-        internal static TubeNetwork CompileNamed(SiteSpec site, CelestialBody body)
+        internal static TubeNetwork CompileNamed(SiteSpec site, CelestialBody body, Core.Geo.ReliefField relief = null)
         {
             try
             {
@@ -157,7 +157,8 @@ namespace Subterra
                 }
 
                 var warnings = new List<string>();
-                TubeNetwork network = NetworkCompiler.Compile(site, body.bodyName, body.Radius, samples, warnings);
+                Func<double, double, double> delta = relief == null || relief.IsEmpty ? null : (Func<double, double, double>)((lat, lon) => relief.HeightDelta(Core.Geo.BodyFrame.Direction(lat, lon)));
+                TubeNetwork network = NetworkCompiler.Compile(site, body.bodyName, body.Radius, samples, warnings, delta);
                 foreach (string warning in warnings)
                 {
                     Log.Warn(warning);

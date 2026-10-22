@@ -9,6 +9,12 @@ namespace Subterra.Core.Model
 
         /// <summary>A sealed crystal-lined room (no skylight; reached by digging).</summary>
         Geode,
+
+        /// <summary>
+        /// Where the tube comes out into a trench or a pit (under a relief): the ground is opened along the tube's own
+        /// shape, without a shaft (radius: how far the opening may reach).
+        /// </summary>
+        Portal,
     }
 
     /// <summary>A tube graph node: position, roof depth (m under the local terrain), cross-section and feature.</summary>
