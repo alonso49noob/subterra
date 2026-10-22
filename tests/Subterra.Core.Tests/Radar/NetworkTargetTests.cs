@@ -146,6 +146,80 @@ namespace Subterra.Core.Tests.Radar
             Assert.Equal(5, registry.Near(Vec3d.Zero, 10).Count());
         }
 
+        [Fact]
+        public void RegisterIgnoresNullAndDuplicates()
+        {
+            var registry = new TargetRegistry();
+            var source = new FakeSource(2);
+            registry.Register(null);
+            registry.Register(source);
+            registry.Register(source);
+            Assert.Equal(2, registry.Near(Vec3d.Zero, 10).Count());
+        }
+
+        [Fact]
+        public void RegisterDuringEnumerationKeepsTheOldSnapshot()
+        {
+            var registry = new TargetRegistry();
+            registry.Register(new FakeSource(2));
+            using (IEnumerator<SubsurfaceTarget> running = registry.Near(Vec3d.Zero, 10).GetEnumerator())
+            {
+                Assert.True(running.MoveNext());
+                registry.Register(new FakeSource(3));
+                int count = 1;
+                while (running.MoveNext())
+                {
+                    count++;
+                }
+
+                Assert.Equal(2, count);
+            }
+
+            Assert.Equal(5, registry.Near(Vec3d.Zero, 10).Count());
+
+            // A query started before the registration but not yet enumerated also sees the old sources.
+            IEnumerable<SubsurfaceTarget> early = registry.Near(Vec3d.Zero, 10);
+            registry.Register(new FakeSource(4));
+            Assert.Equal(5, early.Count());
+        }
+
+        [Fact]
+        public void TargetsOfIsCachedAndReadOnly()
+        {
+            var src = Source();
+            TubeNetwork net = Tube();
+            IReadOnlyList<SubsurfaceTarget> first = src.TargetsOf(net);
+            Assert.Same(first, src.TargetsOf(net));
+            Assert.False(first is List<SubsurfaceTarget>);
+            Assert.Throws<System.NotSupportedException>(() => ((IList<SubsurfaceTarget>)first).Clear());
+        }
+
+        [Fact]
+        public void ChamberCentreIsHalfAHeightAboveTheFloor()
+        {
+            var site = new SiteSpec { Name = "G", IsNamed = true };
+            site.Nodes.Add(Node(0, 10, depth: 100, width: 40, height: 30, feature: NodeFeature.Geode));
+            TubeNetwork net = NetworkCompiler.Compile(site, "Mun", R, Flat, new List<string>());
+            SubsurfaceTarget t = Source().TargetsOf(net).Single();
+            // Floor at 130 m, 30 m high: the void centre is 115 m under the terrain.
+            Assert.InRange(t.Position.Length, R - 115.5, R - 114.5);
+        }
+
+        [Fact]
+        public void ShaftCentreIsHalfALengthAboveItsBottom()
+        {
+            var site = new SiteSpec { Name = "S", IsNamed = true };
+            site.Nodes.Add(Node(0, 10, depth: 100, width: 40, height: 30, feature: NodeFeature.Skylight, skylightRadius: 20));
+            TubeNetwork net = NetworkCompiler.Compile(site, "Mun", R, Flat, new List<string>());
+            int index = Enumerable.Range(0, net.Primitives.Count).Single(i => net.Primitives[i] is Subterra.Core.Sdf.Shaft);
+            var shaft = (Subterra.Core.Sdf.Shaft)net.Primitives[index];
+            SubsurfaceTarget t = Source().TargetsOf(net)[index];
+            // Bottom is 28 m above the floor (130 m down), so 102 m under the terrain; the top is 20 m above it.
+            double top = R + NetworkCompiler.ShaftAboveSurface;
+            Assert.InRange(t.Position.Length, (R - 102 + top) / 2 - 0.5, (R - 102 + top) / 2 + 0.5);
+            Assert.Equal(shaft.Length, t.Height, 3);
+        }
+
         private sealed class FakeSource : ISubsurfaceTargetSource
         {
             private readonly int count;

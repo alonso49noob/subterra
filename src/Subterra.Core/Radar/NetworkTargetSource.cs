@@ -64,7 +64,8 @@ namespace Subterra.Core.Radar
                 targets.Add(TargetOf(net, net.Primitives[i], i));
             }
 
-            return targets;
+            // Read-only: the same list is shared by every caller.
+            return targets.AsReadOnly();
         }
 
         // The centre is the centre of the void (a tube's bounds are centred on its floor line, so they would
