@@ -170,15 +170,25 @@ namespace Subterra.Core.Procedural
 
             // The trunk's roof rises and sinks along it (a slow wave, up to a third of its depth).
             double wave = rng.Range(0, 0.35), phase = rng.Range(0, 2 * Math.PI), period = rng.Range(6, 14);
+            // Its width swells and narrows too (a slower wave), with now and then a squeeze to crawl through or a
+            // room where the lava pooled: something to find on the way instead of one even corridor.
+            double swell = rng.Range(0.1, 0.3), swellPhase = rng.Range(0, 2 * Math.PI), swellPeriod = rng.Range(5, 11);
             for (int i = 0; i < trunk.Count; i++)
             {
                 double roof = depth * (1 + wave * Math.Sin(phase + 2 * Math.PI * i / period));
-                site.Nodes.Add(MakeNode(trunk[i], roof, trunkWidth, rng));
+                double scale = 1 + swell * Math.Sin(swellPhase + 2 * Math.PI * i / swellPeriod);
+                double odd = rng.NextDouble();
+                if (i > 0 && i < trunk.Count - 1)
+                {
+                    scale *= odd < 0.1 ? 0.55 : odd > 0.93 ? 1.6 : 1;
+                }
+
+                site.Nodes.Add(MakeNode(trunk[i], roof, trunkWidth * scale, rng));
             }
 
             for (int i = 1; i < trunk.Count; i++)
             {
-                site.Edges.Add(new EdgeSpec { From = i - 1, To = i });
+                site.Edges.Add(new EdgeSpec { From = i - 1, To = i, Sinuosity = 0.5 });
             }
 
             // Skylights along the trunk, each the shallowest node within ±500 m of the target distance.
@@ -223,6 +233,15 @@ namespace Subterra.Core.Procedural
                 node.Feature = NodeFeature.Skylight;
                 node.SkylightRadius = Math.Max(10, Math.Min(node.Width / 2, node.Width * rng.Range(0.3, 0.5)));
                 previous = along[best];
+
+                // Sometimes the roof fell in twice close together (a short pit chain), the next node down the tube too.
+                if (rng.NextDouble() < 0.3 && best + 1 < trunk.Count && site.Nodes[best + 1].Feature == NodeFeature.None)
+                {
+                    NodeSpec pair = site.Nodes[best + 1];
+                    pair.Feature = NodeFeature.Skylight;
+                    pair.SkylightRadius = Math.Max(10, Math.Min(pair.Width / 2, pair.Width * rng.Range(0.2, 0.4)));
+                    previous = along[best + 1];
+                }
             }
 
             // A network, not a corridor: branches leave the trunk (and branches leave them), some coming back into the
@@ -495,13 +514,18 @@ namespace Subterra.Core.Procedural
                 Vec3d previous = initialHeading ?? Downhill(p) ?? RandomTangent(p, rng);
                 int outside = 0;
                 double travelled = 0;
+
+                // The bend (turn per step) drifts slowly, so the course swings in arcs and S-curves like a meandering
+                // flow; on the flat maria the slope alone kept it nearly straight, its skylights in a row.
+                double bend = rng.Range(-0.5, 0.5) * MaxTurn;
                 while (travelled + StepLength <= length + 1e-6)
                 {
-                    // Lava (and water) keeps its course and bends slowly towards the slope: mostly the previous heading,
-                    // some downhill, a little wander, and never more than MaxTurn per step (wide curves, no zigzag).
+                    // Lava (and water) keeps its course and bends slowly towards the slope: mostly the previous heading
+                    // turned by the bend, some downhill, a little wander, never more than MaxTurn per step (no zigzag).
+                    bend = Math.Max(-0.85 * MaxTurn, Math.Min(0.85 * MaxTurn, bend + rng.Range(-0.35, 0.35) * MaxTurn));
                     Vec3d down = Downhill(p) ?? previous;
-                    Vec3d jitter = RandomTangent(p, rng) * 0.12;
-                    Vec3d heading = Tangent(p, previous * 0.7 + down * 0.3 + jitter);
+                    Vec3d jitter = RandomTangent(p, rng) * 0.08;
+                    Vec3d heading = Tangent(p, Rotate(p, previous, bend) * 0.8 + down * 0.2 + jitter);
                     if (heading.LengthSquared < 1e-12)
                     {
                         heading = previous;

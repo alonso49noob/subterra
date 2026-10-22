@@ -50,7 +50,7 @@ printf '\t}\n'
 # Serenity Skylight: a ~100 m wide, ~100 m deep pit opening onto a short wide tube (easy first target).
 site_head SerenitySkylight
 node "${SERENITY[0]}" "${SERENITY[1]}" 95 180 60 skylight 50
-node "$(lerp ${SERENITY[0]} ${SERENITY[2]} 0.5)" "$(lerp ${SERENITY[1]} ${SERENITY[3]} 0.5)" 105 200 65
+node $(along ${SERENITY[@]} 0.5) 105 200 65
 node "${SERENITY[2]}" "${SERENITY[3]}" 110 160 55 end
 edge 0 1 0.2 0.05; edge 1 2 0.3 0.05
 printf '\t}\n'
@@ -58,17 +58,21 @@ printf '\t}\n'
 # Great Gallery: a 500 m chamber between two short tubes, one skylight on the way in.
 site_head GreatGallery
 node "${GALLERY[0]}" "${GALLERY[1]}" 60 150 50 skylight 40
-node "$(lerp ${GALLERY[0]} ${GALLERY[2]} 0.5)" "$(lerp ${GALLERY[1]} ${GALLERY[3]} 0.5)" 120 250 90 chamber
+node $(along ${GALLERY[@]} 0.5) 120 250 90 chamber
 node "${GALLERY[2]}" "${GALLERY[3]}" 90 200 70 end
 edge 0 1 0.25 0.05; edge 1 2 0.3 0.06
 printf '\t}\n'
 
-# Kerman Chain: a 20 km tube with five skylights in a row (no gentle 25 km track exists in the Midlands).
+# Kerman Chain: a 20 km winding tube with five skylights at uneven spacing, two of them side by side (no gentle
+# 25 km track exists in the Midlands).
 site_head KermanChain
 for i in 0 1 2 3 4 5 6 7 8 9 10; do
   t=$(awk -v i=$i 'BEGIN { printf "%.3f", i / 10 }')
-  if [ $((i % 2)) -eq 0 ] && [ $i -le 8 ]; then node "$(lerp ${CHAIN[0]} ${CHAIN[2]} $t)" "$(lerp ${CHAIN[1]} ${CHAIN[3]} $t)" 40 120 45 skylight 30
-  else node "$(lerp ${CHAIN[0]} ${CHAIN[2]} $t)" "$(lerp ${CHAIN[1]} ${CHAIN[3]} $t)" 55 140 50; fi
+  case $i in
+    0|2|6|9) node $(along ${CHAIN[@]} $t) 40 120 45 skylight 30;;
+    3) node $(along ${CHAIN[@]} $t) 40 120 45 skylight 20;;
+    *) node $(along ${CHAIN[@]} $t) 55 140 50;;
+  esac
 done
 for i in 0 1 2 3 4 5 6 7 8 9; do edge $i $((i + 1)) 0.35 0.05; done
 printf '\t}\n'
@@ -76,7 +80,7 @@ printf '\t}\n'
 # Frostvault: a polar tube far from its single skylight, always dark, with water ice.
 site_head Frostvault
 node "${FROST[0]}" "${FROST[1]}" 50 90 35 skylight 20
-node "$(lerp ${FROST[0]} ${FROST[2]} 0.4)" "$(lerp ${FROST[1]} ${FROST[3]} 0.4)" 70 110 40
+node $(along ${FROST[@]} 0.4) 70 110 40
 node "${FROST[2]}" "${FROST[3]}" 80 130 45 end
 edge 0 1 0.3 0.06; edge 1 2 0.3 0.06
 printf '\t}\n'

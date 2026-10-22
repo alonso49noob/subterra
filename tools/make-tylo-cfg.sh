@@ -42,9 +42,9 @@ site_head TyloGreatSystem
 for i in 0 1 2 3 4 5 6 7 8 9 10; do
   t=$(awk -v i=$i 'BEGIN { printf "%.3f", i / 10 }')
   case $i in
-    0|5|10) node "$(lerp ${GREAT[0]} ${GREAT[2]} $t)" "$(lerp ${GREAT[1]} ${GREAT[3]} $t)" 140 220 90 skylight 45 ;;
-    2|7) node "$(lerp ${GREAT[0]} ${GREAT[2]} $t)" "$(lerp ${GREAT[1]} ${GREAT[3]} $t)" 200 400 160 chamber ;;
-    *) node "$(lerp ${GREAT[0]} ${GREAT[2]} $t)" "$(lerp ${GREAT[1]} ${GREAT[3]} $t)" 180 260 100 ;;
+    0|5|10) node $(along ${GREAT[@]} $t) 140 220 90 skylight 45 ;;
+    2|7) node $(along ${GREAT[@]} $t) 200 400 160 chamber ;;
+    *) node $(along ${GREAT[@]} $t) 180 260 100 ;;
   esac
 done
 for i in 0 1 2 3 4 5 6 7 8 9; do edge $i $((i + 1)) 0.35 0.05; done
@@ -53,7 +53,7 @@ printf '\t}\n'
 # Highland caves: narrower tubes on a highland plateau, one skylight.
 site_head TyloHighlandCaves
 node "${HIGH[0]}" "${HIGH[1]}" 50 60 30 skylight 18
-node "$(lerp ${HIGH[0]} ${HIGH[2]} 0.5)" "$(lerp ${HIGH[1]} ${HIGH[3]} 0.5)" 80 80 40 chamber
+node $(along ${HIGH[@]} 0.5) 80 80 40 chamber
 node "${HIGH[2]}" "${HIGH[3]}" 90 60 30 end
 edge 0 1 0.4 0.06; edge 1 2 0.4 0.06
 printf '\t}\n'

@@ -49,7 +49,7 @@ printf '\t}\n'
 # Explodium Aquifer: a karst passage half full of explodium, with a pump-ready chamber.
 site_head EveAquifer
 node "${AQUIFER[0]}" "${AQUIFER[1]}" 25 40 30 skylight 15
-node "$(lerp ${AQUIFER[0]} ${AQUIFER[2]} 0.5)" "$(lerp ${AQUIFER[1]} ${AQUIFER[3]} 0.5)" 60 120 50 chamber "" 15 "0.30,0.14,0.34"
+node $(along ${AQUIFER[@]} 0.5) 60 120 50 chamber "" 15 "0.30,0.14,0.34"
 node "${AQUIFER[2]}" "${AQUIFER[3]}" 80 40 30 end
 edge 0 1 0.5 0.1; edge 1 2 0.5 0.1
 printf '\t}\n'
@@ -79,8 +79,8 @@ printf '\t}\n'
 site_head LaytheIslandTube
 for i in 0 1 2 3 4 5 6; do
   t=$(awk -v i=$i 'BEGIN { printf "%.3f", i / 6 }')
-  if [ $((i % 2)) -eq 0 ]; then node "$(lerp ${ISLAND[0]} ${ISLAND[2]} $t)" "$(lerp ${ISLAND[1]} ${ISLAND[3]} $t)" 15 25 15 skylight 8
-  else node "$(lerp ${ISLAND[0]} ${ISLAND[2]} $t)" "$(lerp ${ISLAND[1]} ${ISLAND[3]} $t)" 20 30 18; fi
+  if [ $((i % 2)) -eq 0 ]; then node $(along ${ISLAND[@]} $t) 15 25 15 skylight 8
+  else node $(along ${ISLAND[@]} $t) 20 30 18; fi
 done
 for i in 0 1 2 3 4 5; do edge $i $((i + 1)) 0.4 0.06; done
 printf '\t}\n'
@@ -102,7 +102,7 @@ layer RockyMantle 3000 100000 0.8 2.8 1.5 "0.46,0.44,0.42"
 printf '\t}\n'
 site_head DresCanyonCaves
 node "${CANYON[0]}" "${CANYON[1]}" 30 80 35 skylight 20
-node "$(lerp ${CANYON[0]} ${CANYON[2]} 0.5)" "$(lerp ${CANYON[1]} ${CANYON[3]} 0.5)" 60 200 70 chamber
+node $(along ${CANYON[@]} 0.5) 60 200 70 chamber
 node "${CANYON[2]}" "${CANYON[3]}" 50 80 35 end
 edge 0 1 0.4 0.08; edge 1 2 0.4 0.08
 printf '\t}\n'
@@ -141,12 +141,12 @@ printf '\t}\n'
 # Bop's Cavern: a vast cavern under a valley, entered by a shaft; the Kraken nod is its sealed far end (dig to it).
 site_head BopCavern
 node "${BOP[0]}" "${BOP[1]}" 40 60 40 skylight 20
-node "$(lerp ${BOP[0]} ${BOP[2]} 0.5)" "$(lerp ${BOP[1]} ${BOP[3]} 0.5)" 300 500 220 chamber
+node $(along ${BOP[@]} 0.5) 300 500 220 chamber
 node "${BOP[2]}" "${BOP[3]}" 400 120 60 end
 edge 0 1 0.3 0.06; edge 1 2 0.4 0.06
 printf '\t}\n'
 site_head BopKrakenChamber
-node "$(lerp ${BOP[0]} ${BOP[2]} 0.9)" "$(lerp ${BOP[1]} ${BOP[3]} 0.9)" 650 150 90 geode
+node $(along ${BOP[@]} 0.9) 650 150 90 geode
 printf '\t}\n'
 field BopCaverns lava "Valley, Slopes, Peaks, Ridges, Poles" 1 "40, 300" "800, 5000" "40, 300" "1500, 4000" 0.4 0.3 0.7 95
 scatter IceCrystals "Subterra/Props/IceCluster01" floor "TubeGallery, TubeChamber, TubeBranch" 0.8 "0.4, 2" 0.8 false 0.02 0.35 1.5 0.15

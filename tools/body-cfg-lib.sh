@@ -46,3 +46,14 @@ water() {
   [ -n "${2:-}" ] && printf '\t\t\twaterColour = %s\n' "$2"
   return 0
 }
+# A point at fraction t along a track (lat0 lon0 lat1 lon1), pushed sideways so the track bends naturally (two
+# swings of seeded phase, up to ~12% of its length, none at the ends): named sites follow a winding course, not a ruler.
+along() { # lat0 lon0 lat1 lon1 t  ->  "lat lon"
+  awk -v a0="$1" -v o0="$2" -v a1="$3" -v o1="$4" -v t="$5" 'BEGIN {
+    pi = 3.14159265; la = a0 + (a1 - a0) * t; lo = o0 + (o1 - o0) * t;
+    c = cos(la * pi / 180); dla = a1 - a0; dlo = (o1 - o0) * c; n = sqrt(dla * dla + dlo * dlo);
+    if (n == 0) { printf "%.5f %.5f", la, lo; exit }
+    f1 = a0 * 12.9898 + o0 * 78.233; f1 = (f1 - int(f1)) * 2 * pi; f2 = (f1 * 7.3) % (2 * pi);
+    s = 0.12 * n * sin(pi * t) * (0.7 * sin(2 * pi * 1.3 * t + f1) + 0.3 * sin(2 * pi * 2.7 * t + f2));
+    printf "%.5f %.5f", la + (-dlo / n) * s, lo + (dla / n) * s / c }'
+}

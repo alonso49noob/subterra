@@ -40,7 +40,7 @@ printf '\t}\n'
 # Flats Gallery: a broad, low ice cave under the Great Flats, one skylight through the ice.
 site_head MinmusFlatsGallery
 node "${FLATS[0]}" "${FLATS[1]}" 25 90 25 skylight 20
-node "$(lerp ${FLATS[0]} ${FLATS[2]} 0.5)" "$(lerp ${FLATS[1]} ${FLATS[3]} 0.5)" 35 160 35 chamber
+node $(along ${FLATS[@]} 0.5) 35 160 35 chamber
 node "${FLATS[2]}" "${FLATS[3]}" 40 110 30 end
 edge 0 1 0.35 0.04; edge 1 2 0.35 0.04
 printf '\t}\n'
@@ -48,7 +48,7 @@ printf '\t}\n'
 # Slope Caves: a winding ice tube in the slopes, under a thin roof of ice (green daylight shows through it).
 site_head MinmusIceCaves
 node "${SLOPES[0]}" "${SLOPES[1]}" 20 40 20 skylight 12
-node "$(lerp ${SLOPES[0]} ${SLOPES[2]} 0.5)" "$(lerp ${SLOPES[1]} ${SLOPES[3]} 0.5)" 12 50 25
+node $(along ${SLOPES[@]} 0.5) 12 50 25
 node "${SLOPES[2]}" "${SLOPES[3]}" 30 60 30 end
 edge 0 1 0.5 0.06; edge 1 2 0.5 0.06
 printf '\t}\n'

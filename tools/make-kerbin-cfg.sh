@@ -54,7 +54,7 @@ printf '\t}\n'
 # KSC Cave: a small cave a short drive west of the runway, one sinkhole entrance: the first cave a career meets.
 site_head KscCave
 node "${KSC[0]}" "${KSC[1]}" 18 40 18 skylight 14
-node "$(lerp ${KSC[0]} ${KSC[2]} 0.5)" "$(lerp ${KSC[1]} ${KSC[3]} 0.5)" 30 60 25 chamber
+node $(along ${KSC[@]} 0.5) 30 60 25 chamber
 node "${KSC[2]}" "${KSC[3]}" 40 30 20 end
 edge 0 1 0.5 0.1; edge 1 2 0.6 0.1
 printf '\t}\n'
@@ -62,17 +62,20 @@ printf '\t}\n'
 # Great Hall: a vast karst chamber under the highlands north of the KSC, entered by a doline.
 site_head KerbinGreatHall
 node "${HALL[0]}" "${HALL[1]}" 40 50 40 skylight 25
-node "$(lerp ${HALL[0]} ${HALL[2]} 0.5)" "$(lerp ${HALL[1]} ${HALL[3]} 0.5)" 160 450 180 chamber
+node $(along ${HALL[@]} 0.5) 160 450 180 chamber
 node "${HALL[2]}" "${HALL[3]}" 120 60 50 end
 edge 0 1 0.4 0.1; edge 1 2 0.5 0.1
 printf '\t}\n'
 
-# Cenotes: three sinkholes along a passage near the coast, each with a pool of still water 12 m deep.
+# Cenotes: three sinkholes along a passage near the coast: lobed rims, walls overhanging a pool about 20 m down.
+cenote() { # lat lon: a skylight node shaped as a cenote, its water 5 m under the cave roof
+  node "$1" "$2" 15 70 35 skylight 22 30 | sed '/skylightRadius/a\			cenote = true'
+}
 site_head KerbinCenotes
 for i in 0 1 2 3 4 5 6; do
   t=$(awk -v i=$i 'BEGIN { printf "%.3f", i / 6 }')
-  if [ $((i % 3)) -eq 0 ]; then node "$(lerp ${CENOTES[0]} ${CENOTES[2]} $t)" "$(lerp ${CENOTES[1]} ${CENOTES[3]} $t)" 20 70 35 skylight 30 12
-  else node "$(lerp ${CENOTES[0]} ${CENOTES[2]} $t)" "$(lerp ${CENOTES[1]} ${CENOTES[3]} $t)" 30 40 30; fi
+  if [ $((i % 3)) -eq 0 ]; then cenote $(along ${CENOTES[@]} $t)
+  else node $(along ${CENOTES[@]} $t) 30 40 30; fi
 done
 for i in 0 1 2 3 4 5; do edge $i $((i + 1)) 0.5 0.1; done
 printf '\t}\n'

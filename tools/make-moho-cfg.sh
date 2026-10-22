@@ -68,8 +68,8 @@ printf '\t}\n'
 site_head MohoPlainsTubes
 for i in 0 1 2 3 4; do
   t=$(awk -v i=$i 'BEGIN { printf "%.3f", i / 4 }')
-  if [ $i -eq 0 ] || [ $i -eq 4 ]; then node "$(lerp ${PLAINS[0]} ${PLAINS[2]} $t)" "$(lerp ${PLAINS[1]} ${PLAINS[3]} $t)" 40 120 45 skylight 25
-  else node "$(lerp ${PLAINS[0]} ${PLAINS[2]} $t)" "$(lerp ${PLAINS[1]} ${PLAINS[3]} $t)" 60 150 55; fi
+  if [ $i -eq 0 ] || [ $i -eq 4 ]; then node $(along ${PLAINS[@]} $t) 40 120 45 skylight 25
+  else node $(along ${PLAINS[@]} $t) 60 150 55; fi
 done
 for i in 0 1 2 3; do edge $i $((i + 1)) 0.3 0.05; done
 printf '\t}\n'

@@ -56,8 +56,8 @@ printf '\t}\n'
 site_head DunaCatena
 for i in 0 1 2 3 4 5 6 7 8 9 10; do
   t=$(awk -v i=$i 'BEGIN { printf "%.3f", i / 10 }')
-  if [ $((i % 2)) -eq 1 ]; then node "$(lerp ${CATENA[0]} ${CATENA[2]} $t)" "$(lerp ${CATENA[1]} ${CATENA[3]} $t)" 35 90 40 skylight 25
-  else node "$(lerp ${CATENA[0]} ${CATENA[2]} $t)" "$(lerp ${CATENA[1]} ${CATENA[3]} $t)" 50 110 45; fi
+  if [ $((i % 2)) -eq 1 ]; then node $(along ${CATENA[@]} $t) 35 90 40 skylight 25
+  else node $(along ${CATENA[@]} $t) 50 110 45; fi
 done
 for i in 0 1 2 3 4 5 6 7 8 9; do edge $i $((i + 1)) 0.15 0.05; done
 printf '\t}\n'
@@ -65,7 +65,7 @@ printf '\t}\n'
 # Volcano Tubes: tubes running down the flank of a dormant shield volcano, with a big chamber halfway.
 site_head DunaVolcanoTubes
 node "${VOLCANO[0]}" "${VOLCANO[1]}" 40 70 30 skylight 20
-node "$(lerp ${VOLCANO[0]} ${VOLCANO[2]} 0.5)" "$(lerp ${VOLCANO[1]} ${VOLCANO[3]} 0.5)" 90 220 80 chamber
+node $(along ${VOLCANO[@]} 0.5) 90 220 80 chamber
 node "${VOLCANO[2]}" "${VOLCANO[3]}" 70 90 35 skylight 18
 edge 0 1 0.3 0.06; edge 1 2 0.3 0.06
 printf '\t}\n'
@@ -73,7 +73,7 @@ printf '\t}\n'
 # Polar Ice Cave: a dark tube under the north polar cap, ice on the walls (old air trapped in it).
 site_head DunaPolarIce
 node "${POLAR[0]}" "${POLAR[1]}" 40 60 25 skylight 15
-node "$(lerp ${POLAR[0]} ${POLAR[2]} 0.5)" "$(lerp ${POLAR[1]} ${POLAR[3]} 0.5)" 60 80 30
+node $(along ${POLAR[@]} 0.5) 60 80 30
 node "${POLAR[2]}" "${POLAR[3]}" 70 100 35 end
 edge 0 1 0.3 0.05; edge 1 2 0.3 0.05
 printf '\t}\n'
@@ -81,7 +81,7 @@ printf '\t}\n'
 # Canyon Caves: wide, low chambers under the floor of the Midland Canyon, near its walls.
 site_head DunaCanyonCaves
 node "${CANYON[0]}" "${CANYON[1]}" 30 120 30 skylight 25
-node "$(lerp ${CANYON[0]} ${CANYON[2]} 0.5)" "$(lerp ${CANYON[1]} ${CANYON[3]} 0.5)" 45 160 40 chamber
+node $(along ${CANYON[@]} 0.5) 45 160 40 chamber
 node "${CANYON[2]}" "${CANYON[3]}" 40 100 30 end
 edge 0 1 0.35 0.07; edge 1 2 0.35 0.07
 printf '\t}\n'
@@ -158,8 +158,8 @@ printf '\t}\n'
 site_head IkeTrench
 for i in 0 1 2 3 4; do
   t=$(awk -v i=$i 'BEGIN { printf "%.3f", i / 4 }')
-  if [ $i -eq 1 ] || [ $i -eq 3 ]; then node "$(lerp ${IKE[0]} ${IKE[2]} $t)" "$(lerp ${IKE[1]} ${IKE[3]} $t)" 30 40 60 skylight 15
-  else node "$(lerp ${IKE[0]} ${IKE[2]} $t)" "$(lerp ${IKE[1]} ${IKE[3]} $t)" 45 50 70; fi
+  if [ $i -eq 1 ] || [ $i -eq 3 ]; then node $(along ${IKE[@]} $t) 30 40 60 skylight 15
+  else node $(along ${IKE[@]} $t) 45 50 70; fi
 done
 for i in 0 1 2 3; do edge $i $((i + 1)) 0.05 0.08; done
 printf '\t}\n'

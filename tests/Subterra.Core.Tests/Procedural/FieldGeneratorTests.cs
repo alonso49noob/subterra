@@ -102,7 +102,8 @@ namespace Subterra.Core.Tests.Procedural
 
                     if (s.Nodes[i].Feature == NodeFeature.Skylight)
                     {
-                        if (lastSkylight.HasValue)
+                        // Spaced as the field says, except a pit-chain pair: the next node down the tube (one step).
+                        if (lastSkylight.HasValue && along - lastSkylight.Value > FieldGenerator.StepLength + 1)
                         {
                             Assert.InRange(along - lastSkylight.Value, 2000 - 500, 6000 + 500);
                             gaps++;
@@ -184,7 +185,7 @@ namespace Subterra.Core.Tests.Procedural
         // Networks are the same in every save and for every player (Lucas's ruling: maps must stay valid),
         // so the generator's output is pinned. If this fails, a change moved existing networks: undo it, or,
         // if it is deliberate, note it in the CHANGELOG and update the fingerprint.
-        private const string Fingerprint = "46F96D9145A76560";
+        private const string Fingerprint = "F24BD4AAD1D88A24";
 
         [Fact]
         public void OutputIsPinned()
