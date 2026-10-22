@@ -10,7 +10,7 @@ namespace Subterra.Core.Config
     /// </summary>
     public static class BodyMerge
     {
-        private static readonly HashSet<string> Appended = new HashSet<string> { "TUBE_SITE", "TUBE_FIELD", "CAVE_SCATTER", "ENRICHMENT" };
+        private static readonly HashSet<string> Appended = new HashSet<string> { "TUBE_SITE", "TUBE_FIELD", "CAVE_SCATTER", "ENRICHMENT", "RELIEF" };
 
         /// <summary>One merged node per body name (first-seen order); nodes without <c>body</c> are returned unmerged.</summary>
         public static List<CfgNode> MergeBodies(IEnumerable<CfgNode> nodes)

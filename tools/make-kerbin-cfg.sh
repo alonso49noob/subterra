@@ -95,6 +95,24 @@ site_head KerbinDeepGeode
 anode ${KIMBERLITE[0]} ${KIMBERLITE[1]} -4100 60 40 geode
 printf '\t}\n'
 
+# The Verne Route (a nod to Journey to the Centre of the Earth): down the crater of a dormant volcano, a tube to the
+# Lidenbrock Sea (a vast chamber 3 km under the datum), and up again to the crater of a second volcano 30 km east.
+volcano Sneffels -8.33 1.45 8000 2000 700 380
+volcano Stromboli -8.33 4.31 6000 1600 500 300
+site_head KerbinVerneRoute
+node -8.33 1.45 30 60 40 skylight 25
+anode -8.33 1.75 1200 60 35
+anode -8.33 2.10 -200 80 40
+anode -8.33 2.45 -1600 100 45
+anode -8.33 2.88 -3000 500 200 chamber
+anode -8.33 3.30 -1600 100 45
+anode -8.33 3.70 -200 80 40
+anode -8.33 4.05 1100 60 35
+node -8.33 4.31 30 50 35 skylight 22
+for i in 0 1 2 3 4 5 6 7; do edge $i $((i + 1)) 0.35 0.08; done
+printf '	}
+'
+
 cat <<'EOF'
 	TUBE_FIELD
 	{

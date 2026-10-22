@@ -150,6 +150,8 @@ namespace Subterra
         /// <summary>Metres per tile of the terrain textures on cave meshes (the meshes' UVs are 4 m per tile).</summary>
         private const float TerrainMetersPerTile = 12f;
 
+        private const float ArrayTerrainMetersPerTile = 32f;
+
         // A Bumped Specular material from two textures of the body's PQS material, or null if it has not got them.
         private static Material FromTerrain(CelestialBody body, string albedoProperty, string normalProperty, Color tint)
         {
@@ -161,6 +163,7 @@ namespace Subterra
 
             // Low-quality material first where it exists: the texture-array terrain shader (Kerbin) keeps its real textures
             // there, the high-quality one only has a fallback.
+            bool arrayTerrain = terrain.shader.name.Contains("Texture Array");
             Material low = body.pqsController.lowQualitySurfaceMaterial;
             if (low != null && low.HasProperty(albedoProperty) && low.GetTexture(albedoProperty) is Texture lowAlbedo && terrain.shader.name.Contains("Texture Array"))
             {
@@ -179,7 +182,10 @@ namespace Subterra
                 material.SetTexture("_BumpMap", Texture("Rock_n", true));
             }
 
-            var scale = new Vector2(MetersPerUv / TerrainMetersPerTile, MetersPerUv / TerrainMetersPerTile);
+            // Texture-array terrains (Kerbin) have contrasted rock textures made for far views: tiled wider, or their
+            // repetition shows across big chambers.
+            float tile = arrayTerrain ? ArrayTerrainMetersPerTile : TerrainMetersPerTile;
+            var scale = new Vector2(MetersPerUv / tile, MetersPerUv / tile);
             material.SetTextureScale("_MainTex", scale);
             material.SetTextureScale("_BumpMap", scale);
             material.SetColor("_Color", tint);

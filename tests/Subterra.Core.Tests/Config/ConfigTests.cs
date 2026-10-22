@@ -145,7 +145,8 @@ SUBTERRA_BODY
 
             var kerbin = Parse("Data/shipped-Kerbin.cfg");
             Assert.Empty(kerbin.Warnings);
-            Assert.Equal(new[] { "KscCave", "KerbinGreatHall", "KerbinCenotes", "KerbinKimberlite", "KerbinDeepGeode" }, kerbin.Value.Sites.Select(s => s.Name));
+            Assert.Equal(new[] { "KscCave", "KerbinGreatHall", "KerbinCenotes", "KerbinKimberlite", "KerbinDeepGeode", "KerbinVerneRoute" }, kerbin.Value.Sites.Select(s => s.Name));
+            Assert.Equal(2, kerbin.Value.Reliefs.Count);
             Assert.Equal(FieldStyle.Karst, kerbin.Value.Fields.Single(f => f.Name == "KerbinKarst").Style);
         }
 

@@ -122,6 +122,8 @@ namespace Subterra
             }
 
             var runtime = new BodyRuntime(spec, body);
+            // Relief first: the named sites below sample the terrain it shapes.
+            PQSMod_SubterraRelief.Attach(runtime);
             foreach (SiteSpec site in spec.Sites)
             {
                 TubeNetwork network = CompileNamed(site, body);

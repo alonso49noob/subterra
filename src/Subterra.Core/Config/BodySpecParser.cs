@@ -87,6 +87,15 @@ namespace Subterra.Core.Config
                 }
             }
 
+            foreach (CfgNode relief in node.GetNodes("RELIEF"))
+            {
+                ReliefSpec parsed = ParseRelief(relief, r);
+                if (parsed != null)
+                {
+                    spec.Reliefs.Add(parsed);
+                }
+            }
+
             foreach (CfgNode enrichment in node.GetNodes("ENRICHMENT"))
             {
                 EnrichmentSpec parsed = ParseEnrichment(enrichment, r);
@@ -347,6 +356,75 @@ namespace Subterra.Core.Config
             }
 
             return field;
+        }
+
+        // RELIEF { name kind = volcano|rille ... }: volcano lat lon radius height craterRadius craterDepth; rille point = lat, lon (2+),
+        // width depth bridge = fraction, length (any).
+        private static ReliefSpec ParseRelief(CfgNode node, Reader parent)
+        {
+            string name = node.GetValue("name");
+            if (string.IsNullOrEmpty(name))
+            {
+                parent.Warn("RELIEF without 'name' skipped");
+                return null;
+            }
+
+            Reader r = parent.Sub("RELIEF " + name);
+            var relief = new ReliefSpec { Name = name, Kind = r.Enum(node, "kind", ReliefKind.Volcano) };
+            if (relief.Kind == ReliefKind.Volcano)
+            {
+                relief.Lat = r.Double(node, "lat", double.NaN);
+                relief.Lon = r.Double(node, "lon", double.NaN);
+                relief.Radius = Clamp(r.Double(node, "radius", relief.Radius), 100, 200000, r, "radius");
+                relief.Height = Clamp(r.Double(node, "height", relief.Height), -20000, 20000, r, "height");
+                relief.CraterRadius = Clamp(r.Double(node, "craterRadius", relief.CraterRadius), 0, relief.Radius, r, "craterRadius");
+                relief.CraterDepth = Clamp(r.Double(node, "craterDepth", relief.CraterDepth), 0, 20000, r, "craterDepth");
+                if (double.IsNaN(relief.Lat) || double.IsNaN(relief.Lon))
+                {
+                    r.Warn("needs lat and lon; skipped");
+                    return null;
+                }
+
+                return relief;
+            }
+
+            foreach (string point in node.GetValues("point"))
+            {
+                List<string> parts = SplitList(point);
+                if (parts.Count == 2 && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double lat)
+                    && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double lon))
+                {
+                    relief.Path.Add((lat, lon));
+                }
+                else
+                {
+                    r.Warn($"point '{point}' is not 'lat, lon'; ignored");
+                }
+            }
+
+            relief.Width = Clamp(r.Double(node, "width", relief.Width), 20, 20000, r, "width");
+            relief.Depth = Clamp(r.Double(node, "depth", relief.Depth), 1, 5000, r, "depth");
+            foreach (string bridge in node.GetValues("bridge"))
+            {
+                List<string> parts = SplitList(bridge);
+                if (parts.Count == 2 && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double at)
+                    && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double length))
+                {
+                    relief.Bridges.Add((Math.Max(0, Math.Min(1, at)), Math.Max(0, length)));
+                }
+                else
+                {
+                    r.Warn($"bridge '{bridge}' is not 'fraction, length'; ignored");
+                }
+            }
+
+            if (relief.Path.Count < 2)
+            {
+                r.Warn("a rille needs at least two points; skipped");
+                return null;
+            }
+
+            return relief;
         }
 
         private static ScatterSpec ParseScatter(CfgNode node, Reader parent)

@@ -27,3 +27,7 @@ scatter() { # name models placement zones density scale align collide [noiseFreq
   printf '\t\talignToSurface = %s\n\t\tnoiseMask\n\t\t{\n\t\t\tfrequency = %s\n\t\t\tthreshold = %s\n\t\t}\n\t\tlodDistances = 100, 400\n\t\tcollide = %s\n\t}\n' "$7" "${9:-0.02}" "${10:-0.35}" "$8"
 }
 rule() { printf '\tENRICHMENT\n\t{\n\t\tresource = %s\n' "$1"; [ -n "$2" ] && printf '\t\tzone = %s\n' "$2"; [ -n "$3" ] && printf '\t\tlayer = %s\n' "$3"; [ -n "$4" ] && printf '\t\tmultiplier = %s\n' "$4"; [ -n "$5" ] && printf '\t\tminAbundance = %s\n' "$5"; printf '\t}\n'; }
+# Terrain relief (PQSMod_SubterraRelief): a volcano cone with a crater.
+volcano() { # name lat lon radius height craterRadius craterDepth
+  printf '\tRELIEF\n\t{\n\t\tname = %s\n\t\tkind = volcano\n\t\tlat = %s\n\t\tlon = %s\n\t\tradius = %s\n\t\theight = %s\n\t\tcraterRadius = %s\n\t\tcraterDepth = %s\n\t}\n' "$@"
+}

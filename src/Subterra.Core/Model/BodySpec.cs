@@ -27,5 +27,7 @@ namespace Subterra.Core.Model
         public List<ScatterSpec> Scatters { get; set; } = new List<ScatterSpec>();
 
         public List<EnrichmentSpec> Enrichment { get; set; } = new List<EnrichmentSpec>();
+
+        public List<ReliefSpec> Reliefs { get; set; } = new List<ReliefSpec>();
     }
 }
