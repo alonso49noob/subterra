@@ -321,7 +321,7 @@ namespace Subterra.Core.Procedural
 
                 if (site.Nodes[i].Feature == NodeFeature.None && rng.NextDouble() < f.ChamberChance)
                 {
-                    site.Nodes[i].Feature = NodeFeature.Chamber;
+                    MakeChamber(site.Nodes[i]);
                 }
 
                 if (order < MaxBranchOrder)
@@ -332,6 +332,15 @@ namespace Subterra.Core.Procedural
         }
 
         private static Vec3d Direction(NodeSpec node) => BodyFrame.Direction(node.Lat, node.Lon);
+
+        // A chamber is a dome reaching a fifth of its height over the tube's roof and spreading a width all round, where
+        // the ground may be lower than at the node: its roof is pushed down so the dome stays under the ground
+        // (a dome breaking the surface opened to the sky with no rim).
+        private static void MakeChamber(NodeSpec node)
+        {
+            node.Feature = NodeFeature.Chamber;
+            node.Depth = Math.Max(node.Depth, 0.2 * 1.2 * node.Height + TubePath.MinRoof(node.Width) + 0.05 * node.Width + 5);
+        }
 
         // Karst: a passage per level (two or three levels, 30–80 m apart), each lower one starting a step from a node of the
         // one above (a steep ramp between them); tall, narrow, winding passages; rooms at some joins; dolines (rooms
@@ -385,8 +394,8 @@ namespace Subterra.Core.Procedural
                 AddPassage(site, lower, join, depth, width, rng);
                 if (site.Nodes[join].Feature == NodeFeature.None && rng.NextDouble() < 0.5 + f.ChamberChance)
                 {
-                    site.Nodes[join].Feature = NodeFeature.Chamber;
                     site.Nodes[join].Width = Math.Min(500, site.Nodes[join].Width * rng.Range(2, 4));
+                    MakeChamber(site.Nodes[join]);
                 }
             }
 
@@ -409,7 +418,7 @@ namespace Subterra.Core.Procedural
                 }
                 else
                 {
-                    node.Feature = NodeFeature.Chamber;
+                    MakeChamber(node);
                 }
             }
 

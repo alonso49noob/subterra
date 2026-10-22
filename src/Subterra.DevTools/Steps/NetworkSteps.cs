@@ -15,6 +15,7 @@ namespace Subterra.DevTools
         internal static void Register()
         {
             StepRegistry.Register("teleportToNetwork", TeleportToNetwork);
+            StepRegistry.Register("networkInfo", NetworkInfo);
         }
 
         /// <summary>The network named by <c>site</c> (a named site, or <c>procedural</c> = the nearest generated one).</summary>
@@ -38,6 +39,86 @@ namespace Subterra.DevTools
             return nearest ?? throw new InvalidOperationException("no procedural network generated yet");
         }
 
+        // networkInfo site = procedural — logs the network's nodes (feature, roof depth, width, height, terrain) and where its void
+        // comes within 1 m of the terrain outside its skylights (diagnostics).
+        private static IEnumerator NetworkInfo(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel ?? throw new InvalidOperationException("no active vessel");
+            TubeNetwork net = FindNetwork(node, vessel, out BodyRuntime runtime);
+            var lines = new System.Text.StringBuilder();
+            lines.AppendLine($"{net.Id}: {net.Site?.Nodes.Count} nodes, {net.Site?.Edges.Count} edges, {net.Primitives.Count} primitives, {net.Skylights.Count} skylights");
+            for (int i = 0; net.Site != null && i < net.Site.Nodes.Count; i++)
+            {
+                var n = net.Site.Nodes[i];
+                lines.AppendLine(Invariant($"  node {i}: {n.Feature} depth {n.Depth:F0} width {n.Width:F0} height {n.Height:F0} at {n.Lat:F4}, {n.Lon:F4}"));
+            }
+
+            // Void points near the surface, away from skylights.
+            int open = 0;
+            Aabb b = net.Bounds;
+            for (float x = b.Min.X; x <= b.Max.X; x += 8)
+            {
+                for (float y = b.Min.Y; y <= b.Max.Y; y += 8)
+                {
+                    for (float z = b.Min.Z; z <= b.Max.Z; z += 8)
+                    {
+                        var p = new Vec3(x, y, z);
+                        double above = net.AboveSurface(p);
+                        if (above < -1.5 || above > 0 || net.Sdf.Distance(p) >= 0)
+                        {
+                            continue;
+                        }
+
+                        int nearest = net.Sdf.NearestPrimitive(p);
+                        if (nearest >= 0 && net.Primitives[nearest] is Subterra.Core.Sdf.Shaft)
+                        {
+                            continue;
+                        }
+
+                        if (open++ < 12)
+                        {
+                            Vec3d bp = net.ToBody(p);
+                            Subterra.Core.Geo.BodyFrame.ToLatLon(bp.Normalized, out double la, out double lo);
+                            lines.AppendLine(Invariant($"  open to the surface at {la:F4}, {lo:F4} (primitive {nearest}: {net.Primitives[nearest].GetType().Name}, zone {net.Primitives[nearest].Zone})"));
+                        }
+                    }
+                }
+
+                if (x % 400 < 8)
+                {
+                    yield return null;
+                }
+            }
+
+            lines.AppendLine($"  {open} void samples within 1.5 m of the terrain outside skylights");
+            Debug.Log("[Subterra.DevTools] " + lines);
+            ctx.Pass($"{net.Id}: {open} open samples");
+        }
+
+        /// <summary>A node index, or "junction" (the node where most tubes meet) or "deepest".</summary>
+        private static int NodeIndex(TubeNetwork net, string arg)
+        {
+            if (string.Equals(arg, "junction", StringComparison.OrdinalIgnoreCase) && net.Site != null)
+            {
+                var degree = new int[net.Site.Nodes.Count];
+                foreach (var e in net.Site.Edges)
+                {
+                    degree[e.From]++;
+                    degree[e.To]++;
+                }
+
+                return Array.IndexOf(degree, degree.Max());
+            }
+
+            if (string.Equals(arg, "deepest", StringComparison.OrdinalIgnoreCase) && net.Site != null)
+            {
+                double max = net.Site.Nodes.Max(n => n.Depth);
+                return net.Site.Nodes.FindIndex(n => n.Depth == max);
+            }
+
+            return int.Parse(arg, System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         /// <summary>Body position <paramref name="offsetUp"/> m above the floor of node i (inside) or above the terrain over it.</summary>
         internal static Vec3d NodePosition(TubeNetwork net, int nodeIndex, bool inside, double offsetUp)
         {
@@ -56,7 +137,7 @@ namespace Subterra.DevTools
         {
             Vessel vessel = FlightGlobals.ActiveVessel ?? throw new InvalidOperationException("no active vessel");
             TubeNetwork net = FindNetwork(node, vessel, out _);
-            int index = (int)node.ArgDouble("node", 1);
+            int index = NodeIndex(net, node.Arg("node", "1"));
             bool inside = node.ArgBool("inside", true);
             double offsetUp = node.ArgDouble("offsetUp", 2);
             bool hold = node.ArgBool("hold", false);

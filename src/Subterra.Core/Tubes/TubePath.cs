@@ -30,10 +30,14 @@ namespace Subterra.Core.Tubes
             var points = new List<(double lat, double lon)>();
             for (int e = 0; e < site.Edges.Count; e++)
             {
-                foreach (Vec3d dir in Directions(site, e, bodyRadius))
+                List<Vec3d> dirs = Directions(site, e, bodyRadius);
+                for (int i = 0; i < dirs.Count; i++)
                 {
-                    BodyFrame.ToLatLon(dir, out double lat, out double lon);
-                    points.Add((lat, lon));
+                    foreach (Vec3d dir in CrossSection(site, e, dirs, i, bodyRadius))
+                    {
+                        BodyFrame.ToLatLon(dir, out double lat, out double lon);
+                        points.Add((lat, lon));
+                    }
                 }
             }
 
@@ -67,7 +71,13 @@ namespace Subterra.Core.Tubes
             {
                 double u = dirs.Count == 1 ? 0 : (double)i / (dirs.Count - 1);
                 BodyFrame.ToLatLon(dirs[i], out double lat, out double lon);
-                double surface = heights.SurfaceRadius(lat, lon);
+                // The roof clears the lowest ground across the tube (its centre and both sides), not just over its axis.
+                double surface = double.MaxValue;
+                foreach (Vec3d dir in CrossSection(site, edgeIndex, dirs, i, bodyRadius))
+                {
+                    BodyFrame.ToLatLon(dir, out double la, out double lo);
+                    surface = Math.Min(surface, heights.SurfaceRadius(la, lo));
+                }
                 double depth = Lerp(depthFrom, depthTo, u);
                 double width = Lerp(from.Width, to.Width, u);
                 double height = Lerp(from.Height, to.Height, u);
@@ -130,6 +140,37 @@ namespace Subterra.Core.Tubes
             return min;
         }
 
+        // The axis point i of edge e and the two points half a width to each side of it (across the path).
+        private static IEnumerable<Vec3d> CrossSection(SiteSpec site, int e, List<Vec3d> dirs, int i, double bodyRadius)
+        {
+            yield return dirs[i];
+            if (dirs.Count < 2)
+            {
+                yield break;
+            }
+
+            EdgeSpec edge = site.Edges[e];
+            double u = (double)i / (dirs.Count - 1);
+            double halfWidth = Lerp(site.Nodes[edge.From].Width, site.Nodes[edge.To].Width, u) * 0.5;
+            Vec3d along = dirs[Math.Min(i + 1, dirs.Count - 1)] - dirs[Math.Max(i - 1, 0)];
+            Vec3d side = Vec3d.Cross(dirs[i], along);
+            if (side.LengthSquared < 1e-24)
+            {
+                yield break;
+            }
+
+            side = side.Normalized * (halfWidth / bodyRadius);
+            yield return (dirs[i] + side).Normalized;
+            yield return (dirs[i] - side).Normalized;
+        }
+
+        /// <summary>Longest path step (m) for a tube with this roof: shallow tubes follow the ground closely.</summary>
+        public static double StepFor(double roofDepth) => Math.Max(MinStep, Math.Min(MaxStep, StepPerRoof * roofDepth));
+
+        public const double MinStep = 40;
+
+        private const double StepPerRoof = 6;
+
         // Unit directions along edge e, From to To inclusive, with the lateral wander applied.
         private static List<Vec3d> Directions(SiteSpec site, int e, double bodyRadius)
         {
@@ -155,7 +196,9 @@ namespace Subterra.Core.Tubes
                 previous = current;
             }
 
-            double maxAngle = MaxStep / (bodyRadius * StepSafety);
+            // Shallow tubes take shorter steps (the ground between two samples must not rise through their roof).
+            double roof = Math.Min(Math.Max(MinRoof(site.Nodes[edge.From].Width), site.Nodes[edge.From].Depth), Math.Max(MinRoof(site.Nodes[edge.To].Width), site.Nodes[edge.To].Depth));
+            double maxAngle = StepFor(roof) / (bodyRadius * StepSafety);
             int segments = Math.Max(1, (int)Math.Ceiling(length / maxAngle));
             var dirs = new List<Vec3d>(segments + 1);
             for (int i = 0; i <= segments; i++)
