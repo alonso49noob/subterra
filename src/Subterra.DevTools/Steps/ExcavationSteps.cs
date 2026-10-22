@@ -71,7 +71,8 @@ namespace Subterra.DevTools
         }
 
         // moduleEvent module = ModuleSubterraCoreDrill event = StartDrilling — runs a module's KSPEvent.
-        // With all = true it runs on every module of that name on the tracked vessel (not only the first).
+        // With all = true it runs on every module of that name on the tracked vessel (not only the first); with
+        // part = SubterraEco on the first one on a part of that name.
         private static IEnumerator ModuleEvent(ConfigNode node, TestContext ctx)
         {
             string moduleName = node.RequireArg("module");
@@ -85,6 +86,14 @@ namespace Subterra.DevTools
                 {
                     throw new InvalidOperationException($"no {moduleName} on {vessel.GetDisplayName()}");
                 }
+            }
+            else if (node.HasValue("part"))
+            {
+                Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+                string partName = node.RequireArg("part");
+                modules.Add(vessel.parts.Where(p => p.partInfo != null && p.partInfo.name == partName)
+                    .SelectMany(p => p.Modules.Cast<PartModule>()).FirstOrDefault(m => m.moduleName == moduleName)
+                    ?? throw new InvalidOperationException($"no {moduleName} on a {partName} of {vessel.GetDisplayName()}"));
             }
             else
             {

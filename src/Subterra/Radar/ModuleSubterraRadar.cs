@@ -18,8 +18,8 @@ namespace Subterra
     /// <summary>
     /// The subsurface radar instrument on a part: SR-E "Eco" (orbital radar sounder), SG-P "Plomada" (gravimeter)
     /// and, from task 18, the Zahori ground radar. This part of the module (task 13) starts and stops the
-    /// instrument, draws its electricity and reports whether it could scan; marking the coverage grid comes with
-    /// the scanning task.
+    /// instrument, draws its electricity and reports whether it could scan; <see cref="OrbitalScanner"/> (task 14)
+    /// marks the coverage grid from it.
     ///
     /// Power: while <see cref="scanning"/> is on, the part draws <see cref="powerUse"/> EC/s from the vessel every
     /// physics step. If the electricity runs out, <see cref="scanning"/> stays on (decidido por Claude, revisar):
@@ -63,7 +63,15 @@ namespace Subterra
 
         [KSPField(isPersistant = true)] public bool scanning;
         [KSPField(isPersistant = true)] public bool highBand;
+
+        /// <summary>
+        /// UT up to which <see cref="OrbitalScanner"/> has walked this instrument's ground track (its progress marker;
+        /// only the scanner and <see cref="StartScan"/> move it).
+        /// </summary>
         [KSPField(isPersistant = true)] public double lastScanUT;
+
+        /// <summary>The body <see cref="lastScanUT"/> belongs to: after a change of body the scanner starts afresh.</summary>
+        [KSPField(isPersistant = true)] public string lastScanBody = "";
 
         [KSPField(guiActive = true, guiName = "#Subterra_Radar_Status")]
         public string uiStatus = "";
@@ -82,6 +90,9 @@ namespace Subterra
         public void StartScan()
         {
             scanning = true;
+            // The orbital scanner walks the ground track from lastScanUT; a fresh start must not back-fill the past.
+            lastScanUT = Planetarium.GetUniversalTime();
+            lastScanBody = vessel != null && vessel.mainBody != null ? vessel.mainBody.bodyName : "";
             Refresh(false);
             UpdateEvents();
         }
@@ -224,7 +235,6 @@ namespace Subterra
             if (block == ScanBlock.None)
             {
                 IsScanningNow = true;
-                lastScanUT = Planetarium.GetUniversalTime();
                 uiStatus = Localizer.Format("#Subterra_Radar_Status_Scanning");
             }
             else

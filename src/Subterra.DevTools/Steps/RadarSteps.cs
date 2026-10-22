@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using Subterra.Core.Radar;
 using static System.FormattableString;
@@ -14,6 +15,71 @@ namespace Subterra.DevTools
         {
             StepRegistry.Register("radarMark", RadarMark);
             StepRegistry.Register("setResourceAmount", SetResourceAmount);
+            StepRegistry.Register("subPoint", SubPointStep);
+            StepRegistry.Register("radarSetLastScan", RadarSetLastScan);
+        }
+
+        /// <summary>Key prefix of the points subPoint keeps in TestContext.Snapshots (x = lat, y = lon, z = UT).</summary>
+        internal const string PointPrefix = "sub:";
+
+        // subPoint name = a - records where the active vessel is over its body (KSP's own latitude/longitude of the
+        // vessel) and the UT, as point a for coverageAt at = a / radarSetLastScan point = a. It also logs, for this
+        // point and every point recorded before, where OrbitalScanner.SubPoint puts the vessel at that point's UT
+        // with the orbit it has now, and how far that is from where the vessel really was: the check of the
+        // body-rotation correction for past UTs.
+        private static IEnumerator SubPointStep(ConfigNode node, TestContext ctx)
+        {
+            string name = node.RequireArg("name");
+            Vessel v = FlightGlobals.ActiveVessel ?? throw new InvalidOperationException("no active vessel");
+            double now = Planetarium.GetUniversalTime();
+            ctx.Snapshots[PointPrefix + name] = new Vector3d(v.latitude, v.longitude, now);
+            var lines = new List<string>();
+            foreach (var pair in ctx.Snapshots.Where(p => p.Key.StartsWith(PointPrefix)).OrderBy(p => p.Value.z))
+            {
+                OrbitalScanner.SubPoint(v.orbit, pair.Value.z, out double lat, out double lon, out double alt);
+                double km = Distance(pair.Value.x, pair.Value.y, lat, lon) * v.mainBody.Radius / 1000;
+                lines.Add(Invariant($"{pair.Key.Substring(PointPrefix.Length)} (UT {pair.Value.z:F0}, {now - pair.Value.z:F0} s ago): was lat {pair.Value.x:F3} lon {pair.Value.y:F3}, predicted lat {lat:F3} lon {lon:F3}, off {km:F2} km"));
+            }
+
+            ctx.Pass(Invariant($"{name}: {v.mainBody.bodyName} lat {v.latitude:F3} lon {v.longitude:F3} alt {v.altitude:F0} m at UT {now:F0}; ") + string.Join("; ", lines));
+            yield break;
+        }
+
+        // radarSetLastScan part = SubterraEco point = a - sets lastScanUT of the radar modules on that part of the tracked
+        // vessel to the UT of point a (subPoint), so the orbital scanner walks the track since then.
+        private static IEnumerator RadarSetLastScan(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+            string partName = node.RequireArg("part");
+            string point = node.RequireArg("point");
+            if (!ctx.Snapshots.TryGetValue(PointPrefix + point, out Vector3d p))
+            {
+                throw new ArgumentException("no point " + point + " (subPoint first)");
+            }
+
+            var modules = vessel.parts.Where(x => x.partInfo != null && x.partInfo.name == partName)
+                .SelectMany(x => x.Modules.OfType<ModuleSubterraRadar>()).ToList();
+            if (modules.Count == 0)
+            {
+                throw new InvalidOperationException($"no radar module on a {partName} of {vessel.GetDisplayName()}");
+            }
+
+            foreach (ModuleSubterraRadar m in modules)
+            {
+                m.lastScanUT = p.z;
+            }
+
+            ctx.Pass(Invariant($"lastScanUT of {modules.Count} module(s) on {partName} = {p.z:F0} ({Planetarium.GetUniversalTime() - p.z:F0} s ago)"));
+            yield break;
+        }
+
+        // Great-circle angle in radians between two points given in degrees.
+        internal static double Distance(double lat1, double lon1, double lat2, double lon2)
+        {
+            const double Rad = Math.PI / 180;
+            double a = Math.Sin(lat1 * Rad) * Math.Sin(lat2 * Rad)
+                + Math.Cos(lat1 * Rad) * Math.Cos(lat2 * Rad) * Math.Cos((lon1 - lon2) * Rad);
+            return Math.Acos(Math.Max(-1, Math.Min(1, a)));
         }
 
         // radarMark body = Mun lat = 0 lon = 0 altitude = 30000 halfWidth = 2000 instrument = OrbitalRadar hint = MN-test#0
