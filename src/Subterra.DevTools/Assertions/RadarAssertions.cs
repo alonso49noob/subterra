@@ -23,6 +23,28 @@ namespace Subterra.DevTools
             StepRegistry.RegisterAssertion("noHintNarrowerThan", NoHintNarrowerThan);
             StepRegistry.RegisterAssertion("cellsReady", CellsReady);
             StepRegistry.RegisterAssertion("mapOverlay", MapOverlayState);
+            StepRegistry.RegisterAssertion("cavityLookups", CavityLookups);
+        }
+
+        // cavityLookups body = Mun count = 100000 maxMs = 100 - count lookups of SubterraCavity over the body (a lat/lon
+        // sweep) rebuild nothing (the raster is cached per body) and take at most maxMs together.
+        private static bool CavityLookups(ConfigNode node, TestContext ctx)
+        {
+            string body = node.RequireArg("body");
+            int count = (int)node.ArgDouble("count", 100000);
+            CavityAbundance.At(body, 0, 0); // a change since the last lookup is paid here, not below
+            int builds = CavityAbundance.Builds;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            double sum = 0;
+            for (int i = 0; i < count; i++)
+            {
+                sum += CavityAbundance.At(body, -90 + 180.0 * (i * 37 % 720) / 720, -180 + 360.0 * (i * 101 % 1440) / 1440);
+            }
+
+            double ms = watch.Elapsed.TotalMilliseconds;
+            int rebuilt = CavityAbundance.Builds - builds;
+            ctx.Detail = Invariant($"{count} lookups of {body} took {ms:F1} ms ({rebuilt} rebuild(s), {CavityAbundance.Builds} in all, last {CavityAbundance.LastBuildMs:F2} ms, sum {sum:F1})");
+            return rebuilt == 0 && ms <= node.ArgDouble("maxMs", 100);
         }
 
         // mapOverlay body = Mun uploads = 1 maxUploadMs = 4 lat = 0 lon = 0 alpha = 40 - the map overlay is on that body

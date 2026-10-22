@@ -149,6 +149,17 @@ namespace Subterra.Core.Radar
     {
         private readonly object _lock = new object();
         private readonly Dictionary<string, NetworkDetection> _byNetwork = new Dictionary<string, NetworkDetection>();
+        private int _version;
+
+        /// <summary>
+        /// Rises every time the records change (a detection that improved anything, <see cref="Put"/>,
+        /// <see cref="Clear"/>), so a reader that caches something derived from them can tell it is stale with one
+        /// int compare. Starts at 0 for each store: a reader that outlives a store must also compare the store itself.
+        /// </summary>
+        public int Version
+        {
+            get { lock (_lock) return _version; }
+        }
 
         /// <summary>
         /// Fires once each time a network's best level rises (None to Hint, Hint to Detected, None straight to
@@ -169,15 +180,21 @@ namespace Subterra.Core.Radar
 
             NetworkDetection raisedCopy = null;
             var improved = false;
+            var changed = false;
             lock (_lock)
             {
                 if (!_byNetwork.TryGetValue(t.NetworkId, out var n))
                 {
+                    changed = true;
                     n = new NetworkDetection { NetworkId = t.NetworkId, Body = body, Level = DetectionLevel.None };
                     _byNetwork[t.NetworkId] = n;
                 }
 
-                if (t.Id == null || n.SeenTargets.Add(t.Id)) n.AddToCentroid(t.Lat, t.Lon);
+                if (t.Id == null || n.SeenTargets.Add(t.Id))
+                {
+                    n.AddToCentroid(t.Lat, t.Lon);
+                    changed = true;
+                }
 
                 var first = n.Level == DetectionLevel.None;
                 if (d.Level > n.Level)
@@ -207,6 +224,7 @@ namespace Subterra.Core.Radar
                 }
 
                 if (raisedCopy != null) raisedCopy = n.Clone();
+                if (changed || improved) _version++;
             }
 
             if (raisedCopy != null) LevelRaised?.Invoke(raisedCopy, raisedCopy.Level);
@@ -216,7 +234,11 @@ namespace Subterra.Core.Radar
         /// <summary>Forgets every record. Does not fire <see cref="LevelRaised"/>.</summary>
         public void Clear()
         {
-            lock (_lock) _byNetwork.Clear();
+            lock (_lock)
+            {
+                _byNetwork.Clear();
+                _version++;
+            }
         }
 
         /// <summary>A copy of the record for the network, or null if nothing was found there.</summary>
@@ -254,7 +276,11 @@ namespace Subterra.Core.Radar
             if (d == null || string.IsNullOrEmpty(d.NetworkId)) return;
             var copy = d.Clone();
             copy.SeedCentroid();
-            lock (_lock) _byNetwork[copy.NetworkId] = copy;
+            lock (_lock)
+            {
+                _byNetwork[copy.NetworkId] = copy;
+                _version++;
+            }
         }
     }
 }

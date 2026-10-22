@@ -13,6 +13,8 @@ namespace Subterra
     /// Patch <c>resources</c>: abundance requests whose point (latitude, longitude, altitude) lies in a
     /// cave get the body's ENRICHMENT rules for that zone and rock layer. Stock drills work inside.
     /// Rules for resources the game does not know are dropped at load (one warning each).
+    /// The same postfix gives <c>SubterraCavity</c> (the radar's layer for SCANsat) its abundance from this save's
+    /// detections, see <see cref="CavityAbundance"/>.
     /// </summary>
     public static class ResourcePatch
     {
@@ -76,10 +78,32 @@ namespace Subterra
             return Enrichment.Apply(rules, request.ResourceName, zone, layer, baseAbundance);
         }
 
+        /// <summary>
+        /// The confidence of the radar's detections at the request's point. decidido por Claude, revisar: a request
+        /// with ExcludeVariance is the stock summary (ResourceCache builds the KerbNet resource chart from requests at
+        /// latitude 0, longitude 0 with it); answering 0 keeps SubterraCavity out of that chart, which lists only
+        /// resources with a positive summary. SCANsat and the part readouts ask without it.
+        /// </summary>
+        private static float Cavity(AbundanceRequest request)
+        {
+            if (request.ExcludeVariance || request.BodyId < 0 || request.BodyId >= FlightGlobals.Bodies.Count)
+            {
+                return 0f;
+            }
+
+            return CavityAbundance.At(FlightGlobals.Bodies[request.BodyId].bodyName, request.Latitude, request.Longitude);
+        }
+
         private static void Postfix(AbundanceRequest request, ref float __result)
         {
             try
             {
+                if (request.ResourceName == CavityAbundance.ResourceName)
+                {
+                    __result = Cavity(request);
+                    return;
+                }
+
                 __result = (float)Enrich(request, __result);
             }
             catch (Exception e)

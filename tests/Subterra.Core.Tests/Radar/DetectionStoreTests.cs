@@ -250,5 +250,36 @@ namespace Subterra.Core.Tests.Radar
             Assert.Equal(1, raised);
             Assert.Equal(DetectionLevel.Hint, store.Get("net1").Level);
         }
+
+        [Fact]
+        public void VersionRisesOnlyWhenTheRecordsChange()
+        {
+            var store = new DetectionStore();
+            int v0 = store.Version;
+
+            Assert.True(store.Apply("Mun", T("a", "net1", 0, 10, 20), Hint(u: 100)));
+            int v1 = store.Version;
+            Assert.True(v1 > v0);
+
+            // The same target seen again with nothing better: nothing changed, so the version stays.
+            Assert.False(store.Apply("Mun", T("a", "net1", 0, 10, 20), Hint(u: 100)));
+            Assert.Equal(v1, store.Version);
+
+            // A second target moves the centroid even if the level and the uncertainty do not improve.
+            store.Apply("Mun", T("b", "net1", 1, 12, 22), Hint(u: 100));
+            int v2 = store.Version;
+            Assert.True(v2 > v1);
+
+            Assert.True(store.Apply("Mun", T("a", "net1", 0, 10, 20), Det()));
+            int v3 = store.Version;
+            Assert.True(v3 > v2);
+
+            store.Put(new NetworkDetection { NetworkId = "net2", Body = "Mun", Level = DetectionLevel.Hint });
+            int v4 = store.Version;
+            Assert.True(v4 > v3);
+
+            store.Clear();
+            Assert.True(store.Version > v4);
+        }
     }
 }

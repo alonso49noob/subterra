@@ -145,6 +145,28 @@ depuración de la reflexión (dos volcados de API, una que falló por un cast, c
   = <nombre localizado>` (`SCANUtil.displayNameFromBodyName`) y `CurrentResource`/`ResourceToggle`; la posición sale de
   `SCAN_Settings_Config.Instance.BigMapPosition` (x desde la izquierda, -y desde arriba) y debe fijarse antes de abrirlo.
 
+### Tarea 17: pruebas previas y lo que se hizo con el recurso (SCANsat 21.1)
+
+Corrida de comprobación (`20261022-183623-m6-scansat-full`, el spike con tres recursos más: C = `PresenceChance` 100, mín = máx =
+0,0001; D = lo mismo con máx 100; E = D con `isVisible = false`):
+
+- **`DefaultZero` depende solo de `PresenceChance`** (`SCANconfigLoader.loadResources`: `PresenceChance <= 0`). C, D y E salen con
+  `DefaultZero = False` y los tres aparecen en la lista de recursos del mapa grande con `HideZeroResources = True`. `isVisible = false`
+  no cambia nada para SCANsat (no mira ese campo). Con máx = mín = 0,0001 SCANsat sube el máximo de su escala a 1 (el mapa queda en
+  dos colores y un 40 % y un 100 % se ven igual); con máx = 100 la escala es de 0 a 100 y la pista (0,4) y la detección (1) se
+  distinguen (`bigmap-SubterraCavityC.png` contra `bigmap-SubterraCavityD.png`). Se eligió **D**: mín 0,0001, máx 100,
+  **[Claude, revisar]** (SCANsat lee esos valores como porcentajes; no son depósitos).
+- **Interfaz de stock.** El módulo `ModuleResourceScanner` de stock lee un `ResourceName` fijo por pieza (Ore en las de stock), así que nunca
+  muestra `SubterraCavity`. La gráfica de recursos del KerbNet sale de `ResourceMap.GetResourceItemList`, que suma los resúmenes de
+  `ResourceCache.AbundanceCache`, y esos resúmenes se piden **a través de `GetAbundance`** (latitud 0, longitud 0, `ExcludeVariance`), o
+  sea que ven el postfix. Con la distribución D y sin postfix el valor de stock es grande (0,11 a 0,76 según el punto; la gráfica de la
+  Mun listó `SubterraCavity = 0,349`, corrida `20261022-184149-radar-scansat-full`). Por eso el postfix contesta 0 a toda petición con
+  `ExcludeVariance` (**[Claude, revisar]**): la gráfica lista solo resúmenes positivos y el recurso no sale (corrida
+  `20261022-184419-radar-scansat-full`: gráfica de la Mun = solo `Ore`). SCANsat y las lecturas de pieza piden sin `ExcludeVariance`.
+- **SCANsat.cfg.** El mapa no necesita ningún módulo (basta el recurso). El parche solo agrega `SCANresourceDisplay` de `SubterraCavity` a
+  las piezas de recursos de SCANsat (`SurfaceScanner|OrbitalScanner|scansat-resources*`, la misma lista que usa su parche de
+  CommunityResourcePack), para que su lectura en el menú de la pieza lo incluya. Nada en Eco ni en Plomada (ruling R8).
+
 ## 3. Colocar un geófono en el suelo por EVA sin el DLC (Task 3)
 
 **Pregunta.** Con el perfil stock y sin el DLC, ¿un kerbal en EVA puede sacar de su inventario una pieza con
