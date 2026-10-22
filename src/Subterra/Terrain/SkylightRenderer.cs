@@ -174,7 +174,7 @@ namespace Subterra
                     e.World = Frames.ToWorld(body, e.Net.ToBody(e.Skylight.SurfaceCenter));
                     double distance = (e.World - camera).magnitude;
                     Quaternion rotation = pqsRotation * e.LocalRotation;
-                    if (distance < settings.VisualRange && e.Rim == null && !e.Building)
+                    if (distance < settings.VisualRange && e.Rim == null && !e.Building && !(e.Skylight.Smooth && settings.TerrainClip))
                     {
                         StartCoroutine(BuildRim(runtime, e));
                     }
@@ -193,7 +193,7 @@ namespace Subterra
                     }
 
                     bool open = SkylightInjector.IsOpen(body, e.Net, e.Skylight);
-                    bool showCap = distance < settings.CapRange && (!open || distance > settings.CapMinDistance);
+                    bool showCap = !e.Skylight.Smooth && distance < settings.CapRange && (!open || distance > settings.CapMinDistance);
                     if (showCap && e.Cap == null)
                     {
                         e.Cap = CreateCap(e);
@@ -610,6 +610,13 @@ namespace Subterra
         // immediate: sample the terrain right away (BuildRimNow) instead of in per-frame slices.
         private IEnumerator BuildRim(BodyRuntime runtime, Entry e, bool immediate = false)
         {
+            // A dug mouth clipped into the terrain needs no rim: the ground itself opens along its tunnel.
+            if (e.Skylight.Smooth && Settings.Current.TerrainClip)
+            {
+                e.Building = false;
+                yield break;
+            }
+
             e.Building = true;
             PQSMod_SubterraSkylight mod = SkylightInjector.ModFor(body.pqsController);
             // A smooth rim (tunnel mouth) is a whole disc that closes the cut ground, open only where the tunnel is.
@@ -617,8 +624,10 @@ namespace Subterra
             float outer = e.Skylight.Radius + (mod != null ? mod.CutReach : 60f) + 5f;
             var points = new List<(double lat, double lon)>();
             var planar = new List<Vec3>();
-            float[] radii = RingRadii(inner, outer, e.Skylight.Smooth ? e.Skylight.Radius + 2f : inner);
-            int segments = e.Skylight.Smooth ? SmoothSegments : Segments;
+            // A round opening clipped into the terrain itself needs only its hanging wall: one ring at its edge.
+            bool clipped = !e.Skylight.Smooth && Settings.Current.TerrainClip;
+            float[] radii = clipped ? new[] { e.Skylight.Radius } : RingRadii(inner, outer, e.Skylight.Smooth ? e.Skylight.Radius + 2f : inner);
+            int segments = e.Skylight.Smooth || clipped ? SmoothSegments : Segments;
             foreach (float radius in radii)
             {
                 for (int s = 0; s < segments; s++)
@@ -657,7 +666,9 @@ namespace Subterra
             // Every rim follows the terrain as built where it is not cut (no terrain showing through it), and takes its colour.
             Color? ground = FitToTerrainMesh(planar, heights, centre, up, e);
 
-            MeshData data = RimBuilder.Build(radii, segments, heights, Hash.Combine(Hash.Of(e.Net.Id), (ulong)e.Skylight.Index), e.Skylight.Smooth);
+            MeshData data = clipped
+                ? RimBuilder.Wall(e.Skylight.Radius, segments, heights)
+                : RimBuilder.Build(radii, segments, heights, Hash.Combine(Hash.Of(e.Net.Id), (ulong)e.Skylight.Index), e.Skylight.Smooth);
             if (e.Skylight.Smooth)
             {
                 data = OpenOverTunnel(data, e);
@@ -684,8 +695,13 @@ namespace Subterra
             var renderer = go.AddComponent<MeshRenderer>();
             // The terrain's own material with its own colours (per vertex, as the terrain has them): the rim reads as
             // ground. Without them (or with rimMaterial = texture), a textured approximation.
-            Material terrainLike = Settings.Current.RimMaterial == "terrain" && e.PointColours != null ? MaterialFactory.TerrainClone(body) : null;
-            if (terrainLike != null)
+            Material terrainLike = !clipped && Settings.Current.RimMaterial == "terrain" && e.PointColours != null ? MaterialFactory.TerrainClone(body) : null;
+            if (clipped)
+            {
+                // The hanging wall is rock, like the shaft under it.
+                renderer.sharedMaterial = MaterialFactory.ForLayer(null, body);
+            }
+            else if (terrainLike != null)
             {
                 mesh.colors = RimColours(mesh.vertexCount, e.PointColours, e.GroundColour ?? Color.gray);
                 renderer.sharedMaterial = terrainLike;

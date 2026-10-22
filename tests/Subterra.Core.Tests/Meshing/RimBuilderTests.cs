@@ -39,6 +39,22 @@ namespace Subterra.Core.Tests.Meshing
         }
 
         [Fact]
+        public void ClippedHoleWallFacesThePit()
+        {
+            float[] h = Enumerable.Range(0, Segments).Select(i => (float)(i % 3) * 0.2f).ToArray();
+            var m = RimBuilder.Wall(30, Segments, h);
+            Assert.Equal(2 * Segments, m.Vertices.Count);
+            for (int i = 0; i < m.Triangles.Count; i += 3)
+            {
+                Vec3 a = m.Vertices[m.Triangles[i]], b = m.Vertices[m.Triangles[i + 1]], c = m.Vertices[m.Triangles[i + 2]];
+                Vec3 centroid = (a + b + c) / 3f;
+                Assert.True(Vec3.Dot(Vec3.Cross(b - a, c - a), new Vec3(-centroid.X, 0, -centroid.Z)) > 0);
+            }
+
+            Assert.Equal(h[0] - RimBuilder.WallTopDrop, m.Vertices[0].Y, 4);
+        }
+
+        [Fact]
         public void SkirtIsTwoMetresBelowTheOuterRing()
         {
             var m = Rim();

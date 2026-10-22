@@ -31,7 +31,10 @@ namespace Subterra
         public float CapMinDistance = 1500;
 
         /// <summary>Skylight rims: "terrain" (the body's own terrain material and colours) or "texture" (a textured approximation).</summary>
-        public string RimMaterial = "terrain";
+        public string RimMaterial = "texture";
+
+        /// <summary>Round openings cut into the terrain itself with a smooth edge (true), or whole terrain triangles removed and covered by a rim (false).</summary>
+        public bool TerrainClip = true;
         public bool Waypoints = true;
         public bool Debug;
         public float DigSpeed = 1;
@@ -55,6 +58,7 @@ namespace Subterra
                 settings.CapRange = (float)Read(n, "capRange", settings.CapRange);
                 settings.CapMinDistance = (float)Read(n, "capMinDistance", settings.CapMinDistance);
                 settings.RimMaterial = (n.GetValue("rimMaterial") ?? settings.RimMaterial).Trim().ToLowerInvariant();
+                settings.TerrainClip = ReadBool(n, "terrainClip", settings.TerrainClip);
                 settings.Waypoints = ReadBool(n, "waypoints", settings.Waypoints);
                 settings.Debug = ReadBool(n, "debug", settings.Debug);
                 settings.DigSpeed = (float)Math.Max(0, Read(n, "digSpeed", settings.DigSpeed));

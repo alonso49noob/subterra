@@ -375,6 +375,8 @@ namespace Subterra
                 }
 
                 SkylightInjector.AddNetworks(runtime, new[] { alone });
+                // A mouth clipped into the terrain follows its tunnel: cut again as it grows (a no-op the first time).
+                SkylightInjector.RefreshMouth(runtime, alone);
                 foreach (Skylight opening in openings)
                 {
                     SkylightRenderer.Instance?.Settle(alone.ToBody(opening.SurfaceCenter), opening.Radius);

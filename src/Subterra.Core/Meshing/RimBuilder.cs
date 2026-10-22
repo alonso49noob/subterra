@@ -22,6 +22,46 @@ namespace Subterra.Core.Meshing
         public const float SkirtDepth = 2f;
         public const float MaxBump = 1.5f;
 
+        /// <summary>
+        /// Only the wall hanging into a hole clipped into the terrain itself: from just under the terrain's edge
+        /// (<paramref name="heights"/>, one per segment) down <see cref="InnerWall"/> m, facing the pit. It closes the gap
+        /// down to the shaft wall, which is clipped under the terrain.
+        /// </summary>
+        public static MeshData Wall(float radius, int segments, float[] heights)
+        {
+            if (segments < 3 || heights.Length != segments)
+            {
+                throw new ArgumentException("needs segments ≥ 3 and one height per segment");
+            }
+
+            var mesh = new MeshData();
+            for (int ring = 0; ring < 2; ring++)
+            {
+                for (int s = 0; s < segments; s++)
+                {
+                    double angle = 2 * Math.PI * s / segments;
+                    float x = (float)Math.Cos(angle) * radius, z = (float)Math.Sin(angle) * radius;
+                    float y = heights[s] - (ring == 0 ? WallTopDrop : InnerWall);
+                    mesh.Vertices.Add(new Vec3(x, y, z));
+                    mesh.Normals.Add(new Vec3(-x, 0, -z).Normalized);
+                    mesh.Uvs.Add(new Vec2((float)(angle * radius) / 4f, y / 4f));
+                }
+            }
+
+            for (int s = 0; s < segments; s++)
+            {
+                int s1 = (s + 1) % segments;
+                int a = s, b = s1, c = segments + s, d = segments + s1;
+                mesh.Triangles.AddRange(new[] { a, c, b, b, c, d });
+            }
+
+            mesh.SkirtTriangleStart = mesh.Triangles.Count;
+            return mesh;
+        }
+
+        /// <summary>How far under the terrain's edge a clipped hole's wall starts (m): the terrain hides its top.</summary>
+        public const float WallTopDrop = 0.15f;
+
         /// <param name="heights">Terrain height over the centre's plane at [ring × segments + segment].</param>
         public static MeshData Build(float innerRadius, float outerRadius, int segments, int rings, float[] heights, ulong seed, bool smooth = false)
         {
