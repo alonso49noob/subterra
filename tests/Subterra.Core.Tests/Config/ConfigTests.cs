@@ -126,6 +126,11 @@ SUBTERRA_BODY
             Assert.Equal(new[] { "Mohole", "MohoPlainsTubes", "MohoThermalRefuge" }, moho.Value.Sites.Select(s => s.Name));
             Assert.Equal(-2400, moho.Value.Sites[0].Nodes.Last().Altitude, 6);
             Assert.True(double.IsNaN(moho.Value.Sites[1].Nodes[0].Altitude));
+
+            var kerbin = Parse("Data/shipped-Kerbin.cfg");
+            Assert.Empty(kerbin.Warnings);
+            Assert.Equal(new[] { "KscCave", "KerbinGreatHall", "KerbinCenotes", "KerbinKimberlite", "KerbinDeepGeode" }, kerbin.Value.Sites.Select(s => s.Name));
+            Assert.Equal(FieldStyle.Karst, kerbin.Value.Fields.Single(f => f.Name == "KerbinKarst").Style);
         }
 
         [Fact]

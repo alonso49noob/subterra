@@ -148,7 +148,7 @@ namespace Subterra
         private static Color Capped(Color c) => new Color(Mathf.Min(c.r, MaxTint), Mathf.Min(c.g, MaxTint), Mathf.Min(c.b, MaxTint), 1);
 
         /// <summary>Metres per tile of the terrain textures on cave meshes (the meshes' UVs are 4 m per tile).</summary>
-        private const float TerrainMetersPerTile = 8f;
+        private const float TerrainMetersPerTile = 12f;
 
         // A Bumped Specular material from two textures of the body's PQS material, or null if it has not got them.
         private static Material FromTerrain(CelestialBody body, string albedoProperty, string normalProperty, Color tint)
@@ -157,6 +157,15 @@ namespace Subterra
             if (terrain == null || !terrain.HasProperty(albedoProperty) || !(terrain.GetTexture(albedoProperty) is Texture albedo))
             {
                 return null;
+            }
+
+            // Low-quality material first where it exists: the texture-array terrain shader (Kerbin) keeps its real textures
+            // there, the high-quality one only has a fallback.
+            Material low = body.pqsController.lowQualitySurfaceMaterial;
+            if (low != null && low.HasProperty(albedoProperty) && low.GetTexture(albedoProperty) is Texture lowAlbedo && terrain.shader.name.Contains("Texture Array"))
+            {
+                terrain = low;
+                albedo = lowAlbedo;
             }
 
             var material = new Material(Shader.Find("KSP/Bumped Specular"));
