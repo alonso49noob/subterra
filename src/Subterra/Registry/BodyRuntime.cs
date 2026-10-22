@@ -1,6 +1,7 @@
 using Subterra.Core.Environment;
 using Subterra.Core.Model;
 using Subterra.Core.Procedural;
+using Subterra.Core.Radar;
 namespace Subterra
 {
     /// <summary>Everything Subterra keeps for one body at run time.</summary>
@@ -27,5 +28,8 @@ namespace Subterra
         public Subterra.Core.Geo.ReliefField Relief { get; set; }
 
         public Geotherm Geotherm { get; }
+
+        /// <summary>Everything the radar can find on this body: cave networks, plus what parts 4 and 5 register.</summary>
+        public TargetRegistry Targets { get; } = new TargetRegistry();
     }
 }
