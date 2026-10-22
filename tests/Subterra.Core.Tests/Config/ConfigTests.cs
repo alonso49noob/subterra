@@ -110,6 +110,11 @@ SUBTERRA_BODY
             Assert.Empty(ike.Warnings);
             Assert.Equal(new[] { "IkeTrench" }, ike.Value.Sites.Select(s => s.Name));
             Assert.Equal(new[] { "IkePlains" }, ike.Value.Fields.Select(f => f.Name));
+
+            var tylo = Parse("Data/shipped-Tylo.cfg");
+            Assert.Empty(tylo.Warnings);
+            Assert.Equal(new[] { "TyloGreatSystem", "TyloHighlandCaves" }, tylo.Value.Sites.Select(s => s.Name));
+            Assert.Equal(new[] { "TyloMara", "TyloHighlands" }, tylo.Value.Fields.Select(f => f.Name));
         }
 
         [Fact]
