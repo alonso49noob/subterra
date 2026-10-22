@@ -10,7 +10,7 @@ namespace Subterra
     /// <summary>
     /// Prop meshes for cave scatters, read once on the main thread (then safe to read from workers):
     /// the GameDatabase model when one exists (<c>model</c> / <c>model_lod1</c>), else Subterra's
-    /// procedural prop of that name. Materials: ice for names containing "Ice", rock otherwise.
+    /// procedural prop of that name. Materials: ice for names containing "Ice", crystal for "Crystal", old bone for "Kraken", rock otherwise.
     /// </summary>
     public static class PropLibrary
     {
@@ -47,10 +47,13 @@ namespace Subterra
         {
             bool ice = model.IndexOf("Ice", System.StringComparison.OrdinalIgnoreCase) >= 0;
             bool crystal = model.IndexOf("Crystal", System.StringComparison.OrdinalIgnoreCase) >= 0;
-            string key = crystal ? "crystal" : ice ? "ice" : "rock/" + (body?.bodyName ?? "");
+            bool bone = model.IndexOf("Kraken", System.StringComparison.OrdinalIgnoreCase) >= 0;
+            string key = crystal ? "crystal" : ice ? "ice" : bone ? "bone" : "rock/" + (body?.bodyName ?? "");
             if (!Materials.TryGetValue(key, out Material material) || material == null)
             {
                 material = crystal ? MaterialFactory.Crystal()
+                    : bone
+                    ? MaterialFactory.Create("Rock_d", "Rock_n", new Color(1.35f, 1.25f, 1.05f))
                     : ice
                     ? MaterialFactory.Create("Ice_d", "Ice_n", new Color(0.75f, 0.85f, 0.95f))
                     : MaterialFactory.ForProps(body) ?? MaterialFactory.Create("Rock_d", "Rock_n", new Color(0.62f, 0.6f, 0.57f));

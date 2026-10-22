@@ -150,7 +150,9 @@ node "$(lerp ${BOP[0]} ${BOP[2]} 0.9)" "$(lerp ${BOP[1]} ${BOP[3]} 0.9)" 650 150
 printf '\t}\n'
 field BopCaverns lava "Valley, Slopes, Peaks, Ridges, Poles" 1 "40, 300" "800, 5000" "40, 300" "1500, 4000" 0.4 0.3 0.7 95
 scatter IceCrystals "Subterra/Props/IceCluster01" floor "TubeGallery, TubeChamber, TubeBranch" 0.8 "0.4, 2" 0.8 false 0.02 0.35 1.5 0.15
-scatter KrakenBones "Subterra/Props/Lavacicle01" floor "Geode" 2 "3, 9" 0.3 false 0.02 -1 1.5 0.2
+# The Kraken chamber: ribcages arching over the floor (drive under them) and loose bones.
+scatter KrakenRibs "Subterra/Props/KrakenRibs01" floor "Geode" 0.015 "6, 14" 0.3 true 0.02 -1 1 0.15
+scatter KrakenBones "Subterra/Props/KrakenBone01" floor "Geode" 0.3 "2, 6" 0.8 false 0.02 -1 1.5 0.2
 rule Water "" DirtyIce 2 ""
 echo "}"
 } > "$out"; echo "wrote $out"

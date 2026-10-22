@@ -44,7 +44,31 @@ namespace Subterra.Core.Tests.Scatter
                 }
             }
 
+            // Curved pieces (the Kraken's ribs) face their own centroid on the inside of the bend: for those the signed
+            // volume of each piece says which way they face.
+            if (name.StartsWith("Kraken"))
+            {
+                Assert.All(PartVolumes(m), v => Assert.True(v > 0, $"piece volume {v}"));
+                return;
+            }
+
             Assert.True(outward >= 0.9 * total || name == "IceCluster01" && outward >= 0.7 * total, $"{outward}/{total} outward");
+        }
+
+        // Signed volume of each connected piece (positive when its faces point outwards).
+        private static IEnumerable<float> PartVolumes(MeshData m)
+        {
+            Vec3[] centre = PartCentres(m);
+            var volumes = new Dictionary<Vec3, float>();
+            for (int i = 0; i < m.Triangles.Count; i += 3)
+            {
+                Vec3 o = centre[m.Triangles[i]];
+                Vec3 a = m.Vertices[m.Triangles[i]] - o, b = m.Vertices[m.Triangles[i + 1]] - o, c = m.Vertices[m.Triangles[i + 2]] - o;
+                volumes.TryGetValue(o, out float v);
+                volumes[o] = v + Vec3.Dot(a, Vec3.Cross(b, c)) / 6;
+            }
+
+            return volumes.Values;
         }
 
         // Per vertex: the centroid of the connected piece it belongs to.

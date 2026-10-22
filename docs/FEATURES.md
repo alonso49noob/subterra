@@ -133,7 +133,8 @@ Bodies (every stock body has named sites + procedural fields; 15 in all)
   [DONE] Dres: canyon caves. Laythe: island lava tubes. Bop: huge caverns, the Kraken chamber.
   [DONE] Tylo: a great cave system and highland caves. Vall, Pol, Eeloo: small ice caves.
   [PLANNED] Kerbin sea caves and underground rivers, Laythe sea caves (need part 4/5 water).
-  [PLANNED] Polish: Bop's Kraken bones (placeholder prop), chamber edges.
+  [DONE] Bop's Kraken chamber: half-buried ribcages (drive under them) and loose bones. [Claude, revisar]
+  [PLANNED] Polish: Bop's chamber edges; the rille portal still looks rectangular from inside.
 
 After part 3 (Lucas's request)
   [PLANNED] Configs for Parallax and other graphics mods (Scatterer, EVE, TUFX); Parallax textures for cave

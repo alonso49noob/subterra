@@ -11,7 +11,7 @@ namespace Subterra.Core.Scatter
     /// </summary>
     public static class PropGenerator
     {
-        public static readonly string[] Names = { "Boulder01", "Boulder02", "Boulder03", "RubbleCone01", "Lavacicle01", "PahoehoeSlab01", "IceCluster01", "GeodeCrystal01", "GlowPatch01", "Fungus01" };
+        public static readonly string[] Names = { "Boulder01", "Boulder02", "Boulder03", "RubbleCone01", "Lavacicle01", "PahoehoeSlab01", "IceCluster01", "GeodeCrystal01", "GlowPatch01", "Fungus01", "KrakenRibs01", "KrakenBone01" };
 
         /// <summary>The prop for a model url or name (the part after the last '/'); null if unknown.</summary>
         public static MeshData Build(string model, int lod)
@@ -43,6 +43,8 @@ namespace Subterra.Core.Scatter
                 case "GeodeCrystal01": return Crystals(lod == 0 ? 2 : 1, seed, 7, 1.5f, 2.2f);
                 case "GlowPatch01": return Patch(lod == 0 ? 24 : 12, seed);
                 case "Fungus01": return Fungi(lod == 0 ? 2 : 1, seed);
+                case "KrakenRibs01": return Ribcage(lod == 0 ? 2 : 1, seed);
+                case "KrakenBone01": return Bone(lod == 0 ? 2 : 1, seed);
                 default: return null;
             }
         }
@@ -182,6 +184,59 @@ namespace Subterra.Core.Scatter
 
             Finish(mesh);
             return mesh;
+        }
+
+        // Half-buried bones of something huge (Bop's Kraken): five ribs arching over a 1-unit-high span, getting smaller
+        // towards the tail, joined by a spine along their tops. 4 units long, ribs 1.4 units across at the widest.
+        private static MeshData Ribcage(int subdivisions, ulong seed)
+        {
+            var rng = new Rng(seed);
+            var mesh = new MeshData();
+            for (int k = 0; k < 5; k++)
+            {
+                float x = -1.6f + 0.8f * k, size = 1f - 0.12f * k, lean = (float)rng.Range(-0.08, 0.08);
+                Arc(mesh, subdivisions, x, 0.7f * size, 1f * size, 0.07f * size, lean);
+            }
+
+            // The spine: along the tops of the ribs, sloping down with them, knobbly (vertebrae) by its noise.
+            int[][] noise = Noise.Tables(seed);
+            Part(mesh, subdivisions, u =>
+            {
+                float bump = 1 + 0.35f * Noise.Fbm(new Vec3(u.Y * 6, 0, 0), noise, 2);
+                float x = -u.Y * 2.1f;
+                return new Vec3(x, 0.66f - 0.15f * x + u.X * 0.09f * bump, u.Z * 0.09f * bump);
+            });
+            Finish(mesh);
+            return mesh;
+        }
+
+        // One loose bone: long, bent a little, with knobbed ends (a femur, a jaw), lying on the floor.
+        private static MeshData Bone(int subdivisions, ulong seed)
+        {
+            var rng = new Rng(seed);
+            float bend = (float)rng.Range(0.1, 0.3);
+            var mesh = new MeshData();
+            Part(mesh, subdivisions + 1, u =>
+            {
+                float knob = 1 + 1.4f * (float)Math.Pow(Math.Abs(u.Y), 8);
+                float y = u.Y * 1.5f;
+                return new Vec3(u.X * 0.12f * knob, 0.12f - u.Z * 0.1f * knob + bend * (1 - u.Y * u.Y), y);
+            });
+            Finish(mesh);
+            return mesh;
+        }
+
+        // A rib: a tapering tube along a half ellipse in the plane x = `x` (half-width `w`, height `h`), its ends in the ground.
+        private static void Arc(MeshData mesh, int subdivisions, float x, float w, float h, float r, float lean)
+        {
+            Part(mesh, subdivisions + 1, u =>
+            {
+                double a = Math.PI * (0.02 + 0.96 * (u.Y + 1) * 0.5);
+                var centre = new Vec3(x + lean * (float)Math.Sin(a), h * (float)Math.Sin(a) - 0.1f, w * (float)Math.Cos(a));
+                var radial = new Vec3(0, (float)Math.Sin(a) * w, (float)Math.Cos(a) * h).Normalized;
+                float taper = r * (0.6f + 0.4f * (float)Math.Sin(a));
+                return centre + radial * (u.X * taper) - new Vec3(1, 0, 0) * (u.Z * taper);
+            });
         }
 
         // Appends a unit icosphere moved through `shape`.
