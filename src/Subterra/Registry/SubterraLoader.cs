@@ -142,7 +142,8 @@ namespace Subterra
             PropLibrary.Preload(spec.Scatters);
             SkylightInjector.Inject(runtime);
             AnomalyRegistrar.Register(runtime);
-            runtime.Targets.Register(new NetworkTargetSource(runtime.Catalog, runtime.Strata, new KspBiomeSampler(body)));
+            runtime.NetworkTargets = new NetworkTargetSource(runtime.Catalog, runtime.Strata, new KspBiomeSampler(body));
+            runtime.Targets.Register(runtime.NetworkTargets);
             SubterraRadarApi.Attach(runtime);
             BodyRegistry.Instance.Add(runtime);
             Log.Info($"Loaded body {spec.Body}: {runtime.Catalog.Named.Count} sites, {spec.Fields.Count} fields");

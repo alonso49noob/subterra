@@ -19,6 +19,100 @@ namespace Subterra.DevTools
             StepRegistry.RegisterAssertion("radarStatus", RadarStatus);
             StepRegistry.RegisterAssertion("radarInstrument", RadarInstrument);
             StepRegistry.RegisterAssertion("radarLastScan", RadarLastScan);
+            StepRegistry.RegisterAssertion("hintCount", HintCount);
+            StepRegistry.RegisterAssertion("noHintNarrowerThan", NoHintNarrowerThan);
+            StepRegistry.RegisterAssertion("cellsReady", CellsReady);
+        }
+
+        private static BodyRuntime RequireRuntime(string bodyName)
+        {
+            if (!BodyRegistry.Instance.Bodies.TryGetValue(bodyName, out BodyRuntime runtime))
+            {
+                throw new ArgumentException("no Subterra body " + bodyName);
+            }
+
+            return runtime;
+        }
+
+        // hintCount body = Mun min = 1 - at least min cave networks of the body have a radar record at Hint or better.
+        private static bool HintCount(ConfigNode node, TestContext ctx)
+        {
+            RadarScenario scenario = RadarScenario.Instance;
+            if (scenario == null)
+            {
+                ctx.Detail = "no RadarScenario";
+                return false;
+            }
+
+            string bodyName = node.RequireArg("body");
+            int min = (int)node.ArgDouble("min", 1);
+            List<NetworkDetection> hints = scenario.Detections.All.Where(d => d.Body == bodyName && d.Level >= DetectionLevel.Hint).ToList();
+            ctx.Detail = Invariant($"{hints.Count} network(s) of {bodyName} at Hint or better (min {min})")
+                + (hints.Count > 0 ? ": " + string.Join(", ", hints.Take(10).Select(d => Invariant($"{d.NetworkId} {d.Level} u={d.Uncertainty:F0} m"))) : "");
+            return hints.Count >= min;
+        }
+
+        // noHintNarrowerThan body = Mun width = 100 minHints = 1 - no network whose widest target is narrower than
+        // width metres has a radar record at Hint, and at least minHints networks of the body are at Hint (so the
+        // check is not empty). A network's width is the largest Width of its targets (NetworkTargetSource).
+        private static bool NoHintNarrowerThan(ConfigNode node, TestContext ctx)
+        {
+            RadarScenario scenario = RadarScenario.Instance;
+            if (scenario == null)
+            {
+                ctx.Detail = "no RadarScenario";
+                return false;
+            }
+
+            string bodyName = node.RequireArg("body");
+            double width = node.ArgDouble("width", 100);
+            int minHints = (int)node.ArgDouble("minHints", 1);
+            BodyRuntime runtime = RequireRuntime(bodyName);
+            if (runtime.NetworkTargets == null)
+            {
+                ctx.Detail = "no network target source on " + bodyName;
+                return false;
+            }
+
+            var narrow = new List<string>();
+            var widths = new List<double>();
+            int unknown = 0;
+            List<NetworkDetection> hints = scenario.Detections.All.Where(d => d.Body == bodyName && d.Level == DetectionLevel.Hint).ToList();
+            foreach (NetworkDetection d in hints)
+            {
+                var net = runtime.Catalog.Find(d.NetworkId);
+                if (net == null)
+                {
+                    unknown++;
+                    continue;
+                }
+
+                double widest = runtime.NetworkTargets.TargetsOf(net).Select(t => t.Width).DefaultIfEmpty(0).Max();
+                widths.Add(widest);
+                if (widest < width)
+                {
+                    narrow.Add(Invariant($"{d.NetworkId} ({widest:F0} m)"));
+                }
+            }
+
+            ctx.Detail = Invariant($"{hints.Count} Hint network(s) of {bodyName} (min {minHints}), {unknown} not in the catalog")
+                + (widths.Count > 0 ? Invariant($", widths {widths.Min():F0}-{widths.Max():F0} m") : "")
+                + (narrow.Count > 0 ? Invariant($"; narrower than {width:F0} m: ") + string.Join(", ", narrow) : "");
+            return hints.Count >= minHints && narrow.Count == 0;
+        }
+
+        // cellsReady body = Mun min = 20 - at least min procedural cells of the body have been generated (by the
+        // streaming near the camera or by requests of the lazy radar detection).
+        private static bool CellsReady(ConfigNode node, TestContext ctx)
+        {
+            string bodyName = node.RequireArg("body");
+            int min = (int)node.ArgDouble("min", 1);
+            BodyRuntime runtime = RequireRuntime(bodyName);
+            int ready = runtime.Catalog.ReadyCellCount;
+            CellScheduler scheduler = CellScheduler.Instance;
+            ctx.Detail = Invariant($"{ready} of {runtime.Catalog.Grid.CellCount} cells of {bodyName} ready (min {min})")
+                + (scheduler != null ? Invariant($", {scheduler.CellsInProgress} in progress") : "");
+            return ready >= min;
         }
 
         internal static Vessel FindVessel(string name)

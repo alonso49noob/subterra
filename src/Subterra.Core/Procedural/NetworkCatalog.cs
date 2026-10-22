@@ -63,6 +63,9 @@ namespace Subterra.Core.Procedural
 
         public bool IsCellReady(CellId c) => current.Cells.ContainsKey(c);
 
+        /// <summary>The procedural networks of a generated cell (false if it is not generated yet). Any thread.</summary>
+        public bool TryGetCell(CellId c, out IReadOnlyList<TubeNetwork> networks) => current.Cells.TryGetValue(c, out networks);
+
         public void AddCell(CellId c, List<TubeNetwork> networks)
         {
             Snapshot old = current;

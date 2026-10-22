@@ -31,5 +31,11 @@ namespace Subterra
 
         /// <summary>Everything the radar can find on this body: cave networks, plus what parts 4 and 5 register.</summary>
         public TargetRegistry Targets { get; } = new TargetRegistry();
+
+        /// <summary>
+        /// The target source of the cave networks registered in <see cref="Targets"/> (null until the loader set it):
+        /// lazy detection reads the targets of one network at a time through it.
+        /// </summary>
+        public NetworkTargetSource NetworkTargets { get; internal set; }
     }
 }

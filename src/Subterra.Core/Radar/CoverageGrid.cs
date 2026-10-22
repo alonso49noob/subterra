@@ -79,6 +79,29 @@ namespace Subterra.Core.Radar
         /// <summary>The raw byte of a cell (0 = unscanned). Row and column are taken as they are.</summary>
         public byte GetCell(int row, int column) => _cells[row * Width + column];
 
+        /// <summary>
+        /// The sum of the raw bytes of row <paramref name="row"/> from column <paramref name="columnMin"/> to
+        /// <paramref name="columnMax"/> inclusive (clamped to the grid; 0 when the range is empty). Cells only go up,
+        /// so the sum over an area goes up whenever one of its cells improves. Racy reads are fine (see the class).
+        /// </summary>
+        public long SumRow(int row, int columnMin, int columnMax)
+        {
+            if (row < 0 || row >= Height)
+            {
+                return 0;
+            }
+
+            int from = Math.Max(0, columnMin), to = Math.Min(Width - 1, columnMax);
+            long sum = 0;
+            int offset = row * Width;
+            for (int c = from; c <= to; c++)
+            {
+                sum += _cells[offset + c];
+            }
+
+            return sum;
+        }
+
         /// <summary>A copy of every cell, row by row (row 0 first).</summary>
         public byte[] ToBytes() => (byte[])_cells.Clone();
 

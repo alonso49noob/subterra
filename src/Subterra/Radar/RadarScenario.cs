@@ -43,6 +43,18 @@ namespace Subterra
             }
         }
 
+        /// <summary>
+        /// The coverage grid of a body for an instrument if it exists, without creating an empty one (a grid is
+        /// 1 MB). Safe from any thread; the same reload caveat as <see cref="Coverage"/>.
+        /// </summary>
+        public bool TryCoverage(string body, InstrumentKind kind, out CoverageGrid grid)
+        {
+            lock (gate)
+            {
+                return grids.TryGetValue(Key(body, kind), out grid);
+            }
+        }
+
         public override void OnAwake()
         {
             Instance = this;
