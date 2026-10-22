@@ -168,9 +168,12 @@ namespace Subterra.Core.Procedural
                 return null;
             }
 
-            foreach (Vec3d p in trunk)
+            // The trunk's roof rises and sinks along it (a slow wave, up to a third of its depth).
+            double wave = rng.Range(0, 0.35), phase = rng.Range(0, 2 * Math.PI), period = rng.Range(6, 14);
+            for (int i = 0; i < trunk.Count; i++)
             {
-                site.Nodes.Add(MakeNode(p, depth, trunkWidth, rng));
+                double roof = depth * (1 + wave * Math.Sin(phase + 2 * Math.PI * i / period));
+                site.Nodes.Add(MakeNode(trunk[i], roof, trunkWidth, rng));
             }
 
             for (int i = 1; i < trunk.Count; i++)
@@ -238,6 +241,15 @@ namespace Subterra.Core.Procedural
         /// <summary>Deepest branching: branches of the trunk (1) and branches of those (2).</summary>
         private const int MaxBranchOrder = 2;
 
+        /// <summary>Share of branches that dive to a deeper level.</summary>
+        private const double DiveChance = 0.35;
+
+        /// <summary>How much deeper (m) a diving branch's roof ends up.</summary>
+        private static readonly Range DiveDepth = new Range(50, 180);
+
+        /// <summary>Nodes (of 400 m) a dive is spread over: 1–3 km of ramp, 2–15°.</summary>
+        private const int DiveNodes = 3;
+
         /// <summary>Share of branches that come back into the trunk when their end passes near it (a loop).</summary>
         private const double RejoinChance = 0.45;
 
@@ -268,24 +280,30 @@ namespace Subterra.Core.Procedural
                 }
 
                 double branchWidth = Math.Max(BodySpecWidthMin, site.Nodes[i].Width * rng.Range(0.35, 0.7));
+
+                // Some branches dive: over their first nodes they go down to a deeper level, where their own branches spread
+                // (deeper networks under the shallow ones).
+                bool dives = rng.NextDouble() < DiveChance;
+                double from = site.Nodes[i].Depth, to = dives ? from + rng.Range(DiveDepth.Min, DiveDepth.Max) : from;
                 var indices = new List<int> { i };
                 int previousIndex = i;
                 for (int j = 1; j < branch.Count; j++)
                 {
-                    site.Nodes.Add(MakeNode(branch[j], depth, branchWidth, rng));
+                    double t = Math.Min(1.0, j / (double)DiveNodes);
+                    site.Nodes.Add(MakeNode(branch[j], from + (to - from) * t, branchWidth, rng));
                     site.Edges.Add(new EdgeSpec { From = previousIndex, To = site.Nodes.Count - 1 });
                     previousIndex = site.Nodes.Count - 1;
                     indices.Add(previousIndex);
                 }
 
                 // Back into the trunk: the nearest trunk node beyond the junction, if the branch ends close to it.
-                if (rng.NextDouble() < RejoinChance)
+                if (rng.NextDouble() < RejoinChance && !dives)
                 {
                     Vec3d end = branch[branch.Count - 1];
                     int best = -1;
                     double bestDistance = RejoinDistance;
-                    int from = trunk.IndexOf(i);
-                    for (int t = Math.Max(0, from) + 2; t < trunk.Count; t++)
+                    int junction = trunk.IndexOf(i);
+                    for (int t = Math.Max(0, junction) + 2; t < trunk.Count; t++)
                     {
                         double d = BodyFrame.SurfaceDistance(end, Direction(site.Nodes[trunk[t]]), walker.Radius);
                         if (d < bestDistance)
@@ -308,7 +326,7 @@ namespace Subterra.Core.Procedural
 
                 if (order < MaxBranchOrder)
                 {
-                    AddBranches(f, rng, walker, site, indices, trunk, length, depth, order + 1);
+                    AddBranches(f, rng, walker, site, indices, trunk, length, to, order + 1);
                 }
             }
         }

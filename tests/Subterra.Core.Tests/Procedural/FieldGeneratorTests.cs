@@ -184,7 +184,7 @@ namespace Subterra.Core.Tests.Procedural
         // Networks are the same in every save and for every player (Lucas's ruling: maps must stay valid),
         // so the generator's output is pinned. If this fails, a change moved existing networks: undo it, or,
         // if it is deliberate, note it in the CHANGELOG and update the fingerprint.
-        private const string Fingerprint = "EF7EB44298E1C67A";
+        private const string Fingerprint = "E7E9EF30690960B6";
 
         [Fact]
         public void OutputIsPinned()
@@ -291,6 +291,7 @@ namespace Subterra.Core.Tests.Procedural
 
             Assert.True(junctions >= sites.Count * 2, $"{junctions} junctions in {sites.Count} networks");
             Assert.True(loops > 0, "no branch rejoins its trunk");
+            Assert.Contains(sites, s => s.Nodes.Max(n => n.Depth) - s.Nodes.Min(n => n.Depth) > 60);
         }
 
         [Fact]
