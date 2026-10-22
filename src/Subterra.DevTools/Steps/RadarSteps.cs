@@ -27,12 +27,24 @@ namespace Subterra.DevTools
         // vessel) and the UT, as point a for coverageAt at = a / radarSetLastScan point = a. It also logs, for this
         // point and every point recorded before, where OrbitalScanner.SubPoint puts the vessel at that point's UT
         // with the orbit it has now, and how far that is from where the vessel really was: the check of the
-        // body-rotation correction for past UTs.
+        // body-rotation correction for past UTs. With vessel = Radar D it records that (unloaded) vessel's point now,
+        // from its orbit with KSP's own GetLatitude/GetLongitude, and logs nothing else.
         private static IEnumerator SubPointStep(ConfigNode node, TestContext ctx)
         {
             string name = node.RequireArg("name");
-            Vessel v = FlightGlobals.ActiveVessel ?? throw new InvalidOperationException("no active vessel");
             double now = Planetarium.GetUniversalTime();
+            string other = node.Arg("vessel");
+            if (other != null)
+            {
+                Vessel o = RadarAssertions.FindVessel(other) ?? throw new ArgumentException("no vessel named " + other);
+                Vector3d radial = o.orbit.getRelativePositionAtUT(now).xzy;
+                double oLat = o.mainBody.GetLatitude(radial, true), oLon = o.mainBody.GetLongitude(radial, true);
+                ctx.Snapshots[PointPrefix + name] = new Vector3d(oLat, oLon, now);
+                ctx.Pass(Invariant($"{name}: {other} ({(o.loaded ? "loaded" : "unloaded")}) over {o.mainBody.bodyName} lat {oLat:F3} lon {oLon:F3} at UT {now:F0}"));
+                yield break;
+            }
+
+            Vessel v = FlightGlobals.ActiveVessel ?? throw new InvalidOperationException("no active vessel");
             ctx.Snapshots[PointPrefix + name] = new Vector3d(v.latitude, v.longitude, now);
             var lines = new List<string>();
             foreach (var pair in ctx.Snapshots.Where(p => p.Key.StartsWith(PointPrefix)).OrderBy(p => p.Value.z))
@@ -149,10 +161,32 @@ namespace Subterra.DevTools
 
         // setResourceAmount name = ElectricCharge amount = 0 - sets the amount of that resource in every part of the
         // tracked vessel that holds it (capped at the part's capacity); a fraction = 0.5 fills that share instead.
+        // With vessel = Radar D and that vessel unloaded, the amounts in its saved part snapshots are set instead (what
+        // it will have when it loads).
         private static IEnumerator SetResourceAmount(ConfigNode node, TestContext ctx)
         {
-            Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
             string name = node.RequireArg("name");
+            string other = node.Arg("vessel");
+            Vessel unloaded = other == null ? null : RadarAssertions.FindVessel(other) ?? throw new ArgumentException("no vessel named " + other);
+            if (unloaded != null && !unloaded.loaded)
+            {
+                var saved = unloaded.protoVessel.protoPartSnapshots.SelectMany(p => p.resources).Where(r => r.resourceName == name).ToList();
+                if (saved.Count == 0)
+                {
+                    throw new InvalidOperationException($"no {name} saved on {other}");
+                }
+
+                foreach (ProtoPartResourceSnapshot r in saved)
+                {
+                    r.amount = node.HasValue("fraction") ? r.maxAmount * node.ArgDouble("fraction", 1) : Math.Min(r.maxAmount, node.ArgDouble("amount", 0));
+                }
+
+                yield return null;
+                ctx.Pass(Invariant($"{name} saved on {other} (unloaded), {saved.Count} part(s): {saved.Sum(r => r.amount):F1}/{saved.Sum(r => r.maxAmount):F1}"));
+                yield break;
+            }
+
+            Vessel vessel = unloaded ?? ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
             var resources = vessel.parts.SelectMany(p => p.Resources.Cast<PartResource>()).Where(r => r.resourceName == name).ToList();
             if (resources.Count == 0)
             {

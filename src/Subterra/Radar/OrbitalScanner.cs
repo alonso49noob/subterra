@@ -45,6 +45,9 @@ namespace Subterra
         /// </summary>
         private const double OrbitChangeMetres = 1000;
 
+        /// <summary>Ticks between two sweeps of the orbit records of vessels that no longer exist.</summary>
+        private const int PruneTicks = 60;
+
         private readonly List<Instrument> instruments = new List<Instrument>();
         private readonly List<WalkGroup> walks = new List<WalkGroup>();
         private readonly Dictionary<Guid, Track> tracks = new Dictionary<Guid, Track>();
@@ -52,6 +55,7 @@ namespace Subterra
         private readonly HashSet<Guid> failed = new HashSet<Guid>();
         private readonly Stopwatch watch = new Stopwatch();
         private float nextTick;
+        private int ticks;
         private int firstVessel;
 
         /// <summary>
@@ -134,6 +138,11 @@ namespace Subterra
                 return;
             }
 
+            if (++ticks % PruneTicks == 0 && tracks.Count > 0)
+            {
+                PruneTracks(vessels);
+            }
+
             // Round robin: when the time budget runs out, the vessels not reached go first next tick.
             firstVessel %= count;
             for (int k = 0; k < count; k++)
@@ -197,14 +206,16 @@ namespace Subterra
                     from = now;
                 }
 
-                // An instrument that does not scan now marks nothing and its marker still moves to now, so a later
-                // resume does not back-fill the gap (decidido por Claude, revisar). The same for a vessel on the
-                // ground or around a body Subterra does not handle (Jool): its past was on another orbit, and walking
-                // it with the current one would mark the wrong places. An unloaded instrument that does not scan is
-                // left alone (no per-tick writes into idle saves).
+                // An instrument that is switched on but does not scan now (unpowered, also an unloaded one that was
+                // unpowered when saved) marks nothing and its marker still moves to now, so a later resume (say the
+                // vessel loads with charge) does not back-fill the gap (decidido por Claude, revisar; ruling R24).
+                // The same for a vessel on the ground or around a body Subterra does not handle (Jool): its past was
+                // on another orbit, and walking it with the current one would mark the wrong places. An unloaded
+                // instrument that is switched off is left alone (no per-tick writes into idle saves): StartScan sets
+                // its marker when it is switched on again.
                 if (!instrument.Active || !canScan)
                 {
-                    if (instrument.Snapshot == null || instrument.Active)
+                    if (instrument.Snapshot == null || instrument.Scanning)
                     {
                         instrument.Save(now, bodyName);
                     }
@@ -280,6 +291,33 @@ namespace Subterra
             if (marked && (echo != null && echo.Version != echoVersion || gravity != null && gravity.Version != gravityVersion))
             {
                 CoverageChanged?.Invoke(bodyName, markLat, markLon);
+            }
+        }
+
+        // Forgets the orbit records of vessels that are no longer in the game (destroyed, recovered).
+        private void PruneTracks(List<Vessel> vessels)
+        {
+            var alive = new HashSet<Guid>();
+            foreach (Vessel v in vessels)
+            {
+                if (v != null)
+                {
+                    alive.Add(v.id);
+                }
+            }
+
+            var gone = new List<Guid>();
+            foreach (Guid id in tracks.Keys)
+            {
+                if (!alive.Contains(id))
+                {
+                    gone.Add(id);
+                }
+            }
+
+            foreach (Guid id in gone)
+            {
+                tracks.Remove(id);
             }
         }
 
@@ -512,6 +550,9 @@ namespace Subterra
             /// <summary>The body the marker belongs to (empty in saves from before it existed).</summary>
             public string LastScanBody;
 
+            /// <summary>The instrument is switched on (whether or not it can scan now).</summary>
+            public bool Scanning;
+
             /// <summary>
             /// Whether it scans now (the altitude window is checked per sample by the walk). Loaded: switched on and
             /// powered now; a tick that lands outside the window must not drop the in-window part of the backlog, so
@@ -531,6 +572,7 @@ namespace Subterra
                     AltitudeMax = m.altitudeMax,
                     LastScanUT = m.lastScanUT,
                     LastScanBody = m.lastScanBody ?? "",
+                    Scanning = m.scanning,
                     Active = m.scanning && (m.IsScanningNow || m.Block == ScanBlock.OutOfAltitude),
                 };
             }
@@ -551,6 +593,7 @@ namespace Subterra
                     AltitudeMax = config.altitudeMax,
                     LastScanUT = last,
                     LastScanBody = values?.GetValue("lastScanBody") ?? "",
+                    Scanning = scanning,
                     Active = scanning && powered,
                 };
             }
@@ -565,7 +608,11 @@ namespace Subterra
                 }
                 else if (Snapshot?.moduleValues != null)
                 {
-                    Snapshot.moduleValues.SetValue("lastScanUT", ut.ToString("R", CultureInfo.InvariantCulture), true);
+                    if (ut != LastScanUT)
+                    {
+                        Snapshot.moduleValues.SetValue("lastScanUT", ut.ToString("R", CultureInfo.InvariantCulture), true);
+                    }
+
                     if (LastScanBody != body)
                     {
                         Snapshot.moduleValues.SetValue("lastScanBody", body, true);
