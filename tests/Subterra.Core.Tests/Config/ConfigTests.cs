@@ -111,6 +111,32 @@ SUBTERRA_BODY
             Assert.Contains(r.Warnings, w => w.Contains("YIELD"));
         }
 
+        private const string AttenuationHead = "SUBTERRA_BODY\n{\n body = Eve\n STRATA\n {\n  LAYER\n  {\n   name = Ice\n   top = 0\n   bottom = 800\n";
+
+        [Fact]
+        public void ParsesLayerAttenuation()
+        {
+            var r = ParseText(AttenuationHead + "   attenuation = 0.03\n  }\n }\n}");
+            Assert.Equal(0.03, r.Value.Strata.Single().Attenuation);
+            Assert.Empty(r.Warnings);
+        }
+
+        [Fact]
+        public void LayerAttenuationDefaultsToNull()
+        {
+            var r = ParseText(AttenuationHead + "  }\n }\n}");
+            Assert.Null(r.Value.Strata.Single().Attenuation);
+            Assert.Empty(r.Warnings);
+        }
+
+        [Fact]
+        public void NegativeLayerAttenuationWarnsAndIsIgnored()
+        {
+            var r = ParseText(AttenuationHead + "   attenuation = -1\n  }\n }\n}");
+            Assert.Null(r.Value.Strata.Single().Attenuation);
+            Assert.Contains(r.Warnings, w => w.Contains("attenuation"));
+        }
+
         // The Mun.cfg that ships (Task 36): four named sites, each starting at a skylight, one field, no warnings.
         [Fact]
         public void ParsesShippedDunaAndIke()

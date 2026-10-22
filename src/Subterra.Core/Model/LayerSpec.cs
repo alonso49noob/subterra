@@ -36,5 +36,8 @@ namespace Subterra.Core.Model
 
         /// <summary>The gas of those pockets (a resource name), or null.</summary>
         public string GasResource { get; set; }
+
+        /// <summary>Radar attenuation in dB/m at 60 MHz; null = deduced from the density.</summary>
+        public double? Attenuation { get; set; }
     }
 }

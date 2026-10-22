@@ -193,6 +193,23 @@ namespace Subterra.Core.Config
             layer.GasChance = Math.Max(0, Math.Min(1, r.Double(node, "gasChance", 0)));
             layer.GasResource = node.GetValue("gasResource")?.Trim();
 
+            if (node.GetValue("attenuation") != null)
+            {
+                double attenuation = r.Double(node, "attenuation", double.NaN);
+                if (double.IsNaN(attenuation))
+                {
+                    // r.Double already warned about the malformed number
+                }
+                else if (attenuation < 0)
+                {
+                    r.Warn($"'attenuation' must be >= 0 (got {Inv(attenuation)}); ignored");
+                }
+                else
+                {
+                    layer.Attenuation = attenuation;
+                }
+            }
+
             if (!(layer.Bottom > layer.Top) || layer.Top < 0)
             {
                 r.Warn($"needs 0 <= top < bottom (top {Inv(layer.Top)}, bottom {Inv(layer.Bottom)}); layer skipped");
