@@ -34,6 +34,19 @@ namespace Subterra
             public byte[] Raster;
         }
 
+        /// <summary>The exception <see cref="FailNext"/> makes <see cref="At"/> throw (tests of the failure path).</summary>
+        public sealed class InjectedFault : Exception
+        {
+            public InjectedFault() : base("cavity lookup failure requested by a test")
+            {
+            }
+        }
+
+        private static int debugFailures;
+
+        /// <summary>Makes the next <paramref name="count"/> calls of <see cref="At"/> throw an <see cref="InjectedFault"/>.</summary>
+        public static void FailNext(int count) => System.Threading.Interlocked.Exchange(ref debugFailures, count);
+
         private static readonly object Gate = new object();
         private static readonly Dictionary<string, Entry> Cache = new Dictionary<string, Entry>();
 
@@ -50,6 +63,12 @@ namespace Subterra
         /// </summary>
         public static float At(string body, double lat, double lon)
         {
+            if (System.Threading.Interlocked.Decrement(ref debugFailures) >= 0)
+            {
+                throw new InjectedFault();
+            }
+
+            System.Threading.Interlocked.Exchange(ref debugFailures, 0);
             RadarScenario scenario = RadarScenario.Instance;
             if (scenario == null || string.IsNullOrEmpty(body) || double.IsNaN(lat) || double.IsNaN(lon) || double.IsInfinity(lon))
             {
@@ -117,7 +136,7 @@ namespace Subterra
 
             Builds++;
             LastBuildMs = watch.Elapsed.TotalMilliseconds;
-            if (entry.Raster != null && (Builds <= 3 || LastBuildMs > 2))
+            if (entry.Raster != null && (Builds <= 1 || LastBuildMs > 5))
             {
                 Log.Info(FormattableString.Invariant($"CavityAbundance: raster of {body} rebuilt in {LastBuildMs:F2} ms"));
             }

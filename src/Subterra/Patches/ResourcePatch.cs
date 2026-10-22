@@ -23,6 +23,15 @@ namespace Subterra
 
         public static void Register()
         {
+            PatchManager.Inactive += id =>
+            {
+                if (id == Id)
+                {
+                    // R31: SubterraCavity's distribution is not empty (SCANsat would hide it), so without this patch
+                    // stock's own value (0.1 to 0.8 everywhere) is what SCANsat and the KerbNet chart would show.
+                    Log.Warn("The 'resources' patch is not active: the SubterraCavity layer will show stock values (not radar detections) in SCANsat and the KerbNet chart until the patch is active again");
+                }
+            };
             PatchManager.Register(Id, harmony => harmony.Patch(
                 AccessTools.Method(typeof(ResourceMap), nameof(ResourceMap.GetAbundance), new[] { typeof(AbundanceRequest) }),
                 postfix: new HarmonyMethod(typeof(ResourcePatch), nameof(Postfix))));
@@ -108,7 +117,21 @@ namespace Subterra
             }
             catch (Exception e)
             {
-                PatchManager.Fault(Id, e);
+                // Always answer 0 for SubterraCavity (R31): the value the original computed is stock's, not detections.
+                if (request.ResourceName == CavityAbundance.ResourceName)
+                {
+                    __result = 0f;
+                }
+
+                if (e is CavityAbundance.InjectedFault)
+                {
+                    // A failure a test asked for is not an error (the scenario checks the log for errors).
+                    Log.Warn("ResourcePatch: " + e.Message);
+                }
+                else
+                {
+                    PatchManager.Fault(Id, e);
+                }
             }
         }
     }

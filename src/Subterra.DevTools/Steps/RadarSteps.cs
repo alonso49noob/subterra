@@ -18,6 +18,7 @@ namespace Subterra.DevTools
             StepRegistry.Register("subPoint", SubPointStep);
             StepRegistry.Register("subPointAt", SubPointAt);
             StepRegistry.Register("radarSetLastScan", RadarSetLastScan);
+            StepRegistry.Register("cavityFailNext", CavityFailNext);
         }
 
         /// <summary>Key prefix of the points subPoint keeps in TestContext.Snapshots (x = lat, y = lon, z = UT).</summary>
@@ -102,6 +103,16 @@ namespace Subterra.DevTools
             }
 
             ctx.Pass(Invariant($"lastScanUT of {modules.Count} module(s) on {partName} = {p.z:F0} ({Planetarium.GetUniversalTime() - p.z:F0} s ago)"));
+            yield break;
+        }
+
+        // cavityFailNext count = 1 - the next count SubterraCavity lookups throw (CavityAbundance.FailNext): the resource
+        // patch must answer 0 for them, never the stock value.
+        private static IEnumerator CavityFailNext(ConfigNode node, TestContext ctx)
+        {
+            int count = (int)node.ArgDouble("count", 1);
+            CavityAbundance.FailNext(count);
+            ctx.Pass(Invariant($"the next {count} SubterraCavity lookup(s) will fail"));
             yield break;
         }
 
