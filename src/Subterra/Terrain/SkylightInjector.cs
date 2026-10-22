@@ -64,7 +64,8 @@ namespace Subterra
                         float bound = skylight.Radius;
                         if (clip && skylight.Smooth)
                         {
-                            var mouth = new Mouth { Net = net, Up = skylight.Up };
+                            var mouth = new Mouth { Up = skylight.Up, Centre = net.ToBody(skylight.SurfaceCenter), Reach = skylight.Radius + MouthGrowth + 10 };
+                            mouth.Net = net;
                             Mouths[MouthKey(runtime, skylight.Owner ?? net.Id, skylight.Index)] = mouth;
                             field = mouth.Field;
                             bound = skylight.Radius + MouthGrowth;
@@ -108,14 +109,54 @@ namespace Subterra
         // A dug mouth's shape: where its tunnel (as it is now) reaches OpenDepth under the ground.
         private sealed class Mouth
         {
-            public TubeNetwork Net;
+            private TubeNetwork net;
+            private List<Core.Sdf.Primitive> near = new List<Core.Sdf.Primitive>();
+
             public Core.Numerics.Vec3 Up;
 
+            /// <summary>Where the mouth is (body coordinates) and how far its opening can reach.</summary>
+            public Core.Numerics.Vec3d Centre;
+            public float Reach;
+
+            // Only the tunnel pieces near the mouth matter (a long tunnel has hundreds).
+            public TubeNetwork Net
+            {
+                get => net;
+                set
+                {
+                    net = value;
+                    var list = new List<Core.Sdf.Primitive>();
+                    Core.Numerics.Vec3 c = value.ToLocal(Centre);
+                    var box = new Core.Numerics.Aabb(c - new Core.Numerics.Vec3(Reach, Reach, Reach), c + new Core.Numerics.Vec3(Reach, Reach, Reach));
+                    foreach (Core.Sdf.Primitive piece in value.Primitives)
+                    {
+                        if (piece.Bounds.Intersects(box))
+                        {
+                            list.Add(piece);
+                        }
+                    }
+
+                    near = list;
+                }
+            }
+
+            // The tunnel's smooth shape (its pieces without the wall noise, which made a dug mouth's cut cost frames of
+            // ~200 ms): a few pieces near the mouth, each a cheap analytic distance.
             public float Field(Vector3d bodyPos)
             {
                 TubeNetwork net = Net;
                 Core.Numerics.Vec3d p = bodyPos.ToCore() - Core.Numerics.Vec3d.FromVec3(Up) * OpenDepth;
-                return net.Sdf.Distance(net.ToLocal(p));
+                Core.Numerics.Vec3 local = net.ToLocal(p);
+                float best = float.MaxValue;
+                foreach (Core.Sdf.Primitive piece in near)
+                {
+                    if (piece.Bounds.Contains(local))
+                    {
+                        best = Math.Min(best, piece.Distance(local));
+                    }
+                }
+
+                return best == float.MaxValue ? 10f : best;
             }
         }
 
@@ -136,7 +177,12 @@ namespace Subterra
                 {
                     using (SubterraClock.Measure("SkylightInjector"))
                     {
+                        var watch = System.Diagnostics.Stopwatch.StartNew();
                         mod.Refresh(index);
+                        if (watch.Elapsed.TotalMilliseconds > 4)
+                        {
+                            Log.Info($"Mouth {tunnel.Id}: cut again in {watch.Elapsed.TotalMilliseconds:F1} ms ({mod.LastCutStats})");
+                        }
                     }
                 }
             }

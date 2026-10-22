@@ -64,10 +64,10 @@ namespace Subterra.Core.Tests.Meshing
                 foreach (Vec3 p in new[] { a, b, c })
                 {
                     Vec3 d = p - hole.Centre;
-                    Assert.True(new Vec3(d.X, 0, d.Z).Length > hole.Radius - 0.01f);
+                    Assert.True(new Vec3(d.X, 0, d.Z).Length > hole.Radius - 0.01f, $"vertex {p} inside, {new Vec3(d.X, 0, d.Z).Length}");
                 }
 
-                Assert.True(Vec3.Cross(b - a, c - a).Y >= -1e-3f);
+                Assert.True(Vec3.Cross(b - a, c - a).Y >= -1e-3f, $"flipped {a} {b} {c}");
             }
 
             float expected = 180f * 180f - (float)(Math.PI * 25 * 25);

@@ -116,125 +116,158 @@ namespace Subterra.Core.Meshing
             return result.ToArray();
         }
 
-        // The grid on one crossed triangle: (n + 1)(n + 2)/2 points in barycentric steps of 1/n.
+        // A crossed triangle refined only where the hole's edge passes: a sub-triangle well outside every hole is kept
+        // whole, one well inside is dropped, and one near an edge is split in four until it is no bigger than `cell`;
+        // at that size its inner corners are moved out onto the edge. Points are shared by their barycentric weights.
         private static void Subdivide(int baseCount, int a, int b, int c, Vec3 pa, Vec3 pb, Vec3 pc, IList<ClipHole> holes, float cell,
             List<Blend> added, List<int> result)
         {
-            float longest = Math.Max((pb - pa).Length, Math.Max((pc - pb).Length, (pa - pc).Length));
-            int n = Math.Max(2, Math.Min(64, (int)Math.Ceiling(longest / Math.Max(0.1f, cell))));
-            int Index(int row, int col) => row * (row + 1) / 2 + col;
-            int count = (n + 1) * (n + 2) / 2;
-            var weights = new (float wa, float wb, float wc)[count];
-            var inside = new int[count];
-            for (int row = 0; row <= n; row++)
+            var points = new Dictionary<long, int>();
+            var depthOf = new Dictionary<long, (float d, int hole)>();
+            const float Q = 1 << 20;
+
+            long Key(float wb, float wc) => ((long)Math.Round(wb * Q) << 32) ^ (uint)(long)Math.Round(wc * Q);
+
+            Vec3 At(float wb, float wc) => pa * (1 - wb - wc) + pb * wb + pc * wc;
+
+            // Signed distance to the nearest hole's edge at a point (negative inside a hole), and that hole.
+            (float d, int hole) Depth(float wb, float wc)
             {
-                for (int col = 0; col <= row; col++)
+                long key = Key(wb, wc);
+                if (depthOf.TryGetValue(key, out var known))
                 {
-                    // Row r goes from A (r = 0) towards the edge B–C (r = n); col runs from B's side to C's.
-                    float wa = 1f - (float)row / n, wb = (float)(row - col) / n, wc = (float)col / n;
-                    int k = Index(row, col);
-                    weights[k] = (wa, wb, wc);
-                    Vec3 p = pa * wa + pb * wb + pc * wc;
-                    inside[k] = -1;
-                    for (int h = 0; h < holes.Count; h++)
+                    return known;
+                }
+
+                Vec3 p = At(wb, wc);
+                float best = float.MaxValue;
+                int which = -1;
+                for (int h = 0; h < holes.Count; h++)
+                {
+                    float d = holes[h].Inside(p);
+                    if (d < best)
                     {
-                        if (holes[h].Inside(p) < 0)
-                        {
-                            inside[k] = h;
-                            break;
-                        }
+                        best = d;
+                        which = h;
                     }
                 }
+
+                return depthOf[key] = (best, which);
             }
 
-            var map = new int[count];
-            for (int k = 0; k < count; k++)
-            {
-                map[k] = -1;
-            }
+            var placed = new Dictionary<int, Vec3>();
 
-            int Vertex(int k)
+            int Vertex(float wb, float wc, bool onEdge)
             {
-                if (map[k] >= 0)
+                float wa = 1 - wb - wc;
+                (float d, int hole) = Depth(wb, wc);
+                bool move = onEdge && d < 0;
+                long key = Key(wb, wc) * 2 + (move ? 1 : 0);
+                if (points.TryGetValue(key, out int index))
                 {
-                    return map[k];
+                    return index;
                 }
 
-                (float wa, float wb, float wc) = weights[k];
-                if (inside[k] >= 0)
+                if (move)
                 {
                     // Out onto the hole's edge, along the hole's plane, staying in the parent triangle's plane.
-                    ClipHole h = holes[inside[k]];
-                    Vec3 p = pa * wa + pb * wb + pc * wc;
-                    Vec3 target = OntoEdge(p, h);
-                    (wa, wb, wc) = Barycentric(target, pa, pb, pc, h.Up);
+                    ClipHole h = holes[hole];
+                    (wa, wb, wc) = Barycentric(OntoEdge(At(wb, wc), h), pa, pb, pc, h.Up);
                 }
 
                 // Corners of the parent triangle that stay where they are keep their own index.
-                if (inside[k] < 0 && wa == 1f && wb == 0 && wc == 0)
+                if (!move && wa == 1f)
                 {
-                    return map[k] = a;
+                    index = a;
+                }
+                else if (!move && wb == 1f)
+                {
+                    index = b;
+                }
+                else if (!move && wc == 1f)
+                {
+                    index = c;
+                }
+                else
+                {
+                    added.Add(new Blend(a, b, c, wa, wb, wc));
+                    index = baseCount + added.Count - 1;
                 }
 
-                if (inside[k] < 0 && wb == 1f && wa == 0 && wc == 0)
-                {
-                    return map[k] = b;
-                }
-
-                if (inside[k] < 0 && wc == 1f && wa == 0 && wb == 0)
-                {
-                    return map[k] = c;
-                }
-
-                added.Add(new Blend(a, b, c, wa, wb, wc));
-                return map[k] = baseCount + added.Count - 1;
+                placed[index] = pa * wa + pb * wb + pc * wc;
+                return points[key] = index;
             }
 
-            void Emit(int k0, int k1, int k2)
+            float size = Math.Max((pb - pa).Length, Math.Max((pc - pb).Length, (pa - pc).Length));
+
+            // Sub-triangle with corners given as (wb, wc), same winding as (A, B, C); `scale` is its size over the parent's.
+            void Refine(float b0, float c0, float b1, float c1, float b2, float c2, float scale, int depth)
             {
-                // Dropped if every corner is inside a hole; kept (inner corners moved onto the edge) otherwise.
-                if (inside[k0] >= 0 && inside[k1] >= 0 && inside[k2] >= 0)
+                (float d0, _) = Depth(b0, c0);
+                (float d1, _) = Depth(b1, c1);
+                (float d2, _) = Depth(b2, c2);
+                float span = size * scale;
+                if (d0 > span && d1 > span && d2 > span)
+                {
+                    Emit(b0, c0, b1, c1, b2, c2, false);
+                    return;
+                }
+
+                if (d0 < -span && d1 < -span && d2 < -span)
                 {
                     return;
                 }
 
-                result.Add(Vertex(k0));
-                result.Add(Vertex(k1));
-                result.Add(Vertex(k2));
+                if (span <= cell || depth >= 8)
+                {
+                    if (d0 < 0 && d1 < 0 && d2 < 0)
+                    {
+                        return;
+                    }
+
+                    Emit(b0, c0, b1, c1, b2, c2, true);
+                    return;
+                }
+
+                float b01 = (b0 + b1) * 0.5f, c01 = (c0 + c1) * 0.5f, b12 = (b1 + b2) * 0.5f, c12 = (c1 + c2) * 0.5f;
+                float b20 = (b2 + b0) * 0.5f, c20 = (c2 + c0) * 0.5f;
+                float half = scale * 0.5f;
+                Refine(b0, c0, b01, c01, b20, c20, half, depth + 1);
+                Refine(b01, c01, b1, c1, b12, c12, half, depth + 1);
+                Refine(b20, c20, b12, c12, b2, c2, half, depth + 1);
+                Refine(b01, c01, b12, c12, b20, c20, half, depth + 1);
             }
 
-            for (int row = 0; row < n; row++)
+            Vec3 normal = Vec3.Cross(pb - pa, pc - pa);
+
+            void Emit(float b0, float c0, float b1, float c1, float b2, float c2, bool onEdge)
             {
-                for (int col = 0; col <= row; col++)
+                int i0 = Vertex(b0, c0, onEdge), i1 = Vertex(b1, c1, onEdge), i2 = Vertex(b2, c2, onEdge);
+                if (onEdge)
                 {
-                    // Same winding as (A, B, C): A towards the B–C edge, B's side before C's.
-                    Emit(Index(row, col), Index(row + 1, col), Index(row + 1, col + 1));
-                    if (col < row)
+                    // Corners moved onto the edge can cross over: a flipped or flattened sliver is left out.
+                    Vec3 q0 = placed[i0], q1 = placed[i1], q2 = placed[i2];
+                    if (Vec3.Dot(Vec3.Cross(q1 - q0, q2 - q0), normal) <= 1e-6f * normal.Length)
                     {
-                        Emit(Index(row, col), Index(row + 1, col + 1), Index(row, col + 1));
+                        return;
                     }
                 }
+
+                result.Add(i0);
+                result.Add(i1);
+                result.Add(i2);
             }
+
+            Refine(0, 0, 1, 0, 0, 1, 1, 0);
         }
 
-        // The field is under one grid cell somewhere on the triangle (8 × 8 samples).
+
+        // The field may reach into the triangle: it is roughly a distance (it changes by at most a metre per metre), so a
+        // triangle whose corners are all farther from the hole than the triangle is wide cannot be reached.
         private static bool FieldReaches(Vec3 pa, Vec3 pb, Vec3 pc, ClipHole h)
         {
-            const int n = 8;
-            float margin = Math.Max((pb - pa).Length, Math.Max((pc - pb).Length, (pa - pc).Length)) / n;
-            for (int row = 0; row <= n; row++)
-            {
-                for (int col = 0; col <= row; col++)
-                {
-                    float wa = 1f - (float)row / n, wb = (float)(row - col) / n, wc = (float)col / n;
-                    if (h.Field(pa * wa + pb * wb + pc * wc) < margin)
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
+            float size = Math.Max((pb - pa).Length, Math.Max((pc - pb).Length, (pa - pc).Length));
+            return h.Field(pa) < size || h.Field(pb) < size || h.Field(pc) < size;
         }
 
         // The nearest point of the hole's edge (seen along its up): exact for a round hole, Newton steps on the field

@@ -25,6 +25,12 @@ namespace Subterra
 
         public int Recuts { get; private set; }
 
+        /// <summary>What the last Refresh did (for the log): quads cut, triangles split, field evaluations, ms clipping.</summary>
+        public string LastCutStats { get; private set; } = "";
+
+        private int statQuads, statSplit;
+        private double statClipMs, statPatchMs;
+
         /// <summary>Distance between terrain vertices at the finest level (m).</summary>
         public double VertexSpacing => sphere == null ? 50 : Math.PI / 2 * sphere.radius / (1 << sphere.maxLevel) / (PQS.cacheSideVertCount - 1);
 
@@ -47,12 +53,16 @@ namespace Subterra
                 indices[i] = holes.Count - 1;
             }
 
-            // Built quads are already cut by the older holes: only the new ones are tested.
+            // The built quads near the new holes are queued and cut a few per frame (quads built later are cut as
+            // they are built).
             if (sphere != null && sphere.quads != null)
             {
-                foreach (PQ root in sphere.quads)
+                foreach (Hole hole in fresh)
                 {
-                    CutTree(root, fresh);
+                    foreach (PQ root in sphere.quads)
+                    {
+                        QueueNear(root, hole);
+                    }
                 }
             }
 
@@ -67,10 +77,135 @@ namespace Subterra
                 return;
             }
 
-            var one = new List<Hole> { holes[index] };
+            // The quads near it are queued and cut a few per frame (a tunnel mouth is cut again at every metre dug).
+            Hole hole = holes[index];
             foreach (PQ root in sphere.quads)
             {
-                CutTree(root, one);
+                QueueNear(root, hole);
+            }
+
+            LastCutStats = $"{pending.Count} quads queued; last batch: {statQuads} quads, {statSplit} split triangles, clip {statClipMs:F1} ms, patches {statPatchMs:F1} ms";
+        }
+
+        private readonly List<PQ> pending = new List<PQ>();
+
+        /// <summary>Main-thread time (ms) for queued cuts per frame (at least one quad is cut).</summary>
+        private const double QueueBudgetMs = 2;
+
+        private void QueueNear(PQ quad, Hole hole)
+        {
+            if (quad == null)
+            {
+                return;
+            }
+
+            if (quad.isSubdivided && quad.subNodes != null)
+            {
+                foreach (PQ child in quad.subNodes)
+                {
+                    QueueNear(child, hole);
+                }
+
+                return;
+            }
+
+            if (!quad.isBuilt || quad.mesh == null || quad.subdivision < sphere.maxLevel || pending.Contains(quad))
+            {
+                return;
+            }
+
+            Vector3d centre = sphere.transform.InverseTransformPoint(quad.transform.TransformPoint(quad.mesh.bounds.center));
+            double near = quad.mesh.bounds.extents.magnitude + hole.Radius + CutReach;
+            if ((hole.Centre - centre).sqrMagnitude <= near * near)
+            {
+                pending.Add(quad);
+            }
+        }
+
+        // The queued quad whose clipping runs on the worker pool (one at a time).
+        private CutJob running;
+
+        private void Update()
+        {
+            if (pending.Count == 0 && running == null)
+            {
+                return;
+            }
+
+            using (SubterraClock.Measure("PqsHole"))
+            {
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                statQuads = statSplit = 0;
+                statClipMs = statPatchMs = 0;
+                if (running != null)
+                {
+                    if (!running.Done)
+                    {
+                        return;
+                    }
+
+                    // Applied only if the quad is still the one it was cut from (else cut again).
+                    CutJob job = running;
+                    running = null;
+                    PQ q = job.Quad;
+                    bool same = q != null && q.isBuilt && q.mesh == job.Mesh && q.edgeState == job.Edge
+                        && origins.TryGetValue(q, out Origin current) && current == job.Origin;
+                    if (job.Error != null)
+                    {
+                        Log.Error($"Terrain cut failed: {job.Error}");
+                    }
+                    else if (same)
+                    {
+                        Finish(job);
+                    }
+                    else if (q != null && q.isBuilt && !pending.Contains(q))
+                    {
+                        pending.Add(q);
+                    }
+                }
+
+                while (running == null && pending.Count > 0 && watch.Elapsed.TotalMilliseconds < QueueBudgetMs)
+                {
+                    PQ quad = pending[pending.Count - 1];
+                    pending.RemoveAt(pending.Count - 1);
+                    if (quad == null || !quad.isBuilt || quad.mesh == null)
+                    {
+                        continue;
+                    }
+
+                    CutJob job = Prepare(quad, holes);
+                    if (job == null)
+                    {
+                        continue;
+                    }
+
+                    if (job.Clips == null)
+                    {
+                        job.Clip();
+                        Finish(job);
+                        continue;
+                    }
+
+                    running = job;
+                    WorkerPool.Shared.Enqueue(() =>
+                    {
+                        try
+                        {
+                            job.Clip();
+                        }
+                        catch (Exception e)
+                        {
+                            job.Error = e;
+                        }
+
+                        job.Done = true;
+                    });
+                }
+
+                if (watch.Elapsed.TotalMilliseconds > 5)
+                {
+                    Log.Info($"Terrain cut: {watch.Elapsed.TotalMilliseconds:F1} ms ({statSplit} split triangles, clip {statClipMs:F1} ms, patches {statPatchMs:F1} ms, {pending.Count} quads left)");
+                }
             }
         }
 
@@ -150,6 +285,9 @@ namespace Subterra
         /// <summary>Target size (m) of the grid a clipped hole's edge is cut on: the edge is this smooth.</summary>
         private const float ClipCell = 1.25f;
 
+        /// <summary>Grid size (m) for shaped holes (dug mouths).</summary>
+        private const float FieldClipCell = 2.5f;
+
         // KSP's own mesh of a quad (vertex count, and its triangles while ours are set) and the triangles we last set.
         private readonly Dictionary<PQ, Origin> origins = new Dictionary<PQ, Origin>();
 
@@ -158,16 +296,62 @@ namespace Subterra
             public int Count;
             public int[] Triangles;
             public int[] Applied;
+            public ulong PatchHash;
+        }
+
+        // One quad's cut: gathered on the main thread, its clipping (the costly part) run anywhere, applied on the main thread.
+        private sealed class CutJob
+        {
+            public PQ Quad;
+            public Mesh Mesh;
+            public Origin Origin;
+            public PQS.EdgeState Edge;
+            public int[] Triangles;
+            public bool Changed;
+            public List<Core.Meshing.ClipHole> Clips;
+            public Core.Numerics.Vec3[] Vertices;
+            public float Cell;
+            public int[] Clipped;
+            public List<Core.Meshing.TerrainClip.Blend> Added = new List<Core.Meshing.TerrainClip.Blend>();
+            public volatile bool Done;
+            public Exception Error;
+
+            public void Clip()
+            {
+                if (Clips == null)
+                {
+                    Clipped = Triangles;
+                    return;
+                }
+
+                Clipped = Core.Meshing.TerrainClip.Clip(Vertices, Triangles, Clips, Cell, Added);
+                Changed |= !ReferenceEquals(Clipped, Triangles);
+            }
         }
 
         // Cuts the quad from KSP's mesh (not on top of an earlier cut) with every hole near it: removed triangles for
-        // dug mouths, a smooth round edge clipped into the terrain for the others. `subset`: holes worth a look.
+        // holes with a rim, the rest clipped into the terrain. `subset`: holes worth a look.
         private void Cut(PQ quad, List<Hole> subset)
+        {
+            CutJob job = Prepare(quad, subset);
+            if (job == null)
+            {
+                return;
+            }
+
+            var clipWatch = System.Diagnostics.Stopwatch.StartNew();
+            job.Clip();
+            statClipMs += clipWatch.Elapsed.TotalMilliseconds;
+            Finish(job);
+        }
+
+        // The main-thread half before clipping; null if there is nothing to do (handled here).
+        private CutJob Prepare(PQ quad, List<Hole> subset)
         {
             Mesh mesh = quad.mesh;
             if (mesh == null || subset.Count == 0 || quad.subdivision < sphere.maxLevel)
             {
-                return;
+                return null;
             }
 
             Bounds bounds = mesh.bounds;
@@ -209,18 +393,17 @@ namespace Subterra
                     cut[quad] = quad.edgeState;
                 }
 
-                return;
+                return null;
             }
 
             int[] t = BaseTriangles(quad, mesh, out Origin origin);
             Vector3[] v = mesh.vertices;
-            List<Core.Meshing.ClipHole> clips = null;
-            bool changed = false;
+            var job = new CutJob { Quad = quad, Mesh = mesh, Origin = origin, Edge = quad.edgeState };
             foreach ((Hole hole, Vector3 c, Vector3 up) in near)
             {
                 if (hole.Clip)
                 {
-                    clips = clips ?? new List<Core.Meshing.ClipHole>();
+                    job.Clips = job.Clips ?? new List<Core.Meshing.ClipHole>();
                     Func<Core.Numerics.Vec3, float> field = null;
                     if (hole.Field != null)
                     {
@@ -229,7 +412,7 @@ namespace Subterra
                         field = p => bodyField(toBody.MultiplyPoint3x4(p.ToUnity()));
                     }
 
-                    clips.Add(new Core.Meshing.ClipHole(c.ToCore(), up.ToCore(), hole.Radius, field));
+                    job.Clips.Add(new Core.Meshing.ClipHole(c.ToCore(), up.ToCore(), hole.Radius, field));
                     hole.Quads.Add(quad);
                     continue;
                 }
@@ -248,27 +431,44 @@ namespace Subterra
                 if (next.Count != t.Length)
                 {
                     t = next.ToArray();
-                    changed = true;
+                    job.Changed = true;
                     hole.Quads.Add(quad);
                 }
             }
 
-            var added = new List<Core.Meshing.TerrainClip.Blend>();
-            if (clips != null)
+            job.Triangles = t;
+            if (job.Clips != null)
             {
-                var core = new Core.Numerics.Vec3[origin.Count];
-                for (int i = 0; i < core.Length; i++)
+                job.Vertices = new Core.Numerics.Vec3[origin.Count];
+                for (int i = 0; i < origin.Count; i++)
                 {
-                    core[i] = v[i].ToCore();
+                    job.Vertices[i] = v[i].ToCore();
                 }
 
-                int[] clipped = Core.Meshing.TerrainClip.Clip(core, t, clips, ClipCell, added);
-                changed |= !ReferenceEquals(clipped, t);
-                t = clipped;
+                // Shaped holes (dug mouths) on a coarser grid: their edge is rough anyway, and they are cut again often.
+                job.Cell = job.Clips.Exists(h => h.Field != null) ? FieldClipCell : ClipCell;
             }
 
-            if (!changed)
+            return job;
+        }
+
+        // The main-thread half after clipping: KSP's triangles and the quad's patch.
+        private void Finish(CutJob job)
+        {
+            PQ quad = job.Quad;
+            Mesh mesh = job.Mesh;
+            Origin origin = job.Origin;
+            statQuads++;
+            if (!job.Changed)
             {
+                // Nothing to cut any more: KSP's own triangles back if ours were set.
+                if (origin.Applied != null && SameTriangles(mesh.triangles, origin.Applied))
+                {
+                    mesh.triangles = origin.Triangles;
+                    origin.Applied = null;
+                    DropPatch(quad);
+                }
+
                 if (cut.ContainsKey(quad))
                 {
                     cut[quad] = quad.edgeState;
@@ -279,6 +479,7 @@ namespace Subterra
 
             // KSP's mesh keeps its own vertices (KSP rewrites their normals and UVs itself): the triangles a clipped hole
             // split go to a patch of their own on the quad, with the terrain's material and every attribute blended alike.
+            int[] t = job.Clipped;
             var own = new List<int>(t.Length);
             var split = new List<int>();
             for (int i = 0; i < t.Length; i += 3)
@@ -289,10 +490,23 @@ namespace Subterra
                 to.Add(t[i + 2]);
             }
 
+            // Unchanged since the last cut (a mouth cut again away from where its tunnel grew): nothing to redo.
+            ulong patchHash = PatchHash(split, job.Added);
             int[] ownArray = own.ToArray();
+            bool sameOwn = origin.Applied != null && SameTriangles(ownArray, origin.Applied) && SameTriangles(mesh.triangles, origin.Applied);
+            if (sameOwn && patchHash == origin.PatchHash && patches.ContainsKey(quad))
+            {
+                cut[quad] = quad.edgeState;
+                return;
+            }
+
             mesh.triangles = ownArray;
             origin.Applied = ownArray;
-            SetPatch(quad, mesh, origin.Count, split, added);
+            origin.PatchHash = patchHash;
+            statSplit += split.Count / 3;
+            var patchWatch = System.Diagnostics.Stopwatch.StartNew();
+            SetPatch(quad, mesh, origin.Count, split, job.Added);
+            statPatchMs += patchWatch.Elapsed.TotalMilliseconds;
             if (quad.meshCollider != null && quad.meshCollider.sharedMesh != null)
             {
                 quad.meshCollider.sharedMesh = null;
@@ -319,7 +533,6 @@ namespace Subterra
                 origin.Triangles = current;
             }
 
-            mesh.triangles = origin.Triangles;
             return origin.Triangles;
         }
 
@@ -343,6 +556,26 @@ namespace Subterra
             {
                 mesh.triangles = origin.Triangles;
             }
+        }
+
+        private static ulong PatchHash(List<int> triangles, List<Core.Meshing.TerrainClip.Blend> added)
+        {
+            ulong h = 1469598103934665603UL;
+            unchecked
+            {
+                foreach (int i in triangles)
+                {
+                    h = (h ^ (ulong)i) * 1099511628211UL;
+                }
+
+                foreach (Core.Meshing.TerrainClip.Blend b in added)
+                {
+                    h = (h ^ (ulong)b.A ^ ((ulong)b.B << 20) ^ ((ulong)b.C << 40)) * 1099511628211UL;
+                    h = (h ^ (ulong)(long)(b.Wb * 1e5f) ^ ((ulong)(long)(b.Wc * 1e5f) << 32)) * 1099511628211UL;
+                }
+            }
+
+            return h;
         }
 
         private static bool SameTriangles(int[] a, int[] b)
