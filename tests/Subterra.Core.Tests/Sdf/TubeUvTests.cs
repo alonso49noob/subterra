@@ -13,6 +13,16 @@ namespace Subterra.Core.Tests.Sdf
             new TubeSegment(new Vec3(x0, 0, 0), new Vec3(x1, 0, 0), Up, Up, 40, 40, 20, 20, 0, ZoneKind.TubeGallery) { AlongStart = start };
 
         [Fact]
+        public void PastEndOnlyOnTheRoundedEnds()
+        {
+            TubeSegment piece = Piece(0, 100, 0);
+            Assert.False(piece.PastEnd(new Vec3(50, 5, 15)));
+            Assert.False(piece.PastEnd(new Vec3(104, 5, 15)), "a joint's outer side is still wall");
+            Assert.True(piece.PastEnd(new Vec3(115, 5, 0)));
+            Assert.True(piece.PastEnd(new Vec3(-15, 5, 0)));
+        }
+
+        [Fact]
         public void AlongRunsOnAcrossPieces()
         {
             TubeSegment first = Piece(0, 100, 0), second = Piece(100, 200, 100);

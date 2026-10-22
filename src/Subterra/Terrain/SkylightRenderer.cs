@@ -74,6 +74,31 @@ namespace Subterra
             return best == null ? (bool?)null : best.Cap != null && best.Cap.activeSelf;
         }
 
+        /// <summary>For tests: which opening is nearest <paramref name="world"/>, how far from the camera, open or not.</summary>
+        public string DescribeNearest(Vector3d world)
+        {
+            Entry best = null;
+            double bestDistance = double.MaxValue;
+            foreach (Entry e in entries.Values)
+            {
+                double d = (e.World - world).magnitude;
+                if (d < bestDistance)
+                {
+                    bestDistance = d;
+                    best = e;
+                }
+            }
+
+            if (best == null || FlightCamera.fetch == null)
+            {
+                return "none";
+            }
+
+            double camera = (best.World - FlightCamera.fetch.mainCamera.transform.position).magnitude;
+            bool open = SkylightInjector.IsOpen(body, best.Net, best.Skylight);
+            return $"{best.Net.Id} #{best.Skylight.Index} {bestDistance:F0} m away, camera {camera:F0} m, {(open ? "open" : "closed")}, {(best.Skylight.Natural ? "natural" : best.Skylight.Smooth ? "mouth" : "round")}, {entries.Count} entries";
+        }
+
         public int RimCount
         {
             get
@@ -116,6 +141,14 @@ namespace Subterra
 
             Clear();
             Destroy(capMesh);
+            foreach (Light light in fillLights)
+            {
+                if (light != null)
+                {
+                    Destroy(light.gameObject);
+                }
+            }
+
             Destroy(capMaterial);
         }
 
@@ -138,6 +171,13 @@ namespace Subterra
             }
 
             entries.Clear();
+            foreach (Light light in fillLights)
+            {
+                if (light != null)
+                {
+                    light.enabled = false;
+                }
+            }
         }
 
         private void LateUpdate()
@@ -209,6 +249,72 @@ namespace Subterra
                         }
                     }
                 }
+
+                FillPits(camera, settings);
+            }
+        }
+
+        /// <summary>Pits lit from inside at once (the nearest open natural openings within the visual range).</summary>
+        public const int MaxFillLights = 4;
+
+        private readonly List<Light> fillLights = new List<Light>();
+        private readonly List<(Entry e, double distance)> fillCandidates = new List<(Entry, double)>();
+
+        // Light the sunlit floor and walls of a pit throw back onto its shaded walls: without it, a pit seen from a
+        // kilometre or two (too near for the far cap) was a black dot. A soft point light in the shaft, the ground's
+        // colour, as strong as the sun is high over the pit (none at night); only for the nearest few pits.
+        private void FillPits(Vector3d camera, Settings settings)
+        {
+            fillCandidates.Clear();
+            foreach (Entry e in entries.Values)
+            {
+                double distance = (e.World - camera).magnitude;
+                if (e.Skylight.Natural && distance < settings.VisualRange && SkylightInjector.IsOpen(body, e.Net, e.Skylight))
+                {
+                    fillCandidates.Add((e, distance));
+                }
+            }
+
+            fillCandidates.Sort((x, y) => x.distance.CompareTo(y.distance));
+            CelestialBody star = FlightGlobals.Bodies.Count > 0 ? FlightGlobals.Bodies[0] : null;
+            int used = 0;
+            foreach (var (e, _) in fillCandidates)
+            {
+                if (used == MaxFillLights || star == null || star == body)
+                {
+                    break;
+                }
+
+                Vector3d up = (e.World - body.position).normalized;
+                float sun = (float)Vector3d.Dot(up, (star.position - e.World).normalized);
+                if (sun <= 0.02f)
+                {
+                    continue;
+                }
+
+                if (fillLights.Count <= used)
+                {
+                    var go = new GameObject("SubterraPitFill " + used);
+                    Light created = go.AddComponent<Light>();
+                    created.type = LightType.Point;
+                    created.shadows = LightShadows.None;
+                    fillLights.Add(created);
+                }
+
+                // Half way down the shaft: it reaches its walls, the floor under it and the tube's roof around it.
+                Vector3d bottom = Frames.ToWorld(body, e.Net.ToBody(e.Skylight.ShaftBottom));
+                float depth = (float)(e.World - bottom).magnitude;
+                Light light = fillLights[used++];
+                light.transform.position = Vector3d.Lerp(e.World, bottom, 0.55);
+                light.color = e.GroundColour ?? new Color(0.6f, 0.6f, 0.6f);
+                light.range = depth + 2.5f * e.Skylight.Radius;
+                light.intensity = 0.9f * Mathf.SmoothStep(0, 1, Mathf.InverseLerp(0.02f, 0.5f, sun));
+                light.enabled = true;
+            }
+
+            for (int i = used; i < fillLights.Count; i++)
+            {
+                fillLights[i].enabled = false;
             }
         }
 
@@ -756,12 +862,14 @@ namespace Subterra
             var renderer = go.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = capMaterial;
             renderer.shadowCastingMode = ShadowCastingMode.Off;
-            go.transform.localScale = Vector3.one * e.Skylight.Radius * 1.4f;
+            // About the opening's own size (its radius is already the lobed rim's reach): bigger, pits close together
+            // merged into one ink blot when seen from high up.
+            go.transform.localScale = Vector3.one * e.Skylight.Radius * 1.05f;
             return go;
         }
 
-        /// <summary>The far cap's centre: a deep shadow, not black, and not quite opaque.</summary>
-        private static readonly Color CapCentre = new Color(0.08f, 0.08f, 0.085f, 0.85f);
+        /// <summary>The far cap's centre: a dark grey shadow (a pit's shaded walls and floor), not black, half see-through.</summary>
+        private static readonly Color CapCentre = new Color(0.15f, 0.15f, 0.155f, 0.62f);
 
         // Unit disc in the X/Z plane facing up.
         private static Mesh Disc(int segments)

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Subterra.Core.Model;
 using Subterra.Core.Scatter;
@@ -108,7 +109,8 @@ namespace Subterra
                             var local = s.Position + s.Up * (hanging ? -1.5f : 0.8f * s.Scale);
                             Vector3 p = frame.TransformPoint(local.ToUnity());
                             float d = (p - eye).magnitude;
-                            if (d < spec.GlowLight * 3)
+                            // Within three ranges, or 150 m in big rooms (a glow seen across a hall still lights its corner).
+                            if (d < Math.Max(spec.GlowLight * 3, 150))
                             {
                                 candidates.Add(new Candidate { Position = p, Distance = d, Spec = spec });
                             }
