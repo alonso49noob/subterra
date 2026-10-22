@@ -175,7 +175,11 @@ namespace Subterra.DevTools
 
             ctx.Release();
             yield return ctx.WaitFor(() => !vessel.packed, 60, "the vessel to go off rails");
-            CelestialBody body = vessel.mainBody;
+
+            // The network's own body: right after a teleport to another body the vessel can still be switching
+            // sphere of influence, and placing it from the old body's frame sent it far off (once into a solar orbit).
+            CelestialBody body = FlightGlobals.GetBodyByName(net.Body) ?? throw new InvalidOperationException($"no body {net.Body}");
+            yield return ctx.WaitFor(() => vessel.mainBody == body, 30, $"the vessel to be in {body.bodyName}'s sphere of influence");
             // Like the cheat menu's SetVesselPosition: on rails first (moving an unpacked vessel far in one
             // frame gives its parts a huge velocity), moved while pinned (Landed = idle orbit driver);
             // KSP — or Subterra's load guard, inside a cave — lets it go.

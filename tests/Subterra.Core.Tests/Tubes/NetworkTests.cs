@@ -111,7 +111,9 @@ namespace Subterra.Core.Tests.Tubes
         public void SkylightGeometry()
         {
             Skylight s = Assert.Single(Net.Skylights);
-            Assert.Equal(30, s.Radius);
+            // The opening reaches past the 30 m shaft: its rim is lobed, out to 1.3 radii.
+            Assert.Equal(39, s.Radius, 3);
+            Assert.True(s.Smooth && s.Natural);
             Assert.True(Vec3.Distance(At(Net, 0, Lon0, R), s.SurfaceCenter) < 0.01f);
         }
 

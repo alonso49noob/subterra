@@ -118,23 +118,32 @@ namespace Subterra.Core.Tubes
                 {
                     Vec3d bottom = p.FloorCenter + p.Up * (p.Height - 2);
                     double length = p.SurfaceRadius + ShaftAboveSurface - bottom.Length;
+                    // A natural collapse: lobed rim and walls overhanging the cave below (a bell, wider still for a cenote);
+                    // the noise fades out under the rim, where the ground is cut along the shaft's smooth shape (no rim ring).
                     var shaft = new Shaft(Local(bottom), up, (float)node.SkylightRadius, (float)length)
                     {
                         Roughness = (float)(0.08 * node.SkylightRadius),
                         NoiseScale = (float)Math.Max(4, 0.5 * node.SkylightRadius),
                         Source = i,
+                        Flare = node.Cenote ? 1.8f : 1.3f,
+                        Lobes = node.Cenote ? 0.22f : 0.15f,
+                        LobeSeed = (float)(Hash.Of(id + "/" + i) % 1000) / 100f,
+                        Ground = ShaftAboveSurface,
                     };
                     prims.Add(shaft);
                     skylights.Add(new Skylight
                     {
                         SurfaceCenter = Local(p.Up * p.SurfaceRadius),
                         Up = up,
-                        Radius = (float)node.SkylightRadius,
+                        Radius = (float)(1.3 * node.SkylightRadius),
                         Lat = node.Lat,
                         Lon = node.Lon,
                         SurfaceRadius = p.SurfaceRadius,
                         ShaftBottom = Local(bottom),
                         Index = skylights.Count,
+                        Smooth = true,
+                        Natural = true,
+                        Shaft = shaft,
                     });
                 }
                 else if (node.Feature == NodeFeature.Portal)

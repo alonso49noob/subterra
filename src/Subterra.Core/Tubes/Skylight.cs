@@ -33,5 +33,12 @@ namespace Subterra.Core.Tubes
 
         /// <summary>A smooth rim (a tunnel mouth a vehicle drives over) instead of a debris rim.</summary>
         public bool Smooth { get; set; }
+
+        /// <summary>A natural collapse (pit, cenote) cut along its own lobed shaft: smooth-cut like a mouth, but it keeps the
+        /// far-view cap and the rubble cone under it.</summary>
+        public bool Natural { get; set; }
+
+        /// <summary>The natural opening's shaft (its rim's shape: <see cref="Sdf.Shaft.RimRadius"/>); null otherwise.</summary>
+        public Sdf.Shaft Shaft { get; set; }
     }
 }

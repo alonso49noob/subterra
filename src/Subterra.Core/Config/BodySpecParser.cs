@@ -290,6 +290,7 @@ namespace Subterra.Core.Config
                 Altitude = node.GetValue("altitude") == null ? double.NaN : r.Double(node, "altitude", double.NaN),
             };
 
+            n.Cenote = r.Bool(node, "cenote", false);
             n.Water = Math.Max(0, r.Double(node, "water", 0));
             string waterColour = node.GetValue("waterColour");
             if (waterColour != null)

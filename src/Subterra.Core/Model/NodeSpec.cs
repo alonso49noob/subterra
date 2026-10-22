@@ -35,6 +35,9 @@ namespace Subterra.Core.Model
 
         public double SkylightRadius { get; set; }
 
+        /// <summary>A skylight shaped like a cenote: lobed rim, bell-shaped (overhanging) walls, the ground cut along it.</summary>
+        public bool Cenote { get; set; }
+
         /// <summary>
         /// Roof altitude over the body's datum (m), instead of a depth under the local terrain (NaN: unset). For deep
         /// networks under a feature whose terrain changes a lot (the Mohole): the tube keeps its level whatever is above.

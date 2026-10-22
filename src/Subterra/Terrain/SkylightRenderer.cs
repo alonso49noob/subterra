@@ -174,7 +174,7 @@ namespace Subterra
                     e.World = Frames.ToWorld(body, e.Net.ToBody(e.Skylight.SurfaceCenter));
                     double distance = (e.World - camera).magnitude;
                     Quaternion rotation = pqsRotation * e.LocalRotation;
-                    if (distance < settings.VisualRange && e.Rim == null && !e.Building && !(e.Skylight.Smooth && settings.TerrainClip))
+                    if (distance < settings.VisualRange && e.Rim == null && !e.Building && !(e.Skylight.Smooth && !e.Skylight.Natural && settings.TerrainClip))
                     {
                         StartCoroutine(BuildRim(runtime, e));
                     }
@@ -193,7 +193,7 @@ namespace Subterra
                     }
 
                     bool open = SkylightInjector.IsOpen(body, e.Net, e.Skylight);
-                    bool showCap = !e.Skylight.Smooth && distance < settings.CapRange && (!open || distance > settings.CapMinDistance);
+                    bool showCap = (!e.Skylight.Smooth || e.Skylight.Natural) && distance < settings.CapRange && (!open || distance > settings.CapMinDistance);
                     if (showCap && e.Cap == null)
                     {
                         e.Cap = CreateCap(e);
@@ -611,7 +611,8 @@ namespace Subterra
         private IEnumerator BuildRim(BodyRuntime runtime, Entry e, bool immediate = false)
         {
             // A dug mouth clipped into the terrain needs no rim: the ground itself opens along its tunnel.
-            if (e.Skylight.Smooth && Settings.Current.TerrainClip)
+            bool natural = e.Skylight.Natural && e.Skylight.Shaft != null;
+            if (e.Skylight.Smooth && !natural && Settings.Current.TerrainClip)
             {
                 e.Building = false;
                 yield break;
@@ -624,16 +625,25 @@ namespace Subterra
             float outer = e.Skylight.Radius + (mod != null ? mod.CutReach : 60f) + 5f;
             var points = new List<(double lat, double lon)>();
             var planar = new List<Vec3>();
-            // A round opening clipped into the terrain itself needs only its hanging wall: one ring at its edge.
-            bool clipped = !e.Skylight.Smooth && Settings.Current.TerrainClip;
+            // An opening clipped into the terrain itself needs only its hanging wall: one ring at its edge (a natural
+            // opening's edge follows its lobed shaft, one radius per segment).
+            bool clipped = (!e.Skylight.Smooth || natural) && Settings.Current.TerrainClip;
             float[] radii = clipped ? new[] { e.Skylight.Radius } : RingRadii(inner, outer, e.Skylight.Smooth ? e.Skylight.Radius + 2f : inner);
             int segments = e.Skylight.Smooth || clipped ? SmoothSegments : Segments;
-            foreach (float radius in radii)
+            float[] edge = natural && clipped ? new float[segments] : null;
+            foreach (float ring in radii)
             {
                 for (int s = 0; s < segments; s++)
                 {
                     float a = 2 * Mathf.PI * s / segments;
-                    Vec3 offset = e.Right * (Mathf.Cos(a) * radius) + e.Forward * (Mathf.Sin(a) * radius);
+                    Vec3 direction = e.Right * Mathf.Cos(a) + e.Forward * Mathf.Sin(a);
+                    float radius = ring;
+                    if (edge != null)
+                    {
+                        radius = edge[s] = e.Skylight.Shaft.RimRadius(direction);
+                    }
+
+                    Vec3 offset = direction * radius;
                     Vec3d bodyPos = e.Net.ToBody(e.Skylight.SurfaceCenter + offset);
                     Core.Geo.BodyFrame.ToLatLon(bodyPos, out double lat, out double lon);
                     points.Add((lat, lon));
@@ -667,9 +677,9 @@ namespace Subterra
             Color? ground = FitToTerrainMesh(planar, heights, centre, up, e);
 
             MeshData data = clipped
-                ? RimBuilder.Wall(e.Skylight.Radius, segments, heights)
+                ? edge != null ? RimBuilder.Wall(edge, heights) : RimBuilder.Wall(e.Skylight.Radius, segments, heights)
                 : RimBuilder.Build(radii, segments, heights, Hash.Combine(Hash.Of(e.Net.Id), (ulong)e.Skylight.Index), e.Skylight.Smooth);
-            if (e.Skylight.Smooth)
+            if (e.Skylight.Smooth && !natural)
             {
                 data = OpenOverTunnel(data, e);
             }
@@ -716,7 +726,7 @@ namespace Subterra
                 Log.Info($"{go.name}: terrain colour {logged.r:F2} {logged.g:F2} {logged.b:F2}");
             }
             renderer.shadowCastingMode = ShadowCastingMode.On;
-            MeshData solid = e.Skylight.Smooth ? SolidPart(data) : data;
+            MeshData solid = e.Skylight.Smooth && !e.Skylight.Natural ? SolidPart(data) : data;
             if (solid.Triangles.Count > 0)
             {
                 go.AddComponent<MeshCollider>().sharedMesh = solid == data ? mesh : MeshUploader.Upload(solid, go.name + " collider");

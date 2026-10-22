@@ -79,12 +79,12 @@ namespace Subterra
             return result;
         }
 
-        // Floor under a skylight shaft (within 1.2 radii horizontally); not under a dug mouth (nothing caved in there).
+        // Floor under a skylight shaft (within 1.2 radii horizontally); not under a dug mouth or a portal (nothing caved in there).
         private static bool InRubbleZone(TubeNetwork net, Vec3 p)
         {
             foreach (Skylight s in net.Skylights)
             {
-                if (s.Smooth)
+                if (s.Smooth && !s.Natural)
                 {
                     continue;
                 }
