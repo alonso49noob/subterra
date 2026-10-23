@@ -12,6 +12,7 @@ namespace Subterra.Core.Procedural
     public sealed class NetworkCatalog
     {
         private readonly BodySpec spec;
+        private int version;
         private volatile Snapshot current = new Snapshot(new List<TubeNetwork>(), new Dictionary<CellId, IReadOnlyList<TubeNetwork>>(), new List<TubeNetwork>());
 
         public NetworkCatalog(BodySpec spec, double bodyRadius)
@@ -54,11 +55,24 @@ namespace Subterra.Core.Procedural
 
         public int ReadyCellCount => current.Cells.Count;
 
+        /// <summary>
+        /// Rises every time the set of networks changes (a site, a cell, a dug tunnel added, replaced or removed), so a
+        /// reader that caches something derived from the networks can tell with one int compare. Any thread.
+        /// </summary>
+        public int Version => System.Threading.Volatile.Read(ref version);
+
         public void AddNamed(TubeNetwork network)
         {
             Snapshot old = current;
             var named = new List<TubeNetwork>(old.Named) { network };
-            current = new Snapshot(named, old.Cells, old.Dug);
+            Publish(new Snapshot(named, old.Cells, old.Dug));
+        }
+
+        // Every change of the snapshot goes through here, so Version never misses one.
+        private void Publish(Snapshot next)
+        {
+            current = next;
+            System.Threading.Interlocked.Increment(ref version);
         }
 
         public bool IsCellReady(CellId c) => current.Cells.ContainsKey(c);
@@ -70,7 +84,7 @@ namespace Subterra.Core.Procedural
         {
             Snapshot old = current;
             var cells = new Dictionary<CellId, IReadOnlyList<TubeNetwork>>(old.Cells) { [c] = networks.ToArray() };
-            current = new Snapshot(old.Named, cells, old.Dug);
+            Publish(new Snapshot(old.Named, cells, old.Dug));
         }
 
         /// <summary>Adds a tunnel dug by the player that stands alone, or replaces it if one with its id is there.</summary>
@@ -88,7 +102,7 @@ namespace Subterra.Core.Procedural
                 dug.Add(network);
             }
 
-            current = new Snapshot(old.Named, old.Cells, dug);
+            Publish(new Snapshot(old.Named, old.Cells, dug));
         }
 
         /// <summary>Removes a standalone dug tunnel (it joined another network); false if it was not there.</summary>
@@ -101,7 +115,7 @@ namespace Subterra.Core.Procedural
                 return false;
             }
 
-            current = new Snapshot(old.Named, old.Cells, dug);
+            Publish(new Snapshot(old.Named, old.Cells, dug));
             return true;
         }
 
@@ -116,7 +130,7 @@ namespace Subterra.Core.Procedural
             if (named >= 0)
             {
                 var list = new List<TubeNetwork>(old.Named) { [named] = network };
-                current = new Snapshot(list, old.Cells, old.Dug);
+                Publish(new Snapshot(list, old.Cells, old.Dug));
                 return true;
             }
 
@@ -133,7 +147,7 @@ namespace Subterra.Core.Procedural
                         }
 
                         var cells = new Dictionary<CellId, IReadOnlyList<TubeNetwork>>(old.Cells) { [cell.Key] = nets };
-                        current = new Snapshot(old.Named, cells, old.Dug);
+                        Publish(new Snapshot(old.Named, cells, old.Dug));
                         return true;
                     }
                 }

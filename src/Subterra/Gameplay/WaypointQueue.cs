@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using FinePrint;
+using UnityEngine;
 
 namespace Subterra
 {
@@ -7,7 +8,8 @@ namespace Subterra
     /// Waypoints waiting to be added to the game, one per frame: adding a network's dozen at once costs a visible
     /// frame. Shared by <see cref="DiscoveryService"/> (skylights of a discovered network) and the radar's
     /// <c>RadarWaypoints</c>. Names are the identity: a waypoint whose name is already waiting is dropped. Main thread
-    /// only. Waypoints not added yet are lost when the flight scene ends (<see cref="Clear"/>); the callers restore
+    /// only. <see cref="Pump"/> never adds a waypoint in the frame it was queued in, so a frame that queues
+    /// one does not also pay for adding it. Waypoints not added yet are lost when the flight scene ends (<see cref="Clear"/>); the callers restore
     /// theirs from the save when the next flight scene starts.
     /// </summary>
     public static class WaypointQueue
@@ -15,6 +17,7 @@ namespace Subterra
         public const string WaypointId = "custom";
 
         private static readonly Queue<Waypoint> Pending = new Queue<Waypoint>();
+        private static readonly Queue<int> PendingFrames = new Queue<int>();
         private static readonly HashSet<string> PendingNames = new HashSet<string>();
 
         /// <summary>How many waypoints are waiting.</summary>
@@ -46,6 +49,7 @@ namespace Subterra
             }
 
             Pending.Enqueue(w);
+            PendingFrames.Enqueue(Time.frameCount);
             return true;
         }
 
@@ -55,11 +59,12 @@ namespace Subterra
         /// <summary>Adds the oldest waiting waypoint to the game (call once per frame).</summary>
         public static void Pump()
         {
-            if (Pending.Count == 0)
+            if (Pending.Count == 0 || PendingFrames.Peek() >= Time.frameCount)
             {
                 return;
             }
 
+            PendingFrames.Dequeue();
             Waypoint waypoint = Pending.Dequeue();
             PendingNames.Remove(waypoint.name);
             WaypointManager.AddWaypoint(waypoint);
@@ -68,6 +73,7 @@ namespace Subterra
         public static void Clear()
         {
             Pending.Clear();
+            PendingFrames.Clear();
             PendingNames.Clear();
         }
     }

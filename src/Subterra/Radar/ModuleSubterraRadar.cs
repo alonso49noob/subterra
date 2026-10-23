@@ -102,7 +102,9 @@ namespace Subterra
 
         // Ground radar: the next game time (UT) a sample is due.
         private double nextGroundSample;
-        private readonly System.Collections.Generic.List<GroundFinding> pendingFindings = new System.Collections.Generic.List<GroundFinding>();
+        // Findings waiting to be shown, with the frame they were made in.
+        private readonly System.Collections.Generic.List<(GroundFinding f, int frame)> pendingFindings =
+            new System.Collections.Generic.List<(GroundFinding f, int frame)>();
 
         /// <summary>Whether the last physics step produced a scan (scanning, powered, in the window).</summary>
         public bool IsScanningNow { get; private set; }
@@ -226,6 +228,10 @@ namespace Subterra
                 if (mode == ModeGroundRadar && IsScanningNow)
                 {
                     GroundTick();
+                    if (GroundScan.Failing)
+                    {
+                        uiStatus = Localizer.Format("#Subterra_Radar_Status_Failed");
+                    }
                 }
             }
             catch (Exception e)
@@ -266,30 +272,36 @@ namespace Subterra
                 }
 
                 var seen = GroundScan.Sample(runtime, instrument, origin, axis, lat, lon);
-                // The messages go out in the next Update: the sample and the message in one frame cost more than the budget.
-                pendingFindings.AddRange(GroundScan.Apply(scenario.Detections, vessel.mainBody.bodyName, seen, origin, lat, lon));
+                // The messages go out in a later frame: the sample and the first message in one frame cost more than the budget.
+                foreach (GroundFinding f in GroundScan.Apply(scenario.Detections, vessel.mainBody.bodyName, seen, origin, lat, lon))
+                {
+                    pendingFindings.Add((f, Time.frameCount));
+                }
             }
         }
 
-        // Shows the findings of the last samples (one message per network found, never one per primitive).
+        // Shows the findings of earlier frames (one message per network found, never one per primitive).
         private void Update()
         {
-            if (pendingFindings.Count == 0)
+            if (pendingFindings.Count == 0 || pendingFindings[0].frame >= Time.frameCount)
             {
                 return;
             }
 
             using (SubterraClock.Measure("GroundScan"))
             {
-                foreach (GroundFinding f in pendingFindings)
+                int shown = 0;
+                while (shown < pendingFindings.Count && pendingFindings[shown].frame < Time.frameCount)
                 {
+                    GroundFinding f = pendingFindings[shown].f;
+                    shown++;
                     // A fixed English part for the logs and the in-game tests (the test copy may run in any language).
                     string text = Localizer.Format("#Subterra_Radar_GprHit", f.Distance.ToString("F0"), f.Bearing.ToString("F0"));
                     Log.Info($"Radar: Zahori hollow at {f.Distance:F0} m, bearing {f.Bearing:F0} deg ({f.NetworkId}): \"{text}\"");
                     ScreenMessages.PostScreenMessage(text, 6f, ScreenMessageStyle.UPPER_CENTER);
                 }
 
-                pendingFindings.Clear();
+                pendingFindings.RemoveRange(0, shown);
             }
         }
 

@@ -30,7 +30,8 @@ namespace Subterra
 
     /// <summary>
     /// One sample of the Zahori ground radar: what the instrument sees from where it stands (spec 4.2 and 4.3 c).
-    /// Stateless; main thread (the biome map and the terrain are read from KSP).
+    /// Main thread (the biome map and the terrain are read from KSP). Sampling is stateless; the only state is the
+    /// prefetch of the targets around the vehicle (<see cref="Prepare"/>) and the last-sample figures for the tests.
     /// </summary>
     public static class GroundScan
     {
@@ -43,13 +44,21 @@ namespace Subterra
         /// <summary>The slowest sample so far, as <see cref="LastSummary"/> describes it (for the in-game tests).</summary>
         public static string WorstSummary { get; private set; } = "";
 
+        // decidido por Claude, revisar: MaxDepth is infinite where no layer attenuates the signal; the target query
+        // still stays within this many metres.
+        public const double RangeCap = 3000;
+
         // Prefetch (decidido por Claude, revisar): the first sample near a network builds the targets of all its
         // primitives (a biome lookup and a layer lookup each), which took ~10 ms on the main thread. A worker builds
         // them ahead for a disc around the vehicle, and samples wait until the disc covers the vehicle.
         private static readonly object PrefetchGate = new object();
+        private static readonly Stopwatch Clock = Stopwatch.StartNew();
         private static BodyRuntime prefetchedFor;
         private static Vec3d prefetchedAt;
+        private static int prefetchedVersion;
         private static bool prefetching;
+        private static int failures;
+        private static long retryAtMs;
 
         /// <summary>Radius of the disc whose targets are built ahead; samples reach at most <see cref="RangeCap"/> from the centre plus <see cref="PrefetchSlack"/>.</summary>
         public const double PrefetchRadius = RangeCap + PrefetchSlack;
@@ -57,21 +66,33 @@ namespace Subterra
         /// <summary>How far the vehicle may drift from the centre of the prefetched disc before a new one is built.</summary>
         public const double PrefetchSlack = 300;
 
+        /// <summary>Longest wait (ms) between two prefetch attempts after failures.</summary>
+        private const long MaxBackoffMs = 30000;
+
+        /// <summary>True while the prefetch keeps failing (it retries with a growing pause, see the log): the instrument cannot scan.</summary>
+        public static bool Failing
+        {
+            get { lock (PrefetchGate) return failures > 0; }
+        }
+
         /// <summary>
-        /// Whether a sample from <paramref name="origin"/> would find its targets already built. If not, starts building
-        /// them on a worker thread (one at a time) and returns false: the caller skips this sample and asks again at
-        /// the next one.
+        /// Whether a sample from <paramref name="origin"/> would find its targets already built. The disc is also
+        /// rebuilt when the body's catalog changed (a tunnel dug, a cell generated): targets of a new network would
+        /// otherwise be built on the main thread inside the sample. If not ready, starts building on a worker thread
+        /// (one at a time; after failures with a pause that doubles up to 30 s) and returns false: the caller skips
+        /// this sample and asks again at the next one.
         /// </summary>
         public static bool Prepare(BodyRuntime rt, Instrument inst, Vec3d origin)
         {
+            int version = rt.Catalog.Version;
             lock (PrefetchGate)
             {
-                if (ReferenceEquals(prefetchedFor, rt) && Vec3d.Distance(origin, prefetchedAt) <= PrefetchSlack)
+                if (ReferenceEquals(prefetchedFor, rt) && prefetchedVersion == version && Vec3d.Distance(origin, prefetchedAt) <= PrefetchSlack)
                 {
                     return true;
                 }
 
-                if (prefetching)
+                if (prefetching || Clock.ElapsedMilliseconds < retryAtMs)
                 {
                     return false;
                 }
@@ -104,7 +125,13 @@ namespace Subterra
                 }
                 catch (Exception e)
                 {
-                    Log.Warn($"Ground radar prefetch failed: {e.Message}");
+                    lock (PrefetchGate)
+                    {
+                        failures++;
+                        long pause = Math.Min(MaxBackoffMs, 500L << Math.Min(failures, 6));
+                        retryAtMs = Clock.ElapsedMilliseconds + pause;
+                        Log.Warn($"Ground radar prefetch failed ({failures} in a row, next try in {pause / 1000.0:F1} s): {e.Message}");
+                    }
                 }
                 finally
                 {
@@ -113,18 +140,16 @@ namespace Subterra
                         prefetching = false;
                         if (done)
                         {
+                            failures = 0;
                             prefetchedFor = rt;
                             prefetchedAt = origin;
+                            prefetchedVersion = version;
                         }
                     }
                 }
             });
             return false;
         }
-
-        // decidido por Claude, revisar: MaxDepth is infinite where no layer attenuates the signal; the target query
-        // still stays within this many metres.
-        public const double RangeCap = 3000;
 
         /// <summary>
         /// Evaluates every target the instrument could see from <paramref name="origin"/> (body coordinates) pointing
