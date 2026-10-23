@@ -96,6 +96,12 @@ namespace Subterra.Core.Config
                 }
             }
 
+            CfgNode ocean = node.GetNode("OCEAN");
+            if (ocean != null)
+            {
+                spec.Ocean = ParseOcean(ocean, r.Sub("OCEAN"));
+            }
+
             foreach (CfgNode enrichment in node.GetNodes("ENRICHMENT"))
             {
                 EnrichmentSpec parsed = ParseEnrichment(enrichment, r);
@@ -138,6 +144,23 @@ namespace Subterra.Core.Config
             }
 
             return items;
+        }
+
+        private static OceanSpec ParseOcean(CfgNode node, Reader r)
+        {
+            var ocean = new OceanSpec();
+            ocean.CeilingPole = Clamp(r.Double(node, "ceilingPole", ocean.CeilingPole), 50, 100000, r, "ceilingPole");
+            ocean.CeilingEquator = Clamp(r.Double(node, "ceilingEquator", ocean.CeilingEquator), 50, 100000, r, "ceilingEquator");
+            ocean.Thickness = Clamp(r.Double(node, "thickness", ocean.Thickness), 100, 200000, r, "thickness");
+            ocean.Density = Clamp(r.Double(node, "density", ocean.Density), 500, 2000, r, "density");
+            ocean.Temperature = Clamp(r.Double(node, "temperature", ocean.Temperature), 100, 400, r, "temperature");
+            string colour = node.GetValue("colour");
+            if (!string.IsNullOrEmpty(colour))
+            {
+                ocean.Colour = r.Colour(colour, "colour");
+            }
+
+            return ocean;
         }
 
         private static GeothermSpec ParseGeotherm(CfgNode node, Reader r)

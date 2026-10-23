@@ -73,3 +73,48 @@ namespace Subterra.Core.Tests.Water
         }
     }
 }
+
+namespace Subterra.Core.Tests.Water
+{
+    public class OceanTests
+    {
+        private const double VallRadius = 300000;
+
+        private static OceanShell Vall() => new OceanShell(new OceanSpec { CeilingPole = 1000, CeilingEquator = 10000, Thickness = 30000 }, VallRadius);
+
+        [Fact]
+        public void IceIsThinnestAtThePoles()
+        {
+            OceanShell ocean = Vall();
+            Assert.Equal(1000, ocean.CeilingDepth(90), 6);
+            Assert.Equal(10000, ocean.CeilingDepth(0), 6);
+            Assert.Equal(1000, ocean.CeilingDepth(-90), 6);
+            Assert.InRange(ocean.CeilingDepth(45), 5400, 5600);
+        }
+
+        [Fact]
+        public void UnderTheCeilingDownToTheFloor()
+        {
+            OceanShell ocean = Vall();
+            Vec3d pole = new Vec3d(0, 1, 0);
+            Assert.Null(ocean.At(pole * (VallRadius - 900)));
+            WaterSample? deep = ocean.At(pole * (VallRadius - 1500));
+            Assert.NotNull(deep);
+            Assert.Equal(500, deep.Value.Depth, 3);
+            Assert.Equal(1030, deep.Value.Density, 6);
+            Assert.Null(ocean.At(pole * (VallRadius - 1000 - 30001)));
+        }
+
+        [Fact]
+        public void OceanNodeParses()
+        {
+            var spec = Subterra.Core.Config.BodySpecParser.Parse(Subterra.Core.Config.CfgText.Parse(
+                "SUBTERRA_BODY\n{\n body = Vall\n OCEAN\n {\n  ceilingPole = 1200\n  ceilingEquator = 9000\n  thickness = 25000\n  colour = 0.1, 0.2, 0.3\n }\n}")[0]).Value;
+            Assert.NotNull(spec.Ocean);
+            Assert.Equal(1200, spec.Ocean.CeilingPole, 6);
+            Assert.Equal(9000, spec.Ocean.CeilingEquator, 6);
+            Assert.Equal(25000, spec.Ocean.Thickness, 6);
+            Assert.Equal(0.3f, spec.Ocean.Colour[2], 3);
+        }
+    }
+}
