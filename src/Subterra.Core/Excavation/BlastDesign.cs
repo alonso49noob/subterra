@@ -76,7 +76,7 @@ namespace Subterra.Core.Excavation
         /// How much stronger than a mine's blasting agent the kerbals' explosive is (Lucas: a few hundred metres of shaft
         /// took dozens of magazines). Gameplay, not physics. [Claude, revisar]
         /// </summary>
-        public const double KerbalStrength = 4;
+        public const double KerbalStrength = 12;
 
         /// <summary>
         /// Powder factor (kg of explosive per m³ of rock broken): about 0.4 in soft, light rock to 2 in hard,
