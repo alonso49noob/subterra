@@ -119,6 +119,8 @@ Engine additions
          Lidenbrock forest of mushrooms); the nearest light the cave around them (6 lights at most). [Claude, revisar]
   [DONE] Still water in caves (visual; swimming comes in part 4): pools in the Kerbin cenotes, the Lidenbrock
          Sea under the Verne route, explodium in Eve's aquifer. [Claude, revisar]
+  [DONE] Ramps for rovers: about half the skylights of lava networks (and the first skylight of each named site)
+         have a sloping passage (18°, 14 m wide) from the ground down to the tube beside them. [Claude, revisar]
   [PLANNED] Theia remnants deep in Kerbin's mantle.
 
 Bodies (every stock body has named sites + procedural fields; 15 in all)
@@ -180,6 +182,8 @@ Known issues
 -------------------------------------------------------------------------------
   - Some large lava tubes show thin rock slabs floating under the ceiling (noise artefact).
   - Lava drips can look too big near the camera.
-  - A rover that falls down a skylight shaft (60-170 m) breaks: lower it, or land next to the rubble cone.
+  - A rover that falls down a skylight shaft (60-170 m) breaks: lower it, land next to the rubble cone, or drive
+    down a ramp (the trench beside many skylights).
+  - With Parallax, its rocks can float over a hole cut after they were placed (they move when the area reloads).
   - Ice caves look very bright under strong light.
   - Rarely, discovering a cave costs one slow frame (~16 ms).

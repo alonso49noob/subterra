@@ -50,76 +50,6 @@ namespace Subterra
             }
         }
 
-        private static IDictionary scatterData;
-        private static FieldInfo scatterTriangles, scatterTriangleBuffer, scatterTriangleCount, scatterList;
-        private static MethodInfo scatterStart, scatterCleanup;
-
-        /// <summary>
-        /// After the quad's triangles changed: Parallax's scatters (rocks) on it are spread again over the triangles left,
-        /// so none float over a hole (they are spread over the quad's triangles once, when it first shows).
-        /// </summary>
-        public static void RefreshScatters(PQ quad)
-        {
-            Look();
-            if (scatterData == null || quad == null || quad.mesh == null)
-            {
-                return;
-            }
-
-            try
-            {
-                object data = scatterData.Contains(quad) ? scatterData[quad] : null;
-                if (data == null)
-                {
-                    return;
-                }
-
-                int[] triangles = quad.mesh.triangles;
-                (scatterTriangleBuffer.GetValue(data) as ComputeBuffer)?.Dispose();
-                var buffer = new ComputeBuffer(Math.Max(1, triangles.Length), sizeof(int), ComputeBufferType.Structured);
-                buffer.SetData(triangles);
-                scatterTriangles.SetValue(data, triangles);
-                scatterTriangleBuffer.SetValue(data, buffer);
-                scatterTriangleCount.SetValue(data, triangles.Length / 3);
-                if (scatterList.GetValue(data) is IList scatters)
-                {
-                    foreach (object scatter in scatters)
-                    {
-                        scatterCleanup.Invoke(scatter, null);
-                        scatterStart.Invoke(scatter, null);
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                Log.Warn($"Parallax scatter refresh failed: {e.InnerException?.Message ?? e.Message}");
-                scatterData = null;
-            }
-        }
-
-        private static void LookScatters()
-        {
-            Type component = AccessTools.TypeByName("Parallax.ScatterComponent");
-            Type quadData = AccessTools.TypeByName("Parallax.ScatterSystemQuadData");
-            Type data = AccessTools.TypeByName("Parallax.ScatterData");
-            if (component == null || quadData == null || data == null)
-            {
-                return;
-            }
-
-            scatterTriangles = AccessTools.Field(quadData, "triangles");
-            scatterTriangleBuffer = AccessTools.Field(quadData, "sourceTrianglesBuffer");
-            scatterTriangleCount = AccessTools.Field(quadData, "numMeshTriangles");
-            scatterList = AccessTools.Field(quadData, "quadScatters");
-            scatterStart = AccessTools.Method(data, "Start");
-            scatterCleanup = AccessTools.Method(data, "Cleanup");
-            if (scatterTriangles != null && scatterTriangleBuffer != null && scatterTriangleCount != null && scatterList != null
-                && scatterStart != null && scatterCleanup != null)
-            {
-                scatterData = AccessTools.Field(component, "scatterQuadData")?.GetValue(null) as IDictionary;
-            }
-        }
-
         private static object DataOf(PQ quad)
         {
             Look();
@@ -157,7 +87,6 @@ namespace Subterra
             materialField = AccessTools.Field(data, "quadMaterial");
             initializedField = AccessTools.Field(data, "alreadyInitialized");
             outOfRange = AccessTools.Method(data, "OutOfRange");
-            LookScatters();
             Log.Info(quadData != null && materialField != null && outOfRange != null
                 ? "Parallax found: terrain holes keep its quads in step"
                 : "Parallax found but its quad data is not where expected: terrain holes may show its quads wrong");

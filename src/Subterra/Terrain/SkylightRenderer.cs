@@ -59,36 +59,32 @@ namespace Subterra
         /// <summary>Whether the cap of the skylight nearest to <paramref name="world"/> is shown (null if none is tracked).</summary>
         public bool? CapVisibleNear(Vector3d world)
         {
+            Entry best = NearestWithCap(world, out _);
+            return best == null ? (bool?)null : best.Cap != null && best.Cap.activeSelf;
+        }
+
+        // The opening nearest world among those that can show a far cap (a dug mouth or a ramp's never does).
+        private Entry NearestWithCap(Vector3d world, out double bestDistance)
+        {
             Entry best = null;
-            double bestDistance = double.MaxValue;
+            bestDistance = double.MaxValue;
             foreach (Entry e in entries.Values)
             {
                 double d = (e.World - world).magnitude;
-                if (d < bestDistance)
+                if (d < bestDistance && (!e.Skylight.Smooth || e.Skylight.Natural))
                 {
                     bestDistance = d;
                     best = e;
                 }
             }
 
-            return best == null ? (bool?)null : best.Cap != null && best.Cap.activeSelf;
+            return best;
         }
 
         /// <summary>For tests: which opening is nearest <paramref name="world"/>, how far from the camera, open or not.</summary>
         public string DescribeNearest(Vector3d world)
         {
-            Entry best = null;
-            double bestDistance = double.MaxValue;
-            foreach (Entry e in entries.Values)
-            {
-                double d = (e.World - world).magnitude;
-                if (d < bestDistance)
-                {
-                    bestDistance = d;
-                    best = e;
-                }
-            }
-
+            Entry best = NearestWithCap(world, out double bestDistance);
             if (best == null || FlightCamera.fetch == null)
             {
                 return "none";

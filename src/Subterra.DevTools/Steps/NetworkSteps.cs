@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Linq;
+using Subterra.Core.Geo;
 using Subterra.Core.Numerics;
 using Subterra.Core.Tubes;
 using UnityEngine;
@@ -17,6 +18,7 @@ namespace Subterra.DevTools
             StepRegistry.Register("teleportToNetwork", TeleportToNetwork);
             StepRegistry.Register("networkInfo", NetworkInfo);
             StepRegistry.Register("terrainProfile", TerrainProfile);
+            StepRegistry.RegisterAssertion("insideNetwork", InsideNetwork);
         }
 
         /// <summary>The network named by <c>site</c> (a named site, or <c>procedural</c> = the nearest generated one).</summary>
@@ -182,6 +184,35 @@ namespace Subterra.DevTools
             return inside ? p.FloorCenter + p.Up * offsetUp : p.Up * (p.SurfaceRadius + offsetUp);
         }
 
+        // A point on the network's first ramp: 0 at its top (its floor 3 m over the ground), 1 at the node's floor.
+        private static Vec3d RampPosition(TubeNetwork net, double along, double offsetUp)
+        {
+            int i = net.Site?.Nodes.FindIndex(n => n.Ramp) ?? -1;
+            if (i < 0)
+            {
+                throw new ArgumentException($"{net.Id} has no ramp");
+            }
+
+            var (lat, lon) = NetworkCompiler.RampTop(net.Site, net.Site.Nodes[i], FlightGlobals.GetBodyByName(net.Body).Radius);
+            Skylight mouth = net.Skylights.OrderBy(s => Math.Abs(s.Lat - lat) + Math.Abs(s.Lon - lon)).First();
+            Vec3d topUp = BodyFrame.Direction(lat, lon);
+            Vec3d top = topUp * (mouth.SurfaceRadius + 3);
+            PathPoint p = net.Nodes[i];
+            Vec3d at = top + (p.FloorCenter - top) * along;
+            return at + (topUp + (p.Up - topUp) * along).Normalized * offsetUp;
+        }
+
+        // insideNetwork site = X — the tracked vessel is inside that network's rock (in its tubes, not on the ground).
+        private static bool InsideNetwork(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+            TubeNetwork net = FindNetwork(node, vessel, out _);
+            Vec3d at = Frames.ToBody(vessel.mainBody, vessel.GetWorldPos3D());
+            float d = net.Sdf.Distance(net.ToLocal(at));
+            ctx.Detail = Invariant($"{net.Id}: distance {d:F1} m, {vessel.situation}, {vessel.heightFromTerrain:F1} m above terrain, {vessel.srfSpeed:F1} m/s");
+            return d < 0;
+        }
+
         // teleportToNetwork site = DevTube|procedural node = 1 inside = true offsetUp = 2 hold = false —
         // moves the active vessel (after it is off rails) to that point, at rest.
         private static IEnumerator TeleportToNetwork(ConfigNode node, TestContext ctx)
@@ -193,6 +224,10 @@ namespace Subterra.DevTools
             double offsetUp = node.ArgDouble("offsetUp", 2);
             bool hold = node.ArgBool("hold", false);
             Vec3d target = NodePosition(net, index, inside, offsetUp);
+            if (node.HasValue("ramp"))
+            {
+                target = RampPosition(net, node.ArgDouble("ramp", 0.2), offsetUp);
+            }
 
             // Placed in the network's own body's frame, and its orbit restarted around that body. Right after a teleport
             // to another body the vessel can still count as on the old one (its sphere of influence not switched yet);

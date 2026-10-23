@@ -292,6 +292,7 @@ namespace Subterra.Core.Config
             };
 
             n.Cenote = r.Bool(node, "cenote", false);
+            n.Ramp = r.Bool(node, "ramp", false);
             n.Water = Math.Max(0, r.Double(node, "water", 0));
             n.WaterReach = Math.Max(0, r.Double(node, "waterReach", 0));
             string waterColour = node.GetValue("waterColour");

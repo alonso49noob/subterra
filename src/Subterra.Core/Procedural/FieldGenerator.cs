@@ -48,6 +48,20 @@ namespace Subterra.Core.Procedural
         public static List<SiteSpec> Generate(FieldSpec f, string body, string idPrefix, CellGrid grid, CellId cell, IHeightSampler h, IBiomeSampler b) =>
             Generate(new[] { f }, body, idPrefix, grid, cell, h, b);
 
+        // Ramps beside half the skylights of a lava network that are not too deep (a way in for a rover), chosen per
+        // network id so the rest of the generation is unchanged.
+        private static void AddRamps(SiteSpec site)
+        {
+            var rng = new Rng(Hash.Combine(Hash.Of(site.Name), Hash.Of("ramp")));
+            foreach (NodeSpec node in site.Nodes)
+            {
+                if (node.Feature == NodeFeature.Skylight && node.Depth + node.Height < 200 && rng.NextDouble() < 0.5)
+                {
+                    node.Ramp = true;
+                }
+            }
+        }
+
         // Still water in some of the network's rooms (a third of their height deep), chosen per network id so it does not
         // change the rest of the generation.
         private static void Flood(SiteSpec site, FieldSpec f)
@@ -164,6 +178,11 @@ namespace Subterra.Core.Procedural
                 if (f.WaterChance > 0)
                 {
                     Flood(site, f);
+                }
+
+                if (f.Style == FieldStyle.Lava)
+                {
+                    AddRamps(site);
                 }
 
                 if (f.RoomHeight != 1)
@@ -363,6 +382,13 @@ namespace Subterra.Core.Procedural
 
             var f = new FieldSpec { SkylightSpacing = new Range(1500, 3000) };
             AddSideSkylights(f, rng, site, original);
+
+            // A way in for a rover: a ramp beside the site's first skylight.
+            NodeSpec entrance = site.Nodes.Find(n => n.Feature == NodeFeature.Skylight);
+            if (entrance != null && entrance.Depth + entrance.Height < 250)
+            {
+                entrance.Ramp = true;
+            }
         }
 
         private static void AddSiteBranch(SiteSpec site, Rng rng, Walker walker, int from, int original, double length, int order)
