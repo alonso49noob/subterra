@@ -144,13 +144,21 @@ After part 3 (Lucas's request)
 
 
 -------------------------------------------------------------------------------
-PART 4 - Subsurface oceans and subglacial lakes                       [PLANNED]
+PART 4 - Subsurface oceans and subglacial lakes                   [IN PROGRESS]
 -------------------------------------------------------------------------------
-  [PLANNED] Oceans 10-50 km thick under 1-10 km of ice (thinner at the poles): Vall, Tylo, Eeloo, Pol...
+  Design: docs/superpowers/specs/2026-10-23-subterra-oceans-design.md; plan: plans/2026-10-23-subterra-oceans.md.
+  [DONE] Cave water is real water: parts are lifted (a suited kerbal floats), slowed by drag, and crushed past
+         their maxPressure (waterPhysics in Settings.cfg).
+  [DONE] Under the water: the view takes the water's colour, darker with depth.
+  [DONE] Oceans under the ice: Vall (ice 1-10 km, 30 km of water), Eeloo (1-8 km, 20 km), Pol (1-3 km, 5 km);
+         thinner ice at the poles. [Claude, revisar]
+  [DONE] Ice ceiling seen and touched from below (a patch around the vessel); KSP does not count a vessel in the
+         ocean as crashed through the terrain.
+  [PLANNED] Cryobot (melts a real shaft down to the ocean) and hydrobot; ballast; pressure hull.
+  [PLANNED] Tylo's ocean under its cave system; sea floor.
   [PLANNED] Europa-like lakes, cryovolcanoes and conduits on Vall; lakes connected to the ocean.
   [PLANNED] Subglacial lakes (Kerbin's poles like Lake Vostok, Laythe, Duna).
-  [PLANNED] Cryobot / hydrobot probes, own buoyancy, ice ceiling and sea floor.
-  [PLANNED] Pressure increasing with depth.
+  [PLANNED] Water science, water resource, radar targets (with alonso, part 6).
 
 
 -------------------------------------------------------------------------------
