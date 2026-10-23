@@ -80,19 +80,58 @@ namespace Subterra.Core.Tubes
         {
             get
             {
-                var waters = new List<WaterSurface>();
+                if (waters != null)
+                {
+                    return waters;
+                }
+
+                var list = new List<WaterSurface>();
                 for (int i = 0; Site != null && i < Site.Nodes.Count && i < Nodes.Count; i++)
                 {
                     NodeSpec node = Site.Nodes[i];
                     if (node.Water > 0)
                     {
                         PathPoint p = Nodes[i];
-                        waters.Add(new WaterSurface(ToLocal(p.FloorCenter + p.Up * node.Water), p.Up.ToVec3(), (float)(node.WaterReach > 0 ? node.WaterReach : 1.5 * node.Width), node.WaterColour));
+                        // As deep as the room is high below the level (its floor is rough, and a reach spans other rooms).
+                        list.Add(new WaterSurface(ToLocal(p.FloorCenter + p.Up * node.Water), p.Up.ToVec3(), (float)(node.WaterReach > 0 ? node.WaterReach : 1.5 * node.Width), node.WaterColour,
+                            (float)(node.Water + node.Height)));
                     }
                 }
 
+                waters = list;
                 return waters;
             }
+        }
+
+        private IReadOnlyList<WaterSurface> waters;
+
+        /// <summary>
+        /// The water level that <paramref name="local"/> is under or just over (within <paramref name="above"/> m): one
+        /// whose reach covers it, in the cave's void or within <paramref name="margin"/> m of its rock (a part touching
+        /// a wall still counts). Null where no water is near.
+        /// </summary>
+        public Water.WaterSample? WaterAt(Vec3 local, float margin = 2f, float above = 10f)
+        {
+            IReadOnlyList<WaterSurface> levels = Waters;
+            Water.WaterSample? best = null;
+            for (int i = 0; i < levels.Count; i++)
+            {
+                WaterSurface w = levels[i];
+                Vec3 offset = local - w.Centre;
+                float height = Vec3.Dot(offset, w.Up);
+                float depth = -height;
+                if (depth < -above || depth > w.MaxDepth || (offset - w.Up * height).LengthSquared > w.Radius * w.Radius)
+                {
+                    continue;
+                }
+
+                if (best == null || depth > best.Value.Depth)
+                {
+                    best = new Water.WaterSample(depth, Water.WaterPhysics.FreshDensity, w.Up, w.Colour);
+                }
+            }
+
+            return best != null && Sdf.Distance(local) < margin ? best : null;
         }
 
         /// <summary>
