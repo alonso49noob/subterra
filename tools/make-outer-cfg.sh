@@ -28,10 +28,13 @@ SUBTERRA_BODY
 EOF
 }
 
-field() { # name style biomes per10k width length roof spacing branch chamber hidden seed
+field() { # name style biomes per10k width length roof spacing branch chamber hidden seed [waterChance [waterColour]]
   printf '\tTUBE_FIELD\n\t{\n\t\tname = %s\n' "$1"
   [ "$2" != lava ] && printf '\t\tstyle = %s\n' "$2"
-  printf '\t\tbiomes = %s\n\t\tnetworksPer10k = %s\n\t\twidth = %s\n\t\tlength = %s\n\t\troofDepth = %s\n\t\tskylightSpacing = %s\n\t\tbranchChance = %s\n\t\tchamberChance = %s\n\t\thiddenChance = %s\n\t\tseed = %s\n\t}\n' "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}" "${12}"
+  printf '\t\tbiomes = %s\n\t\tnetworksPer10k = %s\n\t\twidth = %s\n\t\tlength = %s\n\t\troofDepth = %s\n\t\tskylightSpacing = %s\n\t\tbranchChance = %s\n\t\tchamberChance = %s\n\t\thiddenChance = %s\n\t\tseed = %s\n' "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}" "${12}"
+  [ -n "${13:-}" ] && printf '\t\twaterChance = %s\n' "${13}"
+  [ -n "${14:-}" ] && printf '\t\twaterColour = %s\n' "${14}"
+  printf '\t}\n'
 }
 
 # --- Eve: explodium aquifers, salt domes, karst; deep caves crush under Eve's pressure ---------------------------
@@ -57,7 +60,8 @@ printf '\t}\n'
 site_head EveSaltDome
 node "${DOME[0]}" "${DOME[1]}" 80 200 120 geode
 printf '\t}\n'
-field EveKarst karst "Lowlands, Midlands, Highlands, Foothills" 1.2 "8, 60" "1000, 6000" "20, 150" "1500, 5000" 0.5 0.2 0.75 91
+# Explodium pools in a third of the rooms of Eve's karst. [Claude, revisar]
+field EveKarst karst "Lowlands, Midlands, Highlands, Foothills" 1.2 "8, 60" "1000, 6000" "20, 150" "1500, 5000" 0.5 0.2 0.75 91 0.35 "0.30,0.14,0.34"
 common_scatters
 scatter Stalactites "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 1 "0.5, 2.5" 1 false 0.03 0.4 2
 scatter Stalagmites "Subterra/Props/Stalagmite01" floor "TubeGallery, TubeChamber, TubeBranch" 0.6 "0.4, 3" 0 true 0.03 0.45 2 0.05
@@ -162,8 +166,8 @@ echo "}"
 } > "$out"; echo "wrote $out"
 
 # --- Vall, Eeloo, Pol: small ice caves (their oceans and lakes come in sub-project 4) -----------------------------
-icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed [fieldStyle]
-  local body=$1 prefix=$2 temp=$3 comment=$4 name=$5 la0=$6 lo0=$7 la1=$8 lo1=$9 biomes=${10} seed=${11} style=${12:-lava}
+icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed [fieldStyle [conduitsPer10k]]
+  local body=$1 prefix=$2 temp=$3 comment=$4 name=$5 la0=$6 lo0=$7 la1=$8 lo1=$9 biomes=${10} seed=${11} style=${12:-lava} conduits=${13:-}
   out=GameData/Subterra/Bodies/$body/$body.cfg; mkdir -p "$(dirname "$out")"
   {
   head_body $body $prefix $temp "$comment"
@@ -178,6 +182,8 @@ icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed
   edge 0 1 0.5 0.06; edge 1 2 0.5 0.06
   printf '\t}\n'
   field ${body}Ice $style "$biomes" 3 "10, 80" "500, 4000" "10, 80" "1000, 3000" 0.5 0.15 0.6 $seed
+  # Cryovolcanic conduits: frozen pipes spiralling down hundreds of metres from a skylight. [Claude, revisar]
+  [ -n "$conduits" ] && field ${body}Conduits conduit "$biomes" $conduits "15, 40" "500, 1500" "15, 40" "1000, 3000" 0.3 0.3 0.3 $((seed + 50))
   scatter IceCrystals "Subterra/Props/IceCluster01" floor "TubeGallery, TubeChamber, TubeBranch, FrozenVault" 1 "0.4, 1.8" 0.8 false 0.02 0.3 1.5 0.15
   scatter IceDrips "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 0.6 "0.5, 1.5" 1 false
   scatter SkylightRubble "Subterra/Props/RubbleCone01, Subterra/Props/Boulder03" skylightRubble "" 2 "0.5, 3.5" 0.5 true 0.02 0.3 2.5 0.25
@@ -185,7 +191,7 @@ icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed
   echo "}"
   } > "$out"; echo "wrote $out"
 }
-icy Vall VL 90 "ice caves of Vall (its subsurface ocean, lakes and cryovolcanoes come in sub-project 4)" VallIceCaves -1.0381 85.3411 -0.9300 85.4492 "Lowlands, Midlands, Highlands, Northeast Basin, Northwest Basin, Southern Basin, Southern Valleys" 96
-icy Eeloo EE 60 "ice caves of Eeloo (its subsurface ocean comes in sub-project 4)" EelooIceCaves -17.9440 149.8971 -18.0983 149.7347 "Lowlands, Midlands, Highlands, Ice Canyons, Northern Glaciers, Southern Glaciers, Mu Glacier" 97
+icy Vall VL 90 "ice caves of Vall (its subsurface ocean, lakes and cryovolcanoes come in sub-project 4)" VallIceCaves -1.0381 85.3411 -0.9300 85.4492 "Lowlands, Midlands, Highlands, Northeast Basin, Northwest Basin, Southern Basin, Southern Valleys" 96 lava 1
+icy Eeloo EE 60 "ice caves of Eeloo (its subsurface ocean comes in sub-project 4)" EelooIceCaves -17.9440 149.8971 -18.0983 149.7347 "Lowlands, Midlands, Highlands, Ice Canyons, Northern Glaciers, Southern Glaciers, Mu Glacier" 97 lava 1
 # Pol, small and lumpy: its procedural caves are voids between blocks under its ice. [Claude, revisar]
 icy Pol PO 110 "ice caves of Pol" PolIceCaves -4.4722 -136.0378 -4.4718 -135.2541 "Lowlands, Midlands, Highlands" 98 rubble

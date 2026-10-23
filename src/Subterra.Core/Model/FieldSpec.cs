@@ -24,6 +24,12 @@ namespace Subterra.Core.Model
         /// short crooked crawls, many loops, no main passage.
         /// </summary>
         Rubble,
+
+        /// <summary>
+        /// Cryovolcanic conduits (icy moons): frozen, hollow pipes winding down from a skylight in a tight spiral to hundreds
+        /// of metres, ledges on the way, a big room at the bottom.
+        /// </summary>
+        Conduit,
     }
 
     /// <summary>Rules for procedural tube networks spread over some biomes of a body.</summary>
@@ -52,6 +58,15 @@ namespace Subterra.Core.Model
         public double HiddenChance { get; set; }
 
         public FieldStyle Style { get; set; } = FieldStyle.Lava;
+
+        /// <summary>Height of the rooms over the usual (1); more than 1 for vaults (Tylo's cathedrals).</summary>
+        public double RoomHeight { get; set; } = 1;
+
+        /// <summary>0–1: share of rooms (chambers) holding still water, a third of their height deep (lakes, pools).</summary>
+        public double WaterChance { get; set; }
+
+        /// <summary>Colour of that water (r, g, b; null = clear).</summary>
+        public float[] WaterColour { get; set; }
 
         public ulong Seed { get; set; } = 1;
     }

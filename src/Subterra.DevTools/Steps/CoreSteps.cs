@@ -142,6 +142,17 @@ namespace Subterra.DevTools
             }
 
             bool hold = node.ArgBool("hold", false);
+
+            // Leaving a cave for another body: first up into the sky of this one. Moved straight from under the ground,
+            // KSP saw it "crash through the terrain" for a frame and broke parts off.
+            ctx.Forget();
+            if (body != vessel.mainBody && vessel.mainBody != null && Subterra.Underground.Locate(vessel.mainBody, vessel.GetWorldPos3D(), out _, out _))
+            {
+                FlightGlobals.fetch.SetVesselPosition(FlightGlobals.GetBodyIndex(vessel.mainBody), vessel.latitude, vessel.longitude, 2000, Vector3.zero, asl: false, easeToSurface: false);
+                yield return null;
+                yield return null;
+            }
+
             FlightGlobals.fetch.SetVesselPosition(
                 FlightGlobals.GetBodyIndex(body), lat, lon, alt, Vector3.zero, asl: relative == "sea", easeToSurface: false);
 

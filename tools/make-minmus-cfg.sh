@@ -76,6 +76,8 @@ cat <<'EOF'
 EOF
 scatter IceCrystals "Subterra/Props/IceCluster01" floor "TubeGallery, TubeChamber, TubeBranch, FrozenVault" 0.9 "0.4, 1.8" 0.8 false 0.02 0.3 1.5 0.15
 scatter IceDrips "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 0.5 "0.5, 1.5" 1 false
+# Ice columns where drips met the floor, in the bigger rooms. [Claude, revisar]
+scatter IceColumns "Subterra/Props/IceColumn01" floor "TubeChamber, TubeGallery" 0.15 "0.6, 2.5" 0 true 0.03 0.5 2 0.05
 # Sunlight through thin mint ice: soft green patches on ceilings under 25 m of ice or less, fading at night.
 glow IceGlow "Subterra/Props/GlowPatch01" ceiling "" 0.25 "3, 9" "0.55,1.0,0.78" 30 25 true 0.015 0.2
 scatter SkylightRubble "Subterra/Props/RubbleCone01, Subterra/Props/Boulder03" skylightRubble "" 2 "0.5, 3.5" 0.5 true 0.02 0.3 2.5 0.25

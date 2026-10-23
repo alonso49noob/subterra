@@ -48,6 +48,21 @@ namespace Subterra.Core.Procedural
         public static List<SiteSpec> Generate(FieldSpec f, string body, string idPrefix, CellGrid grid, CellId cell, IHeightSampler h, IBiomeSampler b) =>
             Generate(new[] { f }, body, idPrefix, grid, cell, h, b);
 
+        // Still water in some of the network's rooms (a third of their height deep), chosen per network id so it does not
+        // change the rest of the generation.
+        private static void Flood(SiteSpec site, FieldSpec f)
+        {
+            var rng = new Rng(Hash.Combine(Hash.Of(site.Name), Hash.Of("water")));
+            foreach (NodeSpec node in site.Nodes)
+            {
+                if (node.Feature == NodeFeature.Chamber && rng.NextDouble() < f.WaterChance)
+                {
+                    node.Water = 0.3 * node.Height;
+                    node.WaterColour = f.WaterColour;
+                }
+            }
+        }
+
         // A hidden network: no skylight, the tube stays closed under the ground.
         private static void Hide(SiteSpec site)
         {
@@ -132,6 +147,7 @@ namespace Subterra.Core.Procedural
                 SiteSpec site = f.Style == FieldStyle.Karst ? KarstNetwork(f, rng, walker, origins[k])
                     : f.Style == FieldStyle.Fissure ? FissureNetwork(f, rng, walker, origins[k])
                     : f.Style == FieldStyle.Rubble ? RubbleNetwork(f, rng, walker, origins[k])
+                    : f.Style == FieldStyle.Conduit ? ConduitNetwork(f, rng, walker, origins[k])
                     : Network(f, rng, walker, origins[k]);
                 if (site == null)
                 {
@@ -144,6 +160,25 @@ namespace Subterra.Core.Procedural
                 {
                     Hide(site);
                 }
+
+                if (f.WaterChance > 0)
+                {
+                    Flood(site, f);
+                }
+
+                if (f.RoomHeight != 1)
+                {
+                    // Vaults: taller rooms (their roof kept under the ground by the chamber rule).
+                    foreach (NodeSpec node in site.Nodes)
+                    {
+                        if (node.Feature == NodeFeature.Chamber)
+                        {
+                            node.Height *= f.RoomHeight;
+                            MakeChamber(node);
+                        }
+                    }
+                }
+
                 result.Add(site);
             }
 
@@ -778,6 +813,84 @@ namespace Subterra.Core.Procedural
             }
 
             return site;
+        }
+
+        // Conduits (icy moons): the pipe a cryovolcano's water rose through, frozen and hollow: from a skylight at the
+        // ground it winds down in a tight spiral (60–150 m across) to 300–1500 m, ledges (rooms) on the way, a big room at
+        // the bottom (where the ocean's water once stood); a side passage or two off the ledges.
+        private static SiteSpec ConduitNetwork(FieldSpec f, Rng rng, Walker walker, Vec3d origin)
+        {
+            var site = new SiteSpec { IsNamed = false };
+            double bottom = rng.Range(300, 1500), radius = rng.Range(60, 150), width = rng.Range(15, 40);
+            int turns = 2 + (int)(rng.NextDouble() * 3), perTurn = 6;
+            int steps = turns * perTurn;
+            Vec3d east = Vec3d.Cross(new Vec3d(0, 1, 0), origin).Normalized;
+            if (east.LengthSquared < 0.5)
+            {
+                east = new Vec3d(1, 0, 0);
+            }
+
+            Vec3d north = Vec3d.Cross(origin, east).Normalized;
+            double phase = rng.Range(0, 2 * Math.PI);
+            for (int k = 0; k <= steps; k++)
+            {
+                double a = phase + 2 * Math.PI * k / perTurn;
+                double r = k == 0 ? 0 : radius;
+                Vec3d p = (origin + (east * Math.Cos(a) + north * Math.Sin(a)) * (r / walker.Radius)).Normalized;
+                double roof = 15 + (bottom - 15) * k / steps;
+                NodeSpec node = MakeNode(p, roof, width, rng);
+                node.Width = width * rng.Range(0.8, 1.2);
+                node.Height = node.Width * rng.Range(0.8, 1.3);
+                node.Depth = Math.Max(TubePath.MinRoof(node.Width), roof);
+                if (k == 0)
+                {
+                    node.Feature = NodeFeature.Skylight;
+                    node.SkylightRadius = Math.Max(6, node.Width * 0.4);
+                }
+                else if (k == steps)
+                {
+                    node.Width = rng.Range(80, 200);
+                    node.Height = node.Width * rng.Range(0.6, 0.9);
+                    MakeChamber(node);
+                }
+                else if (k % perTurn == 0)
+                {
+                    node.Width *= 1.8;
+                    MakeChamber(node);
+                }
+
+                site.Nodes.Add(node);
+                if (k > 0)
+                {
+                    site.Edges.Add(new EdgeSpec { From = k - 1, To = k, Sinuosity = 0.2, Roughness = 0.12 });
+                }
+            }
+
+            // A side passage off a ledge or two, out level into the ice.
+            for (int k = perTurn; k < steps; k += perTurn)
+            {
+                if (rng.NextDouble() < 0.5)
+                {
+                    AddSiteBranchLevel(site, rng, walker, k, rng.Range(300, 1000));
+                }
+            }
+
+            return site;
+        }
+
+        private static void AddSiteBranchLevel(SiteSpec site, Rng rng, Walker walker, int from, double length)
+        {
+            NodeSpec root = site.Nodes[from];
+            Vec3d p = Direction(root);
+            List<Vec3d> path = walker.Walk(p, RandomHeading(walker, p, rng), length, rng);
+            int previous = from;
+            for (int j = 1; j < path.Count; j++)
+            {
+                NodeSpec node = MakeNode(path[j], root.Depth + rng.Range(-5, 10), Math.Max(BranchWidthMin, root.Width * rng.Range(0.3, 0.6)), rng);
+                site.Nodes.Add(node);
+                site.Edges.Add(new EdgeSpec { From = previous, To = site.Nodes.Count - 1 });
+                previous = site.Nodes.Count - 1;
+            }
         }
 
         private static void AddPassage(SiteSpec site, List<Vec3d> points, int joinFrom, double depth, double width, Rng rng)

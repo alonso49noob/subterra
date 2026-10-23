@@ -64,6 +64,19 @@ namespace Subterra.Core.Tests.Procedural
         }
 
         [Fact]
+        public void ConduitsSpiralDownToABigRoom()
+        {
+            var sites = FieldGenerator.Generate(new FieldSpec { Name = "Pipes", Style = FieldStyle.Conduit, Biomes = { "Lowlands" }, NetworksPer10k = 40 }, "Vall", "VL", Grid, Cell, Terrain, Terrain);
+            Assert.NotEmpty(sites);
+            foreach (var s in sites)
+            {
+                Assert.Equal(NodeFeature.Skylight, s.Nodes[0].Feature);
+                Assert.True(s.Nodes.Max(n => n.Depth) >= 300, "deep");
+                Assert.Contains(s.Nodes, n => n.Feature == NodeFeature.Chamber && n.Width >= 80);
+            }
+        }
+
+        [Fact]
         public void RubbleIsRoomsLinkedByCrawlsWithLoops()
         {
             var sites = FieldGenerator.Generate(new FieldSpec { Name = "Rubble", Style = FieldStyle.Rubble, Biomes = { "Lowlands" }, NetworksPer10k = 40 }, "Bop", "BP", Grid, Cell, Terrain, Terrain);

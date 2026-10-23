@@ -137,6 +137,7 @@ cat <<'EOF'
 		chamberChance = 0.2
 		hiddenChance = 0.75
 		seed = 81
+		waterChance = 0.25
 	}
 	TUBE_FIELD
 	{
@@ -152,6 +153,7 @@ cat <<'EOF'
 		chamberChance = 0.3
 		hiddenChance = 0.5
 		seed = 82
+		waterChance = 0.6
 	}
 	TUBE_FIELD
 	{

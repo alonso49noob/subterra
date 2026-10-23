@@ -69,9 +69,11 @@ cat <<'EOF'
 		roofDepth = 40, 400
 		skylightSpacing = 2500, 8000
 		branchChance = 0.65
-		chamberChance = 0.15
+		chamberChance = 0.3
 		hiddenChance = 0.7
 		seed = 51
+		// Cathedrals: its great rooms twice and a half as tall as elsewhere (Tylo's low gravity holds them up). [Claude, revisar]
+		roomHeight = 2.5
 	}
 	TUBE_FIELD
 	{

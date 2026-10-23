@@ -11,7 +11,7 @@ namespace Subterra.Core.Scatter
     /// </summary>
     public static class PropGenerator
     {
-        public static readonly string[] Names = { "Boulder01", "Boulder02", "Boulder03", "RubbleCone01", "Lavacicle01", "PahoehoeSlab01", "IceCluster01", "GeodeCrystal01", "GlowPatch01", "GlowMat01", "Fungus01", "KrakenRibs01", "KrakenBone01", "Stalagmite01", "DustDrift01" };
+        public static readonly string[] Names = { "Boulder01", "Boulder02", "Boulder03", "RubbleCone01", "Lavacicle01", "PahoehoeSlab01", "IceCluster01", "GeodeCrystal01", "GlowPatch01", "GlowMat01", "Fungus01", "KrakenRibs01", "KrakenBone01", "Stalagmite01", "DustDrift01", "IceColumn01" };
 
         /// <summary>The prop for a model url or name (the part after the last '/'); null if unknown.</summary>
         public static MeshData Build(string model, int lod)
@@ -41,6 +41,7 @@ namespace Subterra.Core.Scatter
                 case "PahoehoeSlab01": return Shape(subdivisions, seed, p => new Vec3(p.X * 1.6f, (p.Y + 1) * 0.12f, p.Z * 1.2f), 0.06f, baseAtZero: false);
                 case "Stalagmite01": return Shape(subdivisions, seed, p => Stalagmite(p), 0.06f);
                 case "DustDrift01": return Shape(subdivisions, seed, p => new Vec3(p.X * 2.2f, (p.Y + 1) * 0.18f, p.Z * 1.1f), 0.03f, baseAtZero: false);
+                case "IceColumn01": return Shape(subdivisions, seed, p => new Vec3(p.X * 0.4f * (1.2f - 0.4f * Math.Abs(p.Y)), (p.Y + 1) * 3.2f, p.Z * 0.4f * (1.2f - 0.4f * Math.Abs(p.Y))), 0.1f);
                 case "IceCluster01": return Crystals(lod == 0 ? 2 : 1, seed);
                 case "GeodeCrystal01": return Crystals(lod == 0 ? 2 : 1, seed, 7, 1.5f, 2.2f);
                 case "GlowPatch01": return Patch(lod == 0 ? 24 : 12, seed, -1);

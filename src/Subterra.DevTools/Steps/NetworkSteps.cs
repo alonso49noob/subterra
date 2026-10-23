@@ -50,7 +50,9 @@ namespace Subterra.DevTools
             }
 
             Vec3d here = Frames.ToBody(vessel.mainBody, vessel.GetWorldPos3D());
-            TubeNetwork nearest = runtime.Catalog.All.Where(n => !n.IsNamed)
+            // field = <TUBE_FIELD name>: only networks of that field (to visit one style among several).
+            string field = node.Arg("field", null);
+            TubeNetwork nearest = runtime.Catalog.All.Where(n => !n.IsNamed && (field == null || n.Site?.Field == field))
                 .OrderBy(n => Vec3d.Distance(n.Anchor, here))
                 .FirstOrDefault();
             return nearest ?? throw new InvalidOperationException("no procedural network generated yet");
@@ -102,11 +104,14 @@ namespace Subterra.DevTools
             // Void points near the surface, away from skylights.
             int open = 0;
             Aabb b = net.Bounds;
-            for (float x = b.Min.X; x <= b.Max.X; x += 8)
+            // An 8 m grid, coarser on big networks (at most about two million points: kilometres-wide ones hung the game).
+            Vec3 size = b.Max - b.Min;
+            float step = Math.Max(8f, (float)Math.Pow(Math.Max(1.0, (double)size.X * size.Y * size.Z) / 2e6, 1.0 / 3.0));
+            for (float x = b.Min.X; x <= b.Max.X; x += step)
             {
-                for (float y = b.Min.Y; y <= b.Max.Y; y += 8)
+                for (float y = b.Min.Y; y <= b.Max.Y; y += step)
                 {
-                    for (float z = b.Min.Z; z <= b.Max.Z; z += 8)
+                    for (float z = b.Min.Z; z <= b.Max.Z; z += step)
                     {
                         var p = new Vec3(x, y, z);
                         double above = net.AboveSurface(p);
