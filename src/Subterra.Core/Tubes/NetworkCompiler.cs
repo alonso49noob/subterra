@@ -40,6 +40,14 @@ namespace Subterra.Core.Tubes
                 {
                     yield return RampTop(site, node, bodyRadius);
                 }
+
+                if (node.Feature == NodeFeature.Portal)
+                {
+                    foreach (var point in PortalSamples(node, bodyRadius))
+                    {
+                        yield return point;
+                    }
+                }
             }
         }
 
@@ -117,6 +125,15 @@ namespace Subterra.Core.Tubes
                 PathPoint p = nodePoints[i];
                 surfaceDirs.Add(p.Up);
                 surfaceRadii.Add(p.SurfaceRadius);
+                if (node.Feature == NodeFeature.Portal)
+                {
+                    foreach (var (lat, lon) in PortalSamples(node, bodyRadius))
+                    {
+                        surfaceDirs.Add(BodyFrame.Direction(lat, lon));
+                        surfaceRadii.Add(heights.SurfaceRadius(lat, lon));
+                    }
+                }
+
                 Vec3 up = p.Up.ToVec3();
                 if (node.Feature == NodeFeature.Skylight)
                 {
@@ -200,6 +217,31 @@ namespace Subterra.Core.Tubes
             var sdf = new NetworkSdf(prims, new SpatialGrid(prims), Hash.Of(id));
             return new TubeNetwork(id, body, site.IsNamed ? site.Name : null, site.DisplayName, anchor, prims, sdf, skylights,
                 surfaceDirs.ToArray(), surfaceRadii.ToArray(), nodePoints, site);
+        }
+
+        /// <summary>Spacing (m) of the terrain samples around a portal.</summary>
+        public const double PortalSampleSpacing = 5;
+
+        // The ground around a portal, every few metres: where a tube comes out of a steep slope, the cave's mesh is
+        // clipped along the real slope (with the path's few samples the clip followed their nearest-sample cells, and
+        // the mouth looked rectangular from inside).
+        internal static IEnumerable<(double lat, double lon)> PortalSamples(NodeSpec node, double bodyRadius)
+        {
+            Vec3d at = BodyFrame.Direction(node.Lat, node.Lon);
+            Vec3d east = Vec3d.Cross(new Vec3d(0, 1, 0), at);
+            east = east.LengthSquared < 1e-9 ? new Vec3d(1, 0, 0) : east.Normalized;
+            Vec3d north = Vec3d.Cross(at, east).Normalized;
+            double half = 0.6 * Math.Max(node.Width, node.Height) + 15;
+            int n = (int)Math.Ceiling(half / PortalSampleSpacing);
+            for (int i = -n; i <= n; i++)
+            {
+                for (int j = -n; j <= n; j++)
+                {
+                    Vec3d p = (at + (east * (i * PortalSampleSpacing) + north * (j * PortalSampleSpacing)) / bodyRadius).Normalized;
+                    BodyFrame.ToLatLon(p, out double lat, out double lon);
+                    yield return (lat, lon);
+                }
+            }
         }
 
         /// <summary>Slope of a skylight's ramp (degrees): a rover climbs it, as it does a dug tunnel's.</summary>

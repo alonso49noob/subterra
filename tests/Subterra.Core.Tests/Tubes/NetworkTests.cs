@@ -115,6 +115,20 @@ namespace Subterra.Core.Tests.Tubes
             Assert.True(net.Sdf.Distance(At(net, lat * 0.5, Lon0 + Deg(60), R - 37)) > 0, "rock beside the ramp");
         }
 
+        [Fact]
+        public void PortalsKnowTheSlopeTheyComeOutOf()
+        {
+            // A cliff 20 m east of the portal: the ground drops 40 m there.
+            var cliff = new FlatSampler((lat, lon) => lon > Lon0 + Deg(20) ? R - 40 : R, (lat, lon) => "Lowlands");
+            var site = new SiteSpec { Name = "Portal", IsNamed = true };
+            site.Nodes.Add(Node(0, Lon0, depth: 30, width: 60, height: 40, feature: NodeFeature.Portal));
+            site.Nodes.Add(Node(0, Lon0 - Deg(800), depth: 30, width: 60, height: 40));
+            site.Edges.Add(new EdgeSpec { From = 0, To = 1, Sinuosity = 0 });
+            TubeNetwork net = NetworkCompiler.Compile(site, "Mun", R, cliff, new List<string>());
+            Assert.Equal(R, net.SurfaceRadiusNear(At(net, 0, Lon0 + Deg(16), R - 50)), 3);
+            Assert.Equal(R - 40, net.SurfaceRadiusNear(At(net, 0, Lon0 + Deg(24), R - 50)), 3);
+        }
+
         [Fact] public void FloorBelowTwoMeters() => Assert.InRange(Net.FloorBelow(FloorPointAbove(2)).Value, 1.5f, 2.5f);
 
         [Fact] public void NotInsideReturnsNull() => Assert.Null(Net.FloorBelow(RockPoint()));
