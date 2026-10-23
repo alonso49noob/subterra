@@ -36,7 +36,7 @@ namespace Subterra.Core.Tubes
             foreach (NodeSpec node in site.Nodes)
             {
                 yield return (node.Lat, node.Lon);
-                if (node.Feature == NodeFeature.Skylight && node.Ramp)
+                if (Ramps && node.Feature == NodeFeature.Skylight && node.Ramp)
                 {
                     yield return RampTop(site, node, bodyRadius);
                 }
@@ -167,7 +167,7 @@ namespace Subterra.Core.Tubes
                         Shaft = shaft,
                     });
                 }
-                if (node.Feature == NodeFeature.Skylight && node.Ramp)
+                if (Ramps && node.Feature == NodeFeature.Skylight && node.Ramp)
                 {
                     AddRamp(site, i, p, heights, bodyRadius, prims, skylights, Local);
                 }
@@ -243,6 +243,9 @@ namespace Subterra.Core.Tubes
                 }
             }
         }
+
+        /// <summary>Whether skylight ramps are built (Settings.cfg <c>ramps</c>; off until their mouths are fixed). [Claude, revisar]</summary>
+        public static bool Ramps = true;
 
         /// <summary>Slope of a skylight's ramp (degrees): a rover climbs it, as it does a dug tunnel's.</summary>
         public const double RampSlope = 18;

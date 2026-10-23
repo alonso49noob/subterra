@@ -26,6 +26,7 @@ namespace Subterra
             try
             {
                 Settings.Load();
+                Core.Tubes.NetworkCompiler.Ramps = Settings.Current.Ramps;
                 LoadBodies();
             }
             catch (Exception e)
