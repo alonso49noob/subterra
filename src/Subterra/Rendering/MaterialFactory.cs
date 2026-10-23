@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Subterra.Core.Model;
 using UnityEngine;
@@ -153,8 +154,105 @@ namespace Subterra
         private const float ArrayTerrainMetersPerTile = 32f;
 
         // A Bumped Specular material from two textures of the body's PQS material, or null if it has not got them.
+        // Parallax (Continued) draws the terrain with its own material and 4096² textures per body: the caves use the same
+        // rock when it is installed. Its textures are only borrowed while it draws a body (it unloads them after, which
+        // left caves black), so the caves take their own copy on the graphics card the first time they find them loaded.
+        // Nothing of Parallax ships with Subterra: the copy is made at run time from the player's own install.
+        private static readonly Dictionary<string, string> ParallaxProperty = new Dictionary<string, string>
+        {
+            { "_steepTex", "_MainTexSteep" }, { "_steepBumpMap", "_BumpMapSteep" },
+            { "_midTex", "_MainTexMid" }, { "_midBumpMap", "_BumpMapMid" },
+        };
+
+        /// <summary>Metres per tile of Parallax's textures on cave meshes (sharper than the stock ones: tiled closer).</summary>
+        private const float ParallaxMetersPerTile = 16f;
+
+        private static readonly Dictionary<string, Texture2D> ParallaxCopies = new Dictionary<string, Texture2D>();
+
+        private static Material ParallaxMaterialOf(CelestialBody body)
+        {
+            if (body?.pqsController == null)
+            {
+                return null;
+            }
+
+            foreach (MeshRenderer renderer in body.pqsController.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                Material m = renderer.sharedMaterial;
+                if (m != null && m.shader != null && m.shader.name == "Custom/Parallax" && m.HasProperty("_MainTexSteep") && m.GetTexture("_MainTexSteep") != null)
+                {
+                    return m;
+                }
+            }
+
+            return null;
+        }
+
+        // Subterra's own copy of one of Parallax's textures (same format and mipmaps, copied on the GPU); null if it is not
+        // loaded now or cannot be copied.
+        private static Texture2D ParallaxCopy(CelestialBody body, Material parallax, string property)
+        {
+            string key = body.bodyName + "/" + property;
+            if (ParallaxCopies.TryGetValue(key, out Texture2D copy) && copy != null)
+            {
+                return copy;
+            }
+
+            if (!(parallax.GetTexture(property) is Texture2D source) || source == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                copy = new Texture2D(source.width, source.height, source.format, source.mipmapCount > 1)
+                {
+                    name = "Subterra copy of " + source.name,
+                    wrapMode = TextureWrapMode.Repeat,
+                    anisoLevel = source.anisoLevel,
+                    filterMode = source.filterMode,
+                };
+                Graphics.CopyTexture(source, copy);
+                ParallaxCopies[key] = copy;
+                return copy;
+            }
+            catch (Exception e)
+            {
+                Log.Warn($"Could not copy Parallax's {property} on {body.bodyName}: {e.Message}");
+                return null;
+            }
+        }
+
+        private static Material FromParallax(CelestialBody body, string albedoProperty, string normalProperty, Color tint)
+        {
+            if (!ParallaxProperty.TryGetValue(albedoProperty, out string albedoName) || !(ParallaxMaterialOf(body) is Material parallax)
+                || !(ParallaxCopy(body, parallax, albedoName) is Texture2D albedo))
+            {
+                return null;
+            }
+
+            var material = new Material(Shader.Find("KSP/Bumped Specular"));
+            material.SetTexture("_MainTex", albedo);
+            material.SetTexture("_BumpMap", ParallaxProperty.TryGetValue(normalProperty, out string normalName) && ParallaxCopy(body, parallax, normalName) is Texture2D normal
+                ? normal : Texture("Rock_n", true));
+            var scale = new Vector2(MetersPerUv / ParallaxMetersPerTile, MetersPerUv / ParallaxMetersPerTile);
+            material.SetTextureScale("_MainTex", scale);
+            material.SetTextureScale("_BumpMap", scale);
+            material.SetColor("_Color", tint);
+            material.SetColor("_SpecColor", new Color(0.06f, 0.06f, 0.06f));
+            material.SetFloat("_Shininess", 0.06f);
+            material.enableInstancing = true;
+            Log.Info($"Cave rock on {body.bodyName} uses a copy of Parallax's {albedoName}");
+            return material;
+        }
+
         private static Material FromTerrain(CelestialBody body, string albedoProperty, string normalProperty, Color tint)
         {
+            if (FromParallax(body, albedoProperty, normalProperty, tint) is Material parallaxRock)
+            {
+                return parallaxRock;
+            }
+
             Material terrain = body?.pqsController?.surfaceMaterial;
             if (terrain == null || !terrain.HasProperty(albedoProperty) || !(terrain.GetTexture(albedoProperty) is Texture albedo))
             {

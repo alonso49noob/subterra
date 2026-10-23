@@ -467,6 +467,7 @@ namespace Subterra
                     mesh.triangles = origin.Triangles;
                     origin.Applied = null;
                     DropPatch(quad);
+                    ParallaxBridge.Refresh(quad);
                 }
 
                 if (cut.ContainsKey(quad))
@@ -506,6 +507,7 @@ namespace Subterra
             statSplit += split.Count / 3;
             var patchWatch = System.Diagnostics.Stopwatch.StartNew();
             SetPatch(quad, mesh, origin.Count, split, job.Added);
+            ParallaxBridge.Refresh(quad);
             statPatchMs += patchWatch.Elapsed.TotalMilliseconds;
             if (quad.meshCollider != null && quad.meshCollider.sharedMesh != null)
             {
@@ -555,6 +557,7 @@ namespace Subterra
             if (origin.Applied != null && origin.Triangles != null && SameTriangles(mesh.triangles, origin.Applied))
             {
                 mesh.triangles = origin.Triangles;
+                ParallaxBridge.Refresh(quad);
             }
         }
 
@@ -768,7 +771,8 @@ namespace Subterra
             go.transform.SetParent(quad.transform, false);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var renderer = go.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = quad.meshRenderer != null ? quad.meshRenderer.sharedMaterial : sphere.surfaceMaterial;
+            // Under Parallax the quad shows a see-through material (Parallax draws a copy of it): its own material instead.
+            renderer.sharedMaterial = ParallaxBridge.QuadMaterial(quad) ?? (quad.meshRenderer != null ? quad.meshRenderer.sharedMaterial : sphere.surfaceMaterial);
             renderer.shadowCastingMode = quad.meshRenderer != null ? quad.meshRenderer.shadowCastingMode : ShadowCastingMode.On;
             renderer.receiveShadows = quad.meshRenderer == null || quad.meshRenderer.receiveShadows;
             renderer.lightProbeUsage = quad.meshRenderer != null ? quad.meshRenderer.lightProbeUsage : LightProbeUsage.Off;

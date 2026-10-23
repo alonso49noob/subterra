@@ -73,13 +73,19 @@ namespace Subterra.Core.Excavation
         public Deck? TopDeck => Decks.Count == 0 ? (Deck?)null : Decks[Decks.Count - 1];
 
         /// <summary>
+        /// How much stronger than a mine's blasting agent the kerbals' explosive is (Lucas: a few hundred metres of shaft
+        /// took dozens of magazines). Gameplay, not physics. [Claude, revisar]
+        /// </summary>
+        public const double KerbalStrength = 4;
+
+        /// <summary>
         /// Powder factor (kg of explosive per m³ of rock broken): about 0.4 in soft, light rock to 2 in hard,
-        /// dense rock (shaft sinking needs more than an open pit).
+        /// dense rock with a mine's explosive (shaft sinking needs more than an open pit), over <see cref="KerbalStrength"/>.
         /// </summary>
         public static double PowderFactor(LayerSpec layer)
         {
             double h = layer?.Hardness ?? 0.5, density = layer?.Density ?? 2.7;
-            return (0.4 + 1.6 * h) * density / 2.7;
+            return (0.4 + 1.6 * h) * density / 2.7 / KerbalStrength;
         }
 
         /// <summary>
@@ -149,7 +155,8 @@ namespace Subterra.Core.Excavation
                 return (0, 0);
             }
 
-            double w = Math.Pow(kg, 1.0 / 3.0), f = confined ? ConfinedFactor : 1;
+            // The kerbals' explosive is stronger per kilogram: the same blast reaches as far as before for a quarter the mass.
+            double w = Math.Pow(kg * BlastDesign.KerbalStrength, 1.0 / 3.0), f = confined ? ConfinedFactor : 1;
             return (DestroyZ * w * f, DamageZ * w * f);
         }
     }

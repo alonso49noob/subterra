@@ -57,6 +57,16 @@ $ModProfiles = @{
                      'KSPTextureLoader', '000_KSPBurst')
         Junction = @('Parallax_StockTerrainTextures', 'Parallax_StockScatterTextures', 'Parallax_StockPlanetTextures')
     }
+    # The full set plus the graphics mods of the reference install: Scatterer (with its stock configs and
+    # atmosphere cache), EVE with volumetric clouds, Deferred rendering. All copied, none linked: Scatterer and
+    # EVE write into their own folders, and the reference install must never be written to.
+    graphics = @{
+        Copy     = @('000_Harmony', 'ModuleManager.4.2.3.dll', 'Kopernicus', 'ModularFlightIntegrator',
+                     'KSPCommunityFixes', 'ParallaxContinued', 'SCANsat', 'CommunityResourcePack',
+                     'KSPTextureLoader', '000_KSPBurst', 'Scatterer', 'ScattererAtmosphereCache', 'StockScattererConfigs',
+                     'EnvironmentalVisualEnhancements', 'StockVolumetricClouds', 'zzz_Deferred')
+        Junction = @('Parallax_StockTerrainTextures', 'Parallax_StockScatterTextures', 'Parallax_StockPlanetTextures')
+    }
     # Kerbalism 3.43 (downloaded to build\deps, not in the reference install); it needs
     # KSPCommunityFixes, and its config pack needs CommunityResourcePack.
     kerbalism = @{
