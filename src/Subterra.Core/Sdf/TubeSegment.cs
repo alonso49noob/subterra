@@ -128,6 +128,10 @@ namespace Subterra.Core.Sdf
         }
 
         /// <summary>Half the crest-to-crest perimeter (m): two wall points this far apart across are on either side of the seam.</summary>
+        /// <summary>A section much taller than wide (a fissure): its walls take box UVs, since there the coordinates
+        /// around the section jump about with every bump as deep as the section is wide.</summary>
+        public bool Tall => Math.Max(heightA, heightB) > 2 * Math.Min(widthA, widthB);
+
         public float HalfPerimeter(Vec3 p) => (Math.Max(widthA, widthB) * 0.5f) * 1.6f + Math.Max(heightA, heightB) * 0.8f;
 
         // No noise on the floor (solidified lava is flat), full noise from a fifth of the height up.

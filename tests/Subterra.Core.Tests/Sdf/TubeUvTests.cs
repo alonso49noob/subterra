@@ -48,5 +48,12 @@ namespace Subterra.Core.Tests.Sdf
 
             Assert.True(previous > 20 && previous < 20 + 31.5f);
         }
+
+        [Fact]
+        public void FissuresAreTall()
+        {
+            Assert.True(new TubeSegment(new Vec3(0, 0, 0), new Vec3(100, 0, 0), Up, Up, 8, 8, 60, 60, 0, ZoneKind.TubeBranch).Tall);
+            Assert.False(Piece(0, 100, 0).Tall);
+        }
     }
 }

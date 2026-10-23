@@ -130,7 +130,7 @@ Bodies (every stock body has named sites + procedural fields; 15 in all)
          and polar ice networks.
   [DONE] Minmus: flats gallery, ice caves, central geode.
   [DONE] Duna: pit chain (catena), volcano flank tubes, polar ice caves, canyon caves.
-  [DONE] Ike: tidal trench. Gilly: a tunnel right through, gaps in the rubble.
+  [DONE] Ike: tidal trench, fault fissures in the highlands (40-150 m tall slots). Gilly: a tunnel right through, gaps in the rubble.
   [DONE] Eve: aquifer, salt dome, karst. Moho: the Mohole, plains tubes, a thermal refuge.
   [DONE] Dres: canyon caves. Laythe: island lava tubes. Bop: huge caverns, the Kraken chamber.
   [DONE] Tylo: a great cave system and highland caves. Vall, Pol, Eeloo: small ice caves.
