@@ -3,6 +3,7 @@ using Subterra.Core.Geo;
 using Subterra.Core.Model;
 using Subterra.Core.Numerics;
 using Subterra.Core.Tubes;
+using Subterra.Core.Meshing;
 using Subterra.Core.Water;
 using Xunit;
 using static Subterra.Core.Tests.Sites;
@@ -115,6 +116,30 @@ namespace Subterra.Core.Tests.Water
             Assert.Equal(9000, spec.Ocean.CeilingEquator, 6);
             Assert.Equal(25000, spec.Ocean.Thickness, 6);
             Assert.Equal(0.3f, spec.Ocean.Colour[2], 3);
+        }
+    }
+}
+
+namespace Subterra.Core.Tests.Water
+{
+    public class IceCeilingTests
+    {
+        [Fact]
+        public void CeilingPatchHangsAtTheIceAndLooksDown()
+        {
+            var ocean = new OceanShell(new OceanSpec { CeilingPole = 1000, CeilingEquator = 10000, Thickness = 30000 }, 300000);
+            Vec3d dir = Subterra.Core.Geo.BodyFrame.Direction(88, 0);
+            MeshData m = IceCeilingMesher.Build(ocean, dir, 200, 10, 7, out Vec3d centre);
+            Assert.Equal(41 * 41, m.Vertices.Count);
+            Assert.InRange(centre.Length, 300000 - 1020, 300000 - 1000);
+            foreach (Vec3 v in m.Vertices)
+            {
+                // Within the relief of the mean ceiling (and the sphere's curve over 200 m).
+                double r = (centre + Vec3d.FromVec3(v)).Length;
+                Assert.InRange(r, centre.Length - IceCeilingMesher.Relief - 5, centre.Length + IceCeilingMesher.Relief + 5);
+            }
+
+            Assert.True(Vec3.Dot(m.Normals[m.Normals.Count / 2], dir.ToVec3()) < -0.5f, "faces look down into the water");
         }
     }
 }

@@ -1,3 +1,4 @@
+using Subterra.Core.Numerics;
 using Subterra.Core.Tubes;
 using Subterra.Core.Water;
 using UnityEngine;
@@ -35,7 +36,7 @@ namespace Subterra
             }
             else if (camera != null && Settings.Current.WaterPhysics && FlightGlobals.currentMainBody != null)
             {
-                sample = Underground.OceanAt(FlightGlobals.currentMainBody, camera.transform.position);
+                sample = Underground.OceanAt(FlightGlobals.currentMainBody, camera.transform.position) ?? InIce(FlightGlobals.currentMainBody, camera.transform.position);
             }
 
             if (sample == null || !sample.Value.Under)
@@ -45,6 +46,26 @@ namespace Subterra
             }
 
             Enter(camera, sample.Value);
+        }
+
+        // The camera inside the ice over an ocean (pulled back through it from a vessel under it): nothing to see but ice,
+        // so a dark, near-opaque view (deep as the darkest water) instead of the open sky through the unmeshed ice.
+        private static WaterSample? InIce(CelestialBody body, Vector3d world)
+        {
+            if (!BodyRegistry.Instance.TryGet(body, out BodyRuntime runtime) || runtime.Ocean == null)
+            {
+                return null;
+            }
+
+            Vec3d at = Frames.ToBody(body, world);
+            Core.Geo.BodyFrame.ToLatLon(at, out double lat, out double lon);
+            double r = at.Length;
+            if (r < runtime.Ocean.CeilingRadius(lat) || r > KspSampler.SurfaceRadius(body, lat, lon) - 2)
+            {
+                return null;
+            }
+
+            return new WaterSample(DarkDepth * 2, runtime.Ocean.Spec.Density, at.Normalized.ToVec3(), new[] { 0.10f, 0.14f, 0.18f });
         }
 
         private void Enter(Camera camera, WaterSample sample)
