@@ -50,6 +50,9 @@ namespace Subterra
         [KSPField] public float powerUse = 15f;
         [KSPField] public float maxRockTemp = 700f;
         [KSPField] public float maxSlope = 30f;
+
+        /// <summary>Fastest the vessel may move (m/s) while it digs. [Claude, revisar]</summary>
+        [KSPField] public float maxSpeed = 3f;
         [KSPField] public float spoilOre = 0.2f;
 
         /// <summary>Digging direction in the part's own axes (where its head points).</summary>
@@ -166,7 +169,8 @@ namespace Subterra
                 return;
             }
 
-            if (vessel.srfSpeed > 0.5)
+            // It digs while the vessel creeps on (it slides on the ramp it digs; driving slowly into the face is how it is used).
+            if (vessel.srfSpeed > maxSpeed)
             {
                 uiStatus = Localizer.Format("#Subterra_Borer_Moving");
                 return;

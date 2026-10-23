@@ -18,7 +18,7 @@ namespace Subterra
     /// sample per layer (science subject: body + layer) and reports caves the hole breaks into.
     /// The hole has no geometry; it is lost if the vessel moves away. Drills only while the vessel is loaded.
     /// </summary>
-    public sealed class ModuleSubterraCoreDrill : PartModule, IScienceDataContainer, IAnimatedModule
+    public sealed partial class ModuleSubterraCoreDrill : PartModule, IScienceDataContainer, IAnimatedModule
     {
         // IAnimatedModule: the part's ModuleAnimationGroup plays its "drilling" animation while ModuleIsActive,
         // and blocks the work while the drill is retracted.
@@ -161,6 +161,12 @@ namespace Subterra
         [KSPEvent(guiActive = true, guiName = "#Subterra_Drill_Load")]
         public void LoadCharges()
         {
+            if (sideways)
+            {
+                LoadRound();
+                return;
+            }
+
             if (!BodyRegistry.Instance.TryGet(vessel.mainBody, out BodyRuntime runtime) || depth <= 0)
             {
                 ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_NoLayer"), 4f);
@@ -205,6 +211,12 @@ namespace Subterra
         [KSPEvent(guiActive = true, guiName = "#Subterra_Drill_Detonate")]
         public void Detonate()
         {
+            if (roundArmed)
+            {
+                DetonateRound();
+                return;
+            }
+
             ExcavationService.ArmedBlast blast = ExcavationService.FindBlast(armedBlastId);
             if (blast == null || !BodyRegistry.Instance.TryGet(FlightGlobals.GetBodyByName(blast.Body), out BodyRuntime runtime))
             {
@@ -326,6 +338,11 @@ namespace Subterra
             CelestialBody body = vessel.mainBody;
             Vector3d world = part.transform.position;
             double lat = body.GetLatitude(world), lon = body.GetLongitude(world);
+            if (DrillSideways(dt, runtime, body))
+            {
+                return;
+            }
+
             string biome = KspSampler.Biome(body, lat, lon);
 
             // A new hole where the vessel stands (first time, or after it moved away from the old one).
@@ -449,7 +466,7 @@ namespace Subterra
         {
             Events[nameof(StartDrilling)].active = !drilling;
             Events[nameof(StopDrilling)].active = drilling;
-            Events[nameof(Detonate)].active = !string.IsNullOrEmpty(armedBlastId);
+            Events[nameof(Detonate)].active = !string.IsNullOrEmpty(armedBlastId) || roundArmed;
         }
 
         private static double Distance(CelestialBody body, double lat0, double lon0, double lat1, double lon1)

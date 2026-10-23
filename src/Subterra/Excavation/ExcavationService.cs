@@ -128,6 +128,34 @@ namespace Subterra
             Log.Info($"Blast {blast.Id} opened shaft {spec.Id} ({blast.Radius:F1} m, {blast.HoleTop:F0}-{blast.HoleBottom:F0} m){(reached != null ? " into " + reached.Id : "")}");
         }
 
+        /// <summary>
+        /// Fires a horizontal round: a tunnel of <paramref name="radius"/> opens from <paramref name="floor"/> (body
+        /// coordinates, its floor at the face) <paramref name="length"/> m along <paramref name="dir"/>; vessels near the
+        /// face take the blast.
+        /// </summary>
+        public static ExcavationSpec BlastRound(BodyRuntime runtime, Vec3d floor, Vec3d dir, double length, float radius, double kg)
+        {
+            ExcavationSpec spec = Start(runtime, floor, radius);
+            for (double d = 1; d < length + 0.5; d += 1)
+            {
+                Dig(runtime, spec, floor + dir * Math.Min(d, length));
+            }
+
+            Vector3d world = Frames.ToWorld(runtime.Body, floor + dir * (length * 0.5));
+            Damage(world, kg, confined: true);
+            try
+            {
+                FXMonger.ExplodeWithDebris(world, Math.Min(1, kg / 500), null);
+            }
+            catch (Exception e)
+            {
+                Log.Warn($"Blast effect failed: {e.Message}");
+            }
+
+            Log.Info($"Round fired: tunnel {spec.Id}, {length:F1} m, radius {radius:F1} m, {kg:F0} kg");
+            return spec;
+        }
+
         /// <summary>Loaded vessels within the danger radius of a charge at <paramref name="world"/>.</summary>
         public static List<Vessel> VesselsInDanger(Vector3d world, double kg, bool confined)
         {
