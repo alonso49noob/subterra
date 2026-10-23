@@ -190,6 +190,21 @@ namespace Subterra.Core.Procedural
             return null;
         }
 
+        /// <summary>A network whose void is within <paramref name="margin"/> m of the point (or contains it), or null.</summary>
+        public TubeNetwork FindNear(Vec3d bodyPos, float margin)
+        {
+            foreach (TubeNetwork net in All)
+            {
+                Vec3 local = net.ToLocal(bodyPos);
+                if (net.Bounds.Contains(local) && net.Sdf.Distance(local) < margin)
+                {
+                    return net;
+                }
+            }
+
+            return null;
+        }
+
         public TubeNetwork Find(string id)
         {
             foreach (TubeNetwork net in All)
