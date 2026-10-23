@@ -65,6 +65,7 @@ namespace Subterra
         {
             PqsHolePatch.Register();
             TerrainAltitudePatch.Register();
+            CaveSeaPatch.Register();
             CameraPatch.Register();
             ThermalPatches.Register();
             SciencePatches.Register();
