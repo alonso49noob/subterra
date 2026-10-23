@@ -387,6 +387,12 @@ namespace Subterra.Core.Procedural
                 int span = 2 + (int)(rng.NextDouble() * 4);
                 int from = 1 + (int)(rng.NextDouble() * Math.Max(1, trunk.Count - span - 2));
                 int to = Math.Min(trunk.Count - 1, from + span);
+                span = to - from;
+                if (span < 2)
+                {
+                    continue;
+                }
+
                 NodeSpec a = site.Nodes[trunk[from]], z = site.Nodes[trunk[to]];
                 double bow = rng.Range(60, 250) * (rng.NextDouble() < 0.5 ? -1 : 1);
                 double width = Math.Max(BranchWidthMin, Math.Min(a.Width, z.Width) * rng.Range(0.35, 0.7));

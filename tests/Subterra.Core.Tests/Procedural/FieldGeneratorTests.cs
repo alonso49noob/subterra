@@ -53,6 +53,11 @@ namespace Subterra.Core.Tests.Procedural
 
         [Fact] public void Deterministic() => Assert.Equal(Ser(Gen()), Ser(Gen()));
 
+        // Short trunks (a few nodes) with braids on them: once threw out of range in game (a braid longer than its trunk).
+        [Fact]
+        public void ShortNetworksGenerate() =>
+            Assert.NotEmpty(FieldGenerator.Generate(new FieldSpec { Name = "Short", Biomes = { "Lowlands" }, NetworksPer10k = 40, Length = new Range(1600, 2400) }, "Mun", "MN", Grid, Cell, Terrain, Terrain));
+
         [Fact]
         public void TrunksGoDownhill()
         {
@@ -187,7 +192,7 @@ namespace Subterra.Core.Tests.Procedural
         // Networks are the same in every save and for every player (Lucas's ruling: maps must stay valid),
         // so the generator's output is pinned. If this fails, a change moved existing networks: undo it, or,
         // if it is deliberate, note it in the CHANGELOG and update the fingerprint.
-        private const string Fingerprint = "AE38FAB02AC64B54";
+        private const string Fingerprint = "A4A493C631429530";
 
         [Fact]
         public void OutputIsPinned()
