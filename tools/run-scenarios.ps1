@@ -23,7 +23,7 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 $ExpectedToFail = @('m0-underground-control')
 $WithoutDevCfg = @('release-smoke')
 # Optional development cfgs (tests\ksp\cfg\optional) some scenarios need on top of the usual ones.
-$ExtraCfg = @{ 'gas' = 'DevGas'; 'geode' = 'DevGeode' }
+$ExtraCfg = @{ 'gas' = 'DevGas'; 'geode' = 'DevGeode'; 'gpr-wall' = 'DevGprWall' }
 
 if ($Build) {
     & dotnet build (Join-Path $RepoRoot 'Subterra.sln') -c Release -nologo | Out-Null

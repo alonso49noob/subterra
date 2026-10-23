@@ -24,6 +24,64 @@ namespace Subterra.DevTools
             StepRegistry.RegisterAssertion("cellsReady", CellsReady);
             StepRegistry.RegisterAssertion("mapOverlay", MapOverlayState);
             StepRegistry.RegisterAssertion("cavityLookups", CavityLookups);
+            StepRegistry.RegisterAssertion("radarAxis", RadarAxis);
+            StepRegistry.RegisterAssertion("radarWaypoint", RadarWaypointIs);
+        }
+
+        // radarAxis dir = down tolerance = 10 - the look direction of every ground radar on the tracked vessel is within
+        // tolerance degrees of straight down (dir = down), or of the horizon (dir = level), or of the direction away from its
+        // parent part (dir = outward: how the part is mounted, whatever the craft's attitude). Reports the angles of the
+        // part's own axes to the local vertical too (how the model sits).
+        private static bool RadarAxis(ConfigNode node, TestContext ctx)
+        {
+            string dir = node.Arg("dir", "down");
+            double tolerance = node.ArgDouble("tolerance", 10);
+            Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+            List<ModuleSubterraRadar> radars = RadarModules(ctx).Where(m => m.mode == ModuleSubterraRadar.ModeGroundRadar).ToList();
+            UnityEngine.Vector3 up = (vessel.GetWorldPos3D() - vessel.mainBody.position).normalized;
+            var parts = new List<string>();
+            bool ok = radars.Count > 0;
+            foreach (ModuleSubterraRadar m in radars)
+            {
+                UnityEngine.Vector3 axis = m.ScanAxisWorld;
+                double fromDown = UnityEngine.Vector3.Angle(axis, -up);
+                double fromHorizon = 90 - UnityEngine.Vector3.Angle(axis, up);
+                UnityEngine.Transform t = m.part.transform;
+                parts.Add(Invariant($"{m.part.name}: axis {fromDown:F1} deg from down, {fromHorizon:F1} deg above the horizon (part +Z {UnityEngine.Vector3.Angle(t.forward, -up):F0}, -Z {UnityEngine.Vector3.Angle(-t.forward, -up):F0}, +Y {UnityEngine.Vector3.Angle(t.up, -up):F0}, -Y {UnityEngine.Vector3.Angle(-t.up, -up):F0} deg from down)"));
+                if (dir == "outward")
+                {
+                    // Independent of the craft's attitude: the radar looks away from the part it is mounted on.
+                    UnityEngine.Vector3 away = (m.part.transform.position - m.part.parent.transform.position).normalized;
+                    double fromAway = UnityEngine.Vector3.Angle(axis, away);
+                    parts.Add(Invariant($"{m.part.name}: axis {fromAway:F1} deg from the direction away from its parent {m.part.parent.name}"));
+                    ok &= fromAway <= tolerance;
+                    continue;
+                }
+
+                ok &= dir == "level" ? Math.Abs(90 - UnityEngine.Vector3.Angle(axis, up)) <= tolerance : fromDown <= tolerance;
+            }
+
+            ctx.Detail = radars.Count == 0 ? "no ground radar" : string.Join("; ", parts) + Invariant($" (wanted {dir}, tolerance {tolerance})");
+            return ok;
+        }
+
+        // radarWaypoint id = site:SerenitySkylight min = 1 max = 1 - the radar has laid between min and max waypoints for
+        // that network and the game has them (by name).
+        private static bool RadarWaypointIs(ConfigNode node, TestContext ctx)
+        {
+            string id = node.RequireArg("id");
+            int min = (int)node.ArgDouble("min", 1), max = (int)node.ArgDouble("max", int.MaxValue);
+            RadarScenario scenario = RadarScenario.Instance;
+            if (scenario == null)
+            {
+                ctx.Detail = "no RadarScenario";
+                return false;
+            }
+
+            List<RadarScenario.RadarWaypointInfo> records = scenario.Waypoints.Where(w => w.NetworkId == id).ToList();
+            int inGame = records.Count(w => RadarWaypoints.Exists(w.Name));
+            ctx.Detail = Invariant($"{id}: {records.Count} radar waypoint(s) recorded, {inGame} in the game ({string.Join(", ", records.Select(w => $"\"{w.Name}\" at {w.Lat:F4}, {w.Lon:F4}"))}); {WaypointQueue.Count} still queued (wanted {min}..{max})");
+            return inGame >= min && inGame <= max && records.Count >= min;
         }
 
         // cavityLookups body = Mun count = 100000 maxMs = 100 - count lookups of SubterraCavity over the body (a lat/lon

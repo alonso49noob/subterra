@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Subterra.Core.Radar;
+using UnityEngine;
 using static System.FormattableString;
 
 namespace Subterra.DevTools
@@ -19,6 +20,45 @@ namespace Subterra.DevTools
             StepRegistry.Register("subPointAt", SubPointAt);
             StepRegistry.Register("radarSetLastScan", RadarSetLastScan);
             StepRegistry.Register("cavityFailNext", CavityFailNext);
+            StepRegistry.Register("aimRadar", AimRadar);
+            StepRegistry.Register("radarProbe", RadarProbe);
+        }
+
+        // radarProbe - logs what the last ground radar sample looked at (GroundScan.LastSummary).
+        private static IEnumerator RadarProbe(ConfigNode node, TestContext ctx)
+        {
+            yield return null;
+            ctx.Pass(GroundScan.LastSummary + "; slowest: " + GroundScan.WorstSummary);
+        }
+
+        // aimRadar down = true / aimRadar lat = 0.0129 lon = -0.4286 - turns the tracked vessel (about where it is) so
+        // that its ground radar looks straight down, or level toward that latitude and longitude. For a held vessel;
+        // the radar axis is read back after the turn and reported.
+        private static IEnumerator AimRadar(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+            ModuleSubterraRadar radar = vessel.parts.SelectMany(p => p.Modules.OfType<ModuleSubterraRadar>())
+                .FirstOrDefault(m => m.mode == ModuleSubterraRadar.ModeGroundRadar) ?? throw new InvalidOperationException("no ground radar on the vessel");
+            CelestialBody body = vessel.mainBody;
+            Vector3d here = vessel.GetWorldPos3D();
+            Vector3 up = (Vector3)(here - body.position).normalized;
+            Vector3 want;
+            if (node.ArgBool("down", false))
+            {
+                want = -up;
+            }
+            else
+            {
+                Vector3d target = body.GetWorldSurfacePosition(node.ArgDouble("lat", 0), node.ArgDouble("lon", 0), vessel.altitude);
+                want = Vector3.ProjectOnPlane((Vector3)(target - here), up).normalized;
+            }
+
+            vessel.SetRotation(Quaternion.FromToRotation(radar.ScanAxisWorld, want) * vessel.transform.rotation);
+            // A packed, landed vessel takes its attitude from srfRelRotation every frame: keep it in step.
+            vessel.srfRelRotation = Quaternion.Inverse(body.bodyTransform.rotation) * vessel.transform.rotation;
+            yield return null;
+            Vector3 axis = radar.ScanAxisWorld;
+            ctx.Pass(Invariant($"radar axis {Vector3.Angle(axis, want):F1} deg from the wanted direction, {90 - Vector3.Angle(axis, up):F1} deg above the horizon"));
         }
 
         /// <summary>Key prefix of the points subPoint keeps in TestContext.Snapshots (x = lat, y = lon, z = UT).</summary>

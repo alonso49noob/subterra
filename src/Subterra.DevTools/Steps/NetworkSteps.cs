@@ -161,17 +161,27 @@ namespace Subterra.DevTools
             return inside ? p.FloorCenter + p.Up * offsetUp : p.Up * (p.SurfaceRadius + offsetUp);
         }
 
-        // teleportToNetwork site = DevTube|procedural node = 1 inside = true offsetUp = 2 hold = false —
+        // teleportToNetwork site = DevTube|procedural node = 1 inside = true offsetUp = 2 hold = false rootUp = false target = 0 —
+        // (rootUp = true: the root part's up is the craft's top, as for a vertical stack built with an unrotated root)
         // moves the active vessel (after it is off rails) to that point, at rest.
         private static IEnumerator TeleportToNetwork(ConfigNode node, TestContext ctx)
         {
             Vessel vessel = FlightGlobals.ActiveVessel ?? throw new InvalidOperationException("no active vessel");
-            TubeNetwork net = FindNetwork(node, vessel, out _);
+            TubeNetwork net = FindNetwork(node, vessel, out BodyRuntime runtime);
             int index = NodeIndex(net, node.Arg("node", "1"));
             bool inside = node.ArgBool("inside", true);
             double offsetUp = node.ArgDouble("offsetUp", 2);
             bool hold = node.ArgBool("hold", false);
             Vec3d target = NodePosition(net, index, inside, offsetUp);
+            if (node.HasValue("target"))
+            {
+                // target = 0: over (above the terrain) or in (inside = true: at the same depth as) the centre of that
+                // radar target of the network, i.e. of its primitive of that index.
+                int which = (int)node.ArgDouble("target", 0);
+                Vec3d centre = runtime.NetworkTargets.TargetsOf(net)[which].Position;
+                target = inside ? centre + centre.Normalized * offsetUp
+                    : centre.Normalized * (net.SurfaceRadiusNear(net.ToLocal(centre)) + offsetUp);
+            }
 
             ctx.Release();
             yield return ctx.WaitFor(() => !vessel.packed, 60, "the vessel to go off rails");
@@ -188,7 +198,8 @@ namespace Subterra.DevTools
             string axes = Invariant($"up·vertical {Vector3.Dot(vessel.transform.up, before):F2}, forward·vertical {Vector3.Dot(vessel.transform.forward, before):F2}");
             // upright = true: wheels down whatever it did before (an SPH craft's top is its root's -forward).
             Vector3 newUp = (world - body.position).normalized;
-            Vector3 oldUp = node.ArgBool("upright", false) ? -vessel.transform.forward : (vessel.transform.position - body.position).normalized;
+            Vector3 oldUp = node.ArgBool("upright", false) ? -vessel.transform.forward
+                : node.ArgBool("rootUp", false) ? vessel.transform.up : (vessel.transform.position - body.position).normalized;
             vessel.SetRotation(Quaternion.FromToRotation(oldUp, newUp) * vessel.transform.rotation);
             vessel.SetPosition(world);
             body.GetLatLonAlt(vessel.transform.position, out vessel.latitude, out vessel.longitude, out vessel.altitude);

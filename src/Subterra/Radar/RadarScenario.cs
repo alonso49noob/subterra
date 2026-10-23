@@ -21,6 +21,13 @@ namespace Subterra
         // as this instance (decidido por Claude, revisar): code that listens to LevelRaised subscribes per scene.
         public DetectionStore Detections { get; } = new DetectionStore();
 
+        /// <summary>
+        /// The waypoints the radar has laid on newly detected networks (main thread only). Saved here, like the
+        /// discoveries of <see cref="SubterraScenario"/>, so <c>RadarWaypoints</c> can put them back when a flight
+        /// scene starts.
+        /// </summary>
+        public List<RadarWaypointInfo> Waypoints { get; } = new List<RadarWaypointInfo>();
+
         public static RadarScenario Instance { get; private set; }
 
         /// <summary>
@@ -68,6 +75,16 @@ namespace Subterra
             }
         }
 
+        /// <summary>One waypoint of the radar: the network it marks and where it was laid.</summary>
+        public sealed class RadarWaypointInfo
+        {
+            public string NetworkId;
+            public string Body;
+            public string Name;
+            public double Lat;
+            public double Lon;
+        }
+
         public override void OnSave(ConfigNode node)
         {
             lock (gate)
@@ -86,6 +103,16 @@ namespace Subterra
                     n.AddValue("instrument", pair.Key.Substring(split + 1));
                     n.AddValue("data", pair.Value.Serialize());
                 }
+            }
+
+            foreach (RadarWaypointInfo w in Waypoints)
+            {
+                ConfigNode n = node.AddNode("WAYPOINT");
+                n.AddValue("network", w.NetworkId);
+                n.AddValue("body", w.Body ?? "");
+                n.AddValue("name", w.Name);
+                n.AddValue("lat", Num(w.Lat));
+                n.AddValue("lon", Num(w.Lon));
             }
 
             foreach (NetworkDetection d in Detections.All)
@@ -132,6 +159,20 @@ namespace Subterra
             foreach (ConfigNode n in node.GetNodes("DETECTION"))
             {
                 LoadDetection(n);
+            }
+
+            Waypoints.Clear();
+            foreach (ConfigNode n in node.GetNodes("WAYPOINT"))
+            {
+                string network = n.GetValue("network");
+                string name = n.GetValue("name");
+                if (string.IsNullOrEmpty(network) || string.IsNullOrEmpty(name) || !TryNum(n, "lat", out double lat) || !TryNum(n, "lon", out double lon))
+                {
+                    Log.Warn($"Radar save: WAYPOINT node skipped (network '{network}' has missing or invalid values)");
+                    continue;
+                }
+
+                Waypoints.Add(new RadarWaypointInfo { NetworkId = network, Body = n.GetValue("body"), Name = name, Lat = lat, Lon = lon });
             }
         }
 

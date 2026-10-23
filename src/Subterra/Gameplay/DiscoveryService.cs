@@ -15,7 +15,7 @@ namespace Subterra
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public sealed class DiscoveryService : MonoBehaviour
     {
-        public const string WaypointId = "custom";
+        public const string WaypointId = WaypointQueue.WaypointId;
         private float nextCheck;
         private bool restored;
 
@@ -35,8 +35,7 @@ namespace Subterra
         // Waypoints not added yet come back with the discoveries when the next flight scene restores them.
         private void OnDestroy()
         {
-            PendingWaypoints.Clear();
-            PendingNames.Clear();
+            WaypointQueue.Clear();
         }
 
         private void Update()
@@ -46,11 +45,11 @@ namespace Subterra
                 return;
             }
 
-            if (PendingWaypoints.Count > 0)
+            if (WaypointQueue.Count > 0)
             {
                 using (SubterraClock.Measure("DiscoveryService"))
                 {
-                    AddPendingWaypoint();
+                    WaypointQueue.Pump();
                 }
             }
 
@@ -127,46 +126,18 @@ namespace Subterra
             }
         }
 
-        // Waypoints to add, one per frame: adding a network's dozen at once costs a visible frame.
-        private static readonly Queue<Waypoint> PendingWaypoints = new Queue<Waypoint>();
-        private static readonly HashSet<string> PendingNames = new HashSet<string>();
-
         private static void AddWaypoints(SubterraScenario.Discovery d)
         {
             List<Waypoint> existing = WaypointsOf(d.Id);
             foreach (SubterraScenario.WaypointInfo info in d.Waypoints)
             {
-                if (existing.Any(w => w.name == info.Name) || !PendingNames.Add(info.Name))
+                if (existing.Any(w => w.name == info.Name) || WaypointQueue.IsPending(info.Name))
                 {
                     continue;
                 }
 
-                var waypoint = new Waypoint
-                {
-                    celestialName = d.Body,
-                    latitude = info.Lat,
-                    longitude = info.Lon,
-                    altitude = 0,
-                    name = info.Name,
-                    id = WaypointId,
-                    isOnSurface = true,
-                    isNavigatable = true,
-                    isCustom = true,
-                };
-                PendingWaypoints.Enqueue(waypoint);
+                WaypointQueue.Enqueue(WaypointQueue.Make(d.Body, info.Lat, info.Lon, info.Name));
             }
-        }
-
-        private static void AddPendingWaypoint()
-        {
-            if (PendingWaypoints.Count == 0)
-            {
-                return;
-            }
-
-            Waypoint waypoint = PendingWaypoints.Dequeue();
-            PendingNames.Remove(waypoint.name);
-            WaypointManager.AddWaypoint(waypoint);
         }
     }
 }

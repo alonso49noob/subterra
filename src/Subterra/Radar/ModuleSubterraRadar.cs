@@ -1,6 +1,9 @@
 using System;
 using KSP.Localization;
+using Subterra.Core.Geo;
+using Subterra.Core.Numerics;
 using Subterra.Core.Radar;
+using UnityEngine;
 
 namespace Subterra
 {
@@ -17,9 +20,10 @@ namespace Subterra
 
     /// <summary>
     /// The subsurface radar instrument on a part: SR-E "Eco" (orbital radar sounder), SG-P "Plomada" (gravimeter)
-    /// and, from task 18, the Zahori ground radar. This part of the module (task 13) starts and stops the
-    /// instrument, draws its electricity and reports whether it could scan; <see cref="OrbitalScanner"/> (task 14)
-    /// marks the coverage grid from it.
+    /// and SG-Z "Zahori" (ground radar). The module starts and stops the instrument, draws its electricity and
+    /// reports whether it could scan; <see cref="OrbitalScanner"/> marks the coverage grid from the orbital modes.
+    /// The ground radar scans here: every <see cref="GroundSampleSeconds"/> it samples what lies in its cone
+    /// (<see cref="GroundScan"/>) and puts the detections into the store.
     ///
     /// Power: while <see cref="scanning"/> is on, the part draws <see cref="powerUse"/> EC/s from the vessel every
     /// physics step. If the electricity runs out, <see cref="scanning"/> stays on (decidido por Claude, revisar):
@@ -36,6 +40,9 @@ namespace Subterra
 
         /// <summary>Fraction of a step's charge that must be delivered for the instrument to count as powered.</summary>
         private const double PoweredFraction = 0.99;
+
+        /// <summary>Game seconds between two samples of the ground radar (spec 4.3 c).</summary>
+        public const double GroundSampleSeconds = 0.5;
 
         /// <summary>orbitalRadar, gravimeter or groundRadar.</summary>
         [KSPField] public string mode = ModeOrbitalRadar;
@@ -63,6 +70,13 @@ namespace Subterra
 
         [KSPField] public string experimentId = "";
 
+        /// <summary>
+        /// Ground radar only: the direction it looks at, in the part's own axes. Default +Z: out of the face that is
+        /// mounted, as KSP turns a surface-attached part so that its attach node (direction -Z in the cfg) faces the
+        /// parent. Mounted under a rover it looks down, mounted on a side it looks sideways.
+        /// </summary>
+        [KSPField] public Vector3 scanAxis = new Vector3(0, 0, 1);
+
         [KSPField(isPersistant = true)] public bool scanning;
         [KSPField(isPersistant = true)] public bool highBand;
 
@@ -86,6 +100,10 @@ namespace Subterra
 
         private ScanBlock block = ScanBlock.None;
 
+        // Ground radar: the next game time (UT) a sample is due.
+        private double nextGroundSample;
+        private readonly System.Collections.Generic.List<GroundFinding> pendingFindings = new System.Collections.Generic.List<GroundFinding>();
+
         /// <summary>Whether the last physics step produced a scan (scanning, powered, in the window).</summary>
         public bool IsScanningNow { get; private set; }
 
@@ -93,6 +111,9 @@ namespace Subterra
         public ScanBlock Block => block;
 
         public bool IsOrbitalMode => mode == ModeOrbitalRadar || mode == ModeGravimeter;
+
+        /// <summary>The ground radar's look direction in world space (unit length).</summary>
+        public Vector3 ScanAxisWorld => part.transform.TransformDirection(scanAxis).normalized;
 
         [KSPEvent(guiActive = true, guiName = "#Subterra_Radar_Start")]
         public void StartScan()
@@ -202,12 +223,73 @@ namespace Subterra
             try
             {
                 Refresh(true);
+                if (mode == ModeGroundRadar && IsScanningNow)
+                {
+                    GroundTick();
+                }
             }
             catch (Exception e)
             {
                 scanning = false;
                 IsScanningNow = false;
                 Log.Error($"Radar on {vessel.GetDisplayName()} stopped: {e}");
+            }
+        }
+
+        // Ground radar: a sample every GroundSampleSeconds of game time while it can scan.
+        private void GroundTick()
+        {
+            double now = Planetarium.GetUniversalTime();
+            // A marker further ahead than one interval comes from a game time that has gone back (a quickload).
+            if (now < nextGroundSample && nextGroundSample - now <= GroundSampleSeconds)
+            {
+                return;
+            }
+
+            nextGroundSample = now + GroundSampleSeconds;
+            RadarScenario scenario = RadarScenario.Instance;
+            if (scenario == null || !BodyRegistry.Instance.TryGet(vessel.mainBody, out BodyRuntime runtime))
+            {
+                return;
+            }
+
+            using (SubterraClock.Measure("GroundScan"))
+            {
+                Vec3d origin = Frames.ToBody(vessel.mainBody, part.transform.position);
+                Vec3d axis = Frames.DirectionToBody(vessel.mainBody, ScanAxisWorld);
+                BodyFrame.ToLatLon(origin, out double lat, out double lon);
+                Instrument instrument = BuildInstrument();
+                if (!GroundScan.Prepare(runtime, instrument, origin))
+                {
+                    // The targets around are being built on a worker; the next sample finds them ready.
+                    return;
+                }
+
+                var seen = GroundScan.Sample(runtime, instrument, origin, axis, lat, lon);
+                // The messages go out in the next Update: the sample and the message in one frame cost more than the budget.
+                pendingFindings.AddRange(GroundScan.Apply(scenario.Detections, vessel.mainBody.bodyName, seen, origin, lat, lon));
+            }
+        }
+
+        // Shows the findings of the last samples (one message per network found, never one per primitive).
+        private void Update()
+        {
+            if (pendingFindings.Count == 0)
+            {
+                return;
+            }
+
+            using (SubterraClock.Measure("GroundScan"))
+            {
+                foreach (GroundFinding f in pendingFindings)
+                {
+                    // A fixed English part for the logs and the in-game tests (the test copy may run in any language).
+                    string text = Localizer.Format("#Subterra_Radar_GprHit", f.Distance.ToString("F0"), f.Bearing.ToString("F0"));
+                    Log.Info($"Radar: Zahori hollow at {f.Distance:F0} m, bearing {f.Bearing:F0} deg ({f.NetworkId}): \"{text}\"");
+                    ScreenMessages.PostScreenMessage(text, 6f, ScreenMessageStyle.UPPER_CENTER);
+                }
+
+                pendingFindings.Clear();
             }
         }
 
@@ -266,7 +348,9 @@ namespace Subterra
                     return ScanBlock.NotLanded;
                 }
 
-                return maxSpeed > 0 && vessel.srfSpeed >= maxSpeed ? ScanBlock.TooFast : ScanBlock.None;
+                // decidido por Claude, revisar: maxSpeed = 0 means "nothing is slow enough" (ruling R5: the in-game test
+                // sets it to 0 to get the too-fast status without driving), not "no limit".
+                return vessel.srfSpeed >= maxSpeed ? ScanBlock.TooFast : ScanBlock.None;
             }
 
             if (vessel.Landed || vessel.Splashed)
