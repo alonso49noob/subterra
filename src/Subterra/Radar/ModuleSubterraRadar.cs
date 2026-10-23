@@ -80,6 +80,9 @@ namespace Subterra
         [KSPField(isPersistant = true)] public bool scanning;
         [KSPField(isPersistant = true)] public bool highBand;
 
+        /// <summary>Ground radar only: keep the 3D outline of detected voids on screen (<see cref="Wireframe3D"/>).</summary>
+        [KSPField(isPersistant = true)] public bool pinWireframe;
+
         /// <summary>
         /// UT up to which <see cref="OrbitalScanner"/> has walked this instrument's ground track (its progress marker;
         /// only the scanner and <see cref="StartScan"/> move it).
@@ -147,6 +150,22 @@ namespace Subterra
             highBand = !highBand;
         }
 
+        [KSPEvent(guiActive = true, guiName = "#Subterra_Radar_PinWireframe")]
+        public void PinWireframe()
+        {
+            pinWireframe = true;
+            Wireframe3D.Pin(this, true);
+            UpdateEvents();
+        }
+
+        [KSPEvent(guiActive = true, guiName = "#Subterra_Radar_UnpinWireframe")]
+        public void UnpinWireframe()
+        {
+            pinWireframe = false;
+            Wireframe3D.Pin(this, false);
+            UpdateEvents();
+        }
+
         /// <summary>The instrument as configured on this part (so a patched cfg balances it).</summary>
         public Instrument BuildInstrument()
         {
@@ -198,8 +217,14 @@ namespace Subterra
 
         public override void OnStart(StartState state)
         {
+            Wireframe3D.Pin(this, mode == ModeGroundRadar && pinWireframe);
             UpdateEvents();
             Refresh(false);
+        }
+
+        private void OnDestroy()
+        {
+            Wireframe3D.Pin(this, false);
         }
 
         public override string GetInfo()
@@ -272,6 +297,8 @@ namespace Subterra
                 }
 
                 var seen = GroundScan.Sample(runtime, instrument, origin, axis, lat, lon);
+                // Every sample keeps the 3D outline of the detected voids on screen for a minute.
+                Wireframe3D.Touch();
                 // The messages go out in a later frame: the sample and the first message in one frame cost more than the budget.
                 foreach (GroundFinding f in GroundScan.Apply(scenario.Detections, vessel.mainBody.bodyName, seen, origin, lat, lon))
                 {
@@ -404,6 +431,8 @@ namespace Subterra
             Events[nameof(StartScan)].active = !scanning;
             Events[nameof(StopScan)].active = scanning;
             Events[nameof(ToggleBand)].active = mode == ModeGroundRadar;
+            Events[nameof(PinWireframe)].active = mode == ModeGroundRadar && !pinWireframe;
+            Events[nameof(UnpinWireframe)].active = mode == ModeGroundRadar && pinWireframe;
         }
     }
 }

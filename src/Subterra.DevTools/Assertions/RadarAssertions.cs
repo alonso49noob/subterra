@@ -26,6 +26,17 @@ namespace Subterra.DevTools
             StepRegistry.RegisterAssertion("cavityLookups", CavityLookups);
             StepRegistry.RegisterAssertion("radarAxis", RadarAxis);
             StepRegistry.RegisterAssertion("radarWaypoint", RadarWaypointIs);
+            StepRegistry.RegisterAssertion("wireframeLines", WireframeLines);
+        }
+
+        // wireframeLines min = 50 - the 3D outline of detected voids drew at least min segments in the last frame it was
+        // drawn, and has drawn in at least one frame (max, default none, is the cap on the segments drawn).
+        private static bool WireframeLines(ConfigNode node, TestContext ctx)
+        {
+            int min = (int)node.ArgDouble("min", 1), max = (int)node.ArgDouble("max", int.MaxValue);
+            int lines = Wireframe3D.VisibleSegments;
+            ctx.Detail = Invariant($"{lines} segment(s) drawn in the last frame (wanted {min}..{max}, cap {Wireframe3D.MaxSegments}), {Wireframe3D.DrawnFrames} frame(s) drawn, camera {Wireframe3D.LastCamera}, pinned {Wireframe3D.IsPinned}");
+            return lines >= min && lines <= max && Wireframe3D.DrawnFrames > 0;
         }
 
         // radarAxis dir = down tolerance = 10 - the look direction of every ground radar on the tracked vessel is within
