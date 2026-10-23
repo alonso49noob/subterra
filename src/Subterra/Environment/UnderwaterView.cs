@@ -33,6 +33,10 @@ namespace Subterra
             {
                 sample = net.WaterAt(local, margin: 1f, above: 0f);
             }
+            else if (camera != null && Settings.Current.WaterPhysics && FlightGlobals.currentMainBody != null)
+            {
+                sample = Underground.OceanAt(FlightGlobals.currentMainBody, camera.transform.position);
+            }
 
             if (sample == null || !sample.Value.Under)
             {

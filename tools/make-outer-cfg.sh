@@ -166,8 +166,8 @@ echo "}"
 } > "$out"; echo "wrote $out"
 
 # --- Vall, Eeloo, Pol: small ice caves (their oceans and lakes come in sub-project 4) -----------------------------
-icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed [fieldStyle [conduitsPer10k]]
-  local body=$1 prefix=$2 temp=$3 comment=$4 name=$5 la0=$6 lo0=$7 la1=$8 lo1=$9 biomes=${10} seed=${11} style=${12:-lava} conduits=${13:-}
+icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed [fieldStyle [conduitsPer10k [ocean]]]
+  local body=$1 prefix=$2 temp=$3 comment=$4 name=$5 la0=$6 lo0=$7 la1=$8 lo1=$9 biomes=${10} seed=${11} style=${12:-lava} conduits=${13:-} ocean=${14:-}
   out=GameData/Subterra/Bodies/$body/$body.cfg; mkdir -p "$(dirname "$out")"
   {
   head_body $body $prefix $temp "$comment"
@@ -188,10 +188,24 @@ icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed
   scatter IceDrips "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 0.6 "0.5, 1.5" 1 false
   scatter SkylightRubble "Subterra/Props/RubbleCone01, Subterra/Props/Boulder03" skylightRubble "" 2 "0.5, 3.5" 0.5 true 0.02 0.3 2.5 0.25
   rule Water "" WaterIce 2 ""
+  # The ocean under the ice (sub-project 4): "ceilingPole ceilingEquator thickness" in metres. [Claude, revisar]
+  if [ -n "$ocean" ]; then
+    read pole eq thick <<<"$ocean"
+    printf '	OCEAN
+	{
+		ceilingPole = %s
+		ceilingEquator = %s
+		thickness = %s
+		density = 1030
+		temperature = 272
+		colour = 0.05, 0.12, 0.20
+	}
+' $pole $eq $thick
+  fi
   echo "}"
   } > "$out"; echo "wrote $out"
 }
-icy Vall VL 90 "ice caves of Vall (its subsurface ocean, lakes and cryovolcanoes come in sub-project 4)" VallIceCaves -1.0381 85.3411 -0.9300 85.4492 "Lowlands, Midlands, Highlands, Northeast Basin, Northwest Basin, Southern Basin, Southern Valleys" 96 lava 1
-icy Eeloo EE 60 "ice caves of Eeloo (its subsurface ocean comes in sub-project 4)" EelooIceCaves -17.9440 149.8971 -18.0983 149.7347 "Lowlands, Midlands, Highlands, Ice Canyons, Northern Glaciers, Southern Glaciers, Mu Glacier" 97 lava 1
+icy Vall VL 90 "ice caves of Vall (its subsurface ocean, lakes and cryovolcanoes come in sub-project 4)" VallIceCaves -1.0381 85.3411 -0.9300 85.4492 "Lowlands, Midlands, Highlands, Northeast Basin, Northwest Basin, Southern Basin, Southern Valleys" 96 lava 1 "1000 10000 30000"
+icy Eeloo EE 60 "ice caves of Eeloo (its subsurface ocean comes in sub-project 4)" EelooIceCaves -17.9440 149.8971 -18.0983 149.7347 "Lowlands, Midlands, Highlands, Ice Canyons, Northern Glaciers, Southern Glaciers, Mu Glacier" 97 lava 1 "1000 8000 20000"
 # Pol, small and lumpy: its procedural caves are voids between blocks under its ice. [Claude, revisar]
-icy Pol PO 110 "ice caves of Pol" PolIceCaves -4.4722 -136.0378 -4.4718 -135.2541 "Lowlands, Midlands, Highlands" 98 rubble
+icy Pol PO 110 "ice caves of Pol" PolIceCaves -4.4722 -136.0378 -4.4718 -135.2541 "Lowlands, Midlands, Highlands" 98 rubble "" "1000 3000 5000"

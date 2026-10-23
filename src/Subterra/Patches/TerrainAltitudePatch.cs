@@ -39,6 +39,13 @@ namespace Subterra
                 UndergroundState state = module != null ? module.State : UndergroundTracker.Compute(__instance.mainBody, __instance.GetWorldPos3D(), false);
                 if (!state.Inside)
                 {
+                    // In the ocean under the ice: the ground is the sea floor.
+                    Subterra.Core.Water.WaterSample? sea = Underground.OceanAt(__instance.mainBody, __instance.GetWorldPos3D());
+                    if (sea != null && BodyRegistry.Instance.TryGet(__instance.mainBody, out BodyRuntime runtime))
+                    {
+                        __result = __instance.altitude - (runtime.Ocean.Spec.Thickness - sea.Value.Depth);
+                    }
+
                     return;
                 }
 
@@ -65,7 +72,7 @@ namespace Subterra
                 }
 
                 var bodyPos = Core.Geo.BodyFrame.Direction(lat, lon) * (body.Radius + alt);
-                if (runtime.Catalog.FindContaining(bodyPos) == null)
+                if (runtime.Catalog.FindContaining(bodyPos) == null && runtime.Ocean?.At(bodyPos) == null)
                 {
                     return true;
                 }
@@ -84,7 +91,7 @@ namespace Subterra
         {
             try
             {
-                if (Underground.Locate(__instance.mainBody, __instance.GetWorldPos3D(), out _, out _))
+                if (Underground.Locate(__instance.mainBody, __instance.GetWorldPos3D(), out _, out _) || Underground.OceanAt(__instance.mainBody, __instance.GetWorldPos3D()) != null)
                 {
                     __result = true;
                     return false;

@@ -230,22 +230,47 @@ namespace Subterra.DevTools
         private static IEnumerator TeleportToNetwork(ConfigNode node, TestContext ctx)
         {
             Vessel vessel = FlightGlobals.ActiveVessel ?? throw new InvalidOperationException("no active vessel");
-            TubeNetwork net = FindNetwork(node, vessel, out _);
-            int index = NodeIndex(net, node.Arg("node", "1"));
             bool inside = node.ArgBool("inside", true);
             double offsetUp = node.ArgDouble("offsetUp", 2);
             bool hold = node.ArgBool("hold", false);
-            Vec3d target = NodePosition(net, index, inside, offsetUp);
-            if (node.HasValue("ramp"))
+            TubeNetwork net = null;
+            int index = -1;
+            Vec3d target;
+            string bodyName, where;
+            if (string.Equals(node.Arg("site"), "ocean", StringComparison.OrdinalIgnoreCase))
             {
-                target = RampPosition(net, node.ArgDouble("ramp", 0.2), offsetUp);
+                // site = ocean body = Vall lat = 88 lon = 0 depth = 500: that far under the ice of the body's ocean.
+                bodyName = node.RequireArg("body");
+                CelestialBody oceanBody = FlightGlobals.GetBodyByName(bodyName) ?? throw new InvalidOperationException($"no body {bodyName}");
+                if (!BodyRegistry.Instance.TryGet(oceanBody, out BodyRuntime runtime) || runtime.Ocean == null)
+                {
+                    throw new InvalidOperationException($"{bodyName} has no ocean");
+                }
+
+                double lat = node.ArgDouble("lat", 0), depth = node.ArgDouble("depth", 100);
+                target = Core.Geo.BodyFrame.Direction(lat, node.ArgDouble("lon", 0)) * (runtime.Ocean.CeilingRadius(lat) - depth);
+                where = Invariant($"{bodyName} ocean {depth} m under the ice");
+                inside = false;
+            }
+            else
+            {
+                net = FindNetwork(node, vessel, out _);
+                index = NodeIndex(net, node.Arg("node", "1"));
+                target = NodePosition(net, index, inside, offsetUp);
+                if (node.HasValue("ramp"))
+                {
+                    target = RampPosition(net, node.ArgDouble("ramp", 0.2), offsetUp);
+                }
+
+                bodyName = net.Body;
+                where = Invariant($"{net.Id} node {index} {(inside ? "inside" : "above")} {offsetUp} m");
             }
 
             // Placed in the network's own body's frame, and its orbit restarted around that body. Right after a teleport
             // to another body the vessel can still count as on the old one (its sphere of influence not switched yet);
             // releasing a hold then restarted its orbit around the old body, which sent it back to Kerbin or far off.
             // So the hold is dropped without a release, and the vessel stays on rails until placed.
-            CelestialBody body = FlightGlobals.GetBodyByName(net.Body) ?? throw new InvalidOperationException($"no body {net.Body}");
+            CelestialBody body = FlightGlobals.GetBodyByName(bodyName) ?? throw new InvalidOperationException($"no body {bodyName}");
             ctx.Forget();
             yield return ctx.WaitFor(() => vessel.loaded, 60, "the vessel to be loaded");
             // Like the cheat menu's SetVesselPosition: on rails first (moving an unpacked vessel far in one
@@ -283,7 +308,7 @@ namespace Subterra.DevTools
                 ctx.Hold(vessel);
             }
 
-            ctx.Pass(Invariant($"{net.Id} node {index} {(inside ? "inside" : "above")} {offsetUp} m: altitude {vessel.altitude:F1} m{(hold ? ", held" : "")} (before: {axes})"));
+            ctx.Pass(Invariant($"{where}: altitude {vessel.altitude:F1} m{(hold ? ", held" : "")} (before: {axes})"));
         }
     }
 }

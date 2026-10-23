@@ -22,6 +22,7 @@ namespace Subterra
 
         private float nextLook;
         private TubeNetwork net;
+        private Subterra.Core.Water.OceanShell ocean;
         private readonly System.Collections.Generic.List<Part> crushed = new System.Collections.Generic.List<Part>();
 
         /// <summary>Parts under water now (for tests and the debug window).</summary>
@@ -33,6 +34,13 @@ namespace Subterra
         public override Activation GetActivation() => Activation.LoadedVessels | Activation.FlightScene;
 
         public static SubterraWaterModule Of(Vessel vessel) => vessel == null ? null : vessel.FindVesselModuleImplementing<SubterraWaterModule>();
+
+        // The ocean's water at a part, its depth counted from the ceiling (a part just under the ice is partly in it).
+        private WaterSample? OceanSample(Vec3d bodyPos, float height)
+        {
+            WaterSample? lower = ocean.At(bodyPos - bodyPos.Normalized * height);
+            return lower == null ? (WaterSample?)null : new WaterSample(lower.Value.Depth - height, lower.Value.Density, lower.Value.Up, lower.Value.Colour);
+        }
 
         private void FixedUpdate()
         {
@@ -48,9 +56,16 @@ namespace Subterra
             {
                 nextLook = Time.time + LookInterval;
                 net = Underground.Locate(body, vessel.CoMD, out TubeNetwork found, out _) && found.Waters.Count > 0 ? found : null;
+                ocean = null;
+                if (net == null && BodyRegistry.Instance.TryGet(body, out BodyRuntime runtime) && runtime.Ocean != null)
+                {
+                    // Near or in the ocean: its ceiling within 50 m above the vessel.
+                    Vec3d at = Frames.ToBody(body, vessel.CoMD);
+                    ocean = runtime.Ocean.At(at - at.Normalized * 50) != null ? runtime.Ocean : null;
+                }
             }
 
-            if (net == null)
+            if (net == null && ocean == null)
             {
                 return;
             }
@@ -76,7 +91,7 @@ namespace Subterra
                     }
 
                     float height = (size.x + size.y + size.z) / 3;
-                    WaterSample? sample = net.WaterAt(net.ToLocal(bodyPos), margin: 3f, above: height);
+                    WaterSample? sample = net != null ? net.WaterAt(net.ToLocal(bodyPos), margin: 3f, above: height) : OceanSample(bodyPos, height);
                     if (sample == null)
                     {
                         continue;
