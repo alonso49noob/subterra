@@ -57,7 +57,9 @@ for t in "${fractions[@]}"; do
     awk -v t=$t -v b=$b -v h=$half 'BEGIN { exit !((t - (b - h)) ^ 2 < 1e-8 || (t - (b + h)) ^ 2 < 1e-8) }' && feature=portal
   done
   # At the mouths a rounder section (an arch in the trench wall, not a wide slot).
-  if [ -n "$feature" ]; then node $la $lo 15 130 115 portal 160; else node $la $lo 15 160 105; fi
+  # Floor 1 m over the trench floor (roof 15 + height 104 = 119 of the trench's 120 m): the trench's ground is never
+  # cut down to a sunken tube floor in front of a mouth. [Claude, revisar]
+  if [ -n "$feature" ]; then node $la $lo 15 130 104 portal 160; else node $la $lo 15 160 104; fi
   count=$((count + 1))
 done
 for i in $(seq 0 $((count - 2))); do edge $i $((i + 1)) 0 0.04; done
