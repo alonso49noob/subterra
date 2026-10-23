@@ -397,6 +397,10 @@ hundió; a veces nace en un cráter-fuente. Pedido para cuando los tubos de lava
 ## Misión secundaria: núcleo de los asteroides (AsteroidalDetail) — pedido de Lucas, 2026-10-23, para la semana siguiente
 
 - Compatibilidad con AsteroidalDetail: perforar (taladro de núcleo, Topo y voladuras) hasta el núcleo de los asteroides.
+- **Capas diferenciadas SOLO en los asteroides más grandes** (Lucas): casi todos los asteroides reales son
+  uniformes (montones de escombros o roca sin diferenciar); solo los que tuvieron gravedad y calor suficientes
+  (como Vesta) se separaron en corteza, manto y núcleo de metal. Los pequeños: una sola capa, uniforme.
+  [Claude, revisar el umbral de tamaño]
 - Capas propias de un asteroide (escombros, roca, metal en los de tipo M), muestras de núcleo y ciencia por capa.
 - Pendiente de diseño: cómo se representan las cuevas y túneles en un cuerpo que no es un PQS (los asteroides son
   piezas/vessels en KSP).
@@ -406,9 +410,11 @@ hundió; a veces nace en un cráter-fuente. Pedido para cuando los tubos de lava
 - Eliminar por completo el taladro tunelador (SubterraTunnelBorer, ModuleSubterraTunnelBorer).
 - En su lugar: un instrumento que **evapora la roca en la dirección que uno quiera** (no solo hacia adelante y en
   rampa). Reutiliza la excavación persistente (ExcavationService) que ya usa el Topo.
-- Preguntas para el diseño (a confirmar con Lucas):
-  - ¿Cómo se apunta? ¿Hacia donde mira la pieza, o con ángulos (rumbo y elevación) en su menú?
-  - ¿Alcance y radio del túnel? ¿Abre un túnel continuo mientras está encendido, o "disparos" de N metros?
-  - ¿Coste? (mucha electricidad, calor que hay que disipar, quizá un recurso).
-  - ¿Qué pasa con las naves guardadas que ya usan el taladro viejo? (quitarlo rompe esas naves: dejar un alias o
-    avisar).
+- Respuestas de Lucas (2026-10-23):
+  - **Láser.** Se apunta con una interfaz que se abre y cierra (toggle): rumbo y elevación del rayo.
+  - **Coste:** electricidad. Una versión mejorada usa **xenón**, más potente. Plausible: los láseres de excímero de
+    xenón (XeCl, XeF) existen y se usan para ablación de material; el xenón es el medio láser (se gasta poco a poco).
+    [Claude, revisar]
+  - **Naves guardadas:** convertir solas las que usan el taladro viejo al láser nuevo (mismo nodo de montaje).
+  - Pendiente: alcance, radio del túnel y si es continuo o por disparos (decidir con una propuesta).
+
