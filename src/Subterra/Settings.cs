@@ -39,6 +39,9 @@ namespace Subterra
         public bool Debug;
         public float DigSpeed = 1;
         public bool Excavation = true;
+
+        /// <summary>Cave water lifts, slows and crushes what goes in (sub-project 4).</summary>
+        public bool WaterPhysics = true;
         public int MaxTunnelSegments = 5000;
         public float VoidStrengthMPa = 150;
         public HashSet<string> DisabledBodies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -63,6 +66,7 @@ namespace Subterra
                 settings.Debug = ReadBool(n, "debug", settings.Debug);
                 settings.DigSpeed = (float)Math.Max(0, Read(n, "digSpeed", settings.DigSpeed));
                 settings.Excavation = ReadBool(n, "excavation", settings.Excavation);
+                settings.WaterPhysics = ReadBool(n, "waterPhysics", settings.WaterPhysics);
                 settings.MaxTunnelSegments = (int)Math.Max(0, Read(n, "maxTunnelSegments", settings.MaxTunnelSegments));
                 settings.VoidStrengthMPa = (float)Math.Max(1, Read(n, "voidStrengthMPa", settings.VoidStrengthMPa));
                 foreach (string body in Split(n.GetValue("disabledBodies")))

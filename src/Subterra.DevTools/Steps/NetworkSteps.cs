@@ -19,6 +19,7 @@ namespace Subterra.DevTools
             StepRegistry.Register("networkInfo", NetworkInfo);
             StepRegistry.Register("terrainProfile", TerrainProfile);
             StepRegistry.RegisterAssertion("insideNetwork", InsideNetwork);
+            StepRegistry.RegisterAssertion("waterDepth", WaterDepth);
         }
 
         /// <summary>The network named by <c>site</c> (a named site, or <c>procedural</c> = the nearest generated one).</summary>
@@ -200,6 +201,17 @@ namespace Subterra.DevTools
             PathPoint p = net.Nodes[i];
             Vec3d at = top + (p.FloorCenter - top) * along;
             return at + (topUp + (p.Up - topUp) * along).Normalized * offsetUp;
+        }
+
+        // waterDepth min = 0 max = 3 — the tracked vessel's deepest part is that far under a cave's water (submerged = true: some part is).
+        private static bool WaterDepth(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+            SubterraWaterModule water = SubterraWaterModule.Of(vessel);
+            double depth = water?.DeepestDepth ?? 0;
+            int parts = water?.Submerged ?? 0;
+            ctx.Detail = Invariant($"{vessel.GetDisplayName()}: {parts} part(s) in water, deepest {depth:F1} m, {vessel.srfSpeed:F1} m/s, {vessel.situation}");
+            return depth >= node.ArgDouble("min", double.MinValue) && depth <= node.ArgDouble("max", double.MaxValue) && (!node.ArgBool("submerged", true) || parts > 0);
         }
 
         // insideNetwork site = X — the tracked vessel is inside that network's rock (in its tubes, not on the ground).
