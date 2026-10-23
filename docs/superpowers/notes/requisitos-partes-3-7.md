@@ -418,3 +418,25 @@ hundió; a veces nace en un cráter-fuente. Pedido para cuando los tubos de lava
   - **Naves guardadas:** convertir solas las que usan el taladro viejo al láser nuevo (mismo nodo de montaje).
   - Pendiente: alcance, radio del túnel y si es continuo o por disparos (decidir con una propuesta).
 
+
+## Unidades geológicas y mapas geológicos — pedido de Lucas, 2026-10-23, para la semana siguiente
+
+Pedido:
+- Un sistema de **unidades geológicas** para la superficie y para las profundidades (como los mapas del USGS de la
+  Luna y Marte: mares, tierras altas, eyecta de cráteres, flujos volcánicos, depósitos polares…).
+- Permite hacer **mapas geológicos** de cada cuerpo.
+- Cada unidad da **ciencia distinta**, y extraer una muestra permite **calcular su edad** (datación): más vieja = más
+  ciencia.
+- Distintos **porcentajes de mineral (Ore)** según la unidad.
+
+Ideas para el diseño [Claude, revisar]:
+- Las unidades de superficie se derivan de los biomas, la altura, la pendiente y los rasgos que ya existen (cráteres,
+  rimas, volcanes, coladas); las profundas son las capas del STRATA, partidas por región (provincias).
+- Cada unidad: nombre, tipo de roca, edad (millones de años), multiplicador de ciencia por edad, abundancia de Ore
+  (y de otros recursos de CRP), color para el mapa.
+- Datación: un experimento nuevo (o el testigo del taladro analizado en un laboratorio) que revela la edad; la
+  ciencia crece con la edad.
+- Mapa: una capa propia en el mapa de KSP, y con SCANsat una capa de SCANsat (coordinar con alonso, parte 6, que hace
+  el radar compatible con SCANsat).
+- Ore: hoy el mineral viene del ResourcePatch por capa; pasaría a depender de la unidad.
+- Pendiente con Lucas: ¿las unidades se descubren al muestrear (mapa que se va llenando) o se ven desde el principio?
