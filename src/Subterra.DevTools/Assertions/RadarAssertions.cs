@@ -30,13 +30,15 @@ namespace Subterra.DevTools
         }
 
         // wireframeLines min = 50 - the 3D outline of detected voids drew at least min segments in the last frame it was
-        // drawn, and has drawn in at least one frame (max, default none, is the cap on the segments drawn).
+        // drawn, has drawn in at least one frame, and never blinked: no frame in which it was due (it was on in the frame
+        // before) went by without a draw (maxMissed, default 0; the refreshes every half second must not skip one).
         private static bool WireframeLines(ConfigNode node, TestContext ctx)
         {
             int min = (int)node.ArgDouble("min", 1), max = (int)node.ArgDouble("max", int.MaxValue);
+            int maxMissed = (int)node.ArgDouble("maxMissed", 0);
             int lines = Wireframe3D.VisibleSegments;
-            ctx.Detail = Invariant($"{lines} segment(s) drawn in the last frame (wanted {min}..{max}, cap {Wireframe3D.MaxSegments}), {Wireframe3D.DrawnFrames} frame(s) drawn, camera {Wireframe3D.LastCamera}, pinned {Wireframe3D.IsPinned}");
-            return lines >= min && lines <= max && Wireframe3D.DrawnFrames > 0;
+            ctx.Detail = Invariant($"{lines} segment(s) drawn in the last frame (wanted {min}..{max}, cap {Wireframe3D.MaxSegments}), {Wireframe3D.DrawnFrames} frame(s) drawn, {Wireframe3D.MissedFrames} blinked frame(s) (at most {maxMissed}), camera {Wireframe3D.LastCamera}, pinned {Wireframe3D.IsPinned}");
+            return lines >= min && lines <= max && Wireframe3D.DrawnFrames > 0 && Wireframe3D.MissedFrames <= maxMissed;
         }
 
         // radarAxis dir = down tolerance = 10 - the look direction of every ground radar on the tracked vessel is within

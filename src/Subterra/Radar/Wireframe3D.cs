@@ -71,6 +71,15 @@ namespace Subterra
         /// <summary>The camera the lines were first drawn on, with its clip planes (for the log and the in-game tests).</summary>
         public static string LastCamera { get; private set; } = "";
 
+        /// <summary>
+        /// Frames in which the outline was expected (the plan was already non-empty in the frame before) but the camera
+        /// drew nothing: a blink. For the in-game tests, which require it to stay 0.
+        /// </summary>
+        public static int MissedFrames { get; private set; }
+
+        /// <summary>The frame the lines were last drawn in.</summary>
+        private static int drawFrame = -1;
+
         public static bool IsPinned => Pinners.Count > 0;
 
         /// <summary>A sample of the Zahori was taken: the lines show (or stay) for <see cref="VisibleSeconds"/>.</summary>
@@ -118,6 +127,7 @@ namespace Subterra
         private int errors;
         private int settleSince = -1;
         private int planFrame = -1;
+        private int expectFrame = -1;
 
         private void Start()
         {
@@ -135,6 +145,12 @@ namespace Subterra
             }
 
             VisibleSegments = 0;
+
+            // The next scene starts without the last one's minute or pins (the instrument parts pin again in OnStart).
+            lastTouch = -1000f;
+            ShownUntil.Clear();
+            Pinners.Clear();
+            dirty = false;
         }
 
         private void Update()
@@ -143,7 +159,17 @@ namespace Subterra
             {
                 using (SubterraClock.Measure("Wireframe3D"))
                 {
+                    // The frame before had an outline that was due to be drawn: it must have been (a blink otherwise).
+                    if (expectFrame == Time.frameCount - 1 && drawFrame != expectFrame)
+                    {
+                        MissedFrames++;
+                        VisibleSegments = 0;
+                    }
+
+                    bool drawnBefore = plan.Count > 0;
                     Refresh();
+                    bool drawable = plan.Count > 0 && !MapView.MapIsEnabled && !InIva();
+                    expectFrame = drawnBefore && drawable ? Time.frameCount : -1;
                 }
             }
             catch (Exception e)
@@ -156,6 +182,9 @@ namespace Subterra
                 }
             }
         }
+
+        private static bool InIva() =>
+            CameraManager.Instance != null && CameraManager.Instance.currentCameraMode == CameraManager.CameraMode.IVA;
 
         // Works out which networks to draw: only when something changed or every RefreshSeconds.
         private void Refresh()
@@ -173,11 +202,28 @@ namespace Subterra
             float now = Time.realtimeSinceStartup;
             bool all = IsPinned || now - lastTouch < VisibleSeconds;
             bool any = all;
-            if (!all)
+            if (ShownUntil.Count > 0)
             {
+                // Forget the networks whose minute is up.
+                List<string> expired = null;
                 foreach (KeyValuePair<string, float> pair in ShownUntil)
                 {
-                    any |= pair.Value > now;
+                    if (pair.Value > now)
+                    {
+                        any = true;
+                    }
+                    else
+                    {
+                        (expired ?? (expired = new List<string>())).Add(pair.Key);
+                    }
+                }
+
+                if (expired != null)
+                {
+                    foreach (string id in expired)
+                    {
+                        ShownUntil.Remove(id);
+                    }
                 }
             }
 
@@ -213,7 +259,7 @@ namespace Subterra
             }
 
             settleSince = -1;
-            planFrame = Time.frameCount;
+            bool wasEmpty = plan.Count == 0;
             dirty = false;
             nextRefresh = now + RefreshSeconds;
             refreshedBody = runtime;
@@ -273,6 +319,13 @@ namespace Subterra
             }
 
             VisibleSegments = Math.Min(total, MaxSegments);
+
+            // Only a plan that appears (first hit, or back after being hidden) waits a frame before it is drawn: a
+            // refresh of an outline that is already on screen must not skip a draw (it would blink twice a second).
+            if (wasEmpty && plan.Count > 0)
+            {
+                planFrame = Time.frameCount;
+            }
         }
 
         private void Clear()
@@ -298,13 +351,17 @@ namespace Subterra
         // Builds the lines on a worker thread; the old lines keep being drawn until the new ones are there.
         private static void StartBuild(Entry entry, TubeNetwork net, string key, NetworkDetection detection)
         {
-            if (entry.BuildingKey == key && ReferenceEquals(entry.BuildingNet, net))
+            lock (entry)
             {
-                return;
+                if (entry.BuildingKey == key && ReferenceEquals(entry.BuildingNet, net))
+                {
+                    return;
+                }
+
+                entry.BuildingKey = key;
+                entry.BuildingNet = net;
             }
 
-            entry.BuildingKey = key;
-            entry.BuildingNet = net;
             System.Collections.BitArray bits = detection.Primitives;
             ThreadPool.QueueUserWorkItem(_ =>
             {
@@ -318,11 +375,27 @@ namespace Subterra
                         verts[2 * i + 1] = lines[i].b.ToUnity();
                     }
 
-                    entry.Built = new Built { Key = key, Net = net, Verts = verts };
+                    lock (entry)
+                    {
+                        // Only the build the entry still wants (a newer one may have been started meanwhile).
+                        if (entry.BuildingKey == key && ReferenceEquals(entry.BuildingNet, net))
+                        {
+                            entry.Built = new Built { Key = key, Net = net, Verts = verts };
+                        }
+                    }
                 }
                 catch (Exception e)
                 {
                     Log.Warn($"Wireframe3D: building the outline of {net.Id} failed: {e.Message}");
+                    lock (entry)
+                    {
+                        // Forget it so the next refresh tries again.
+                        if (entry.BuildingKey == key && ReferenceEquals(entry.BuildingNet, net))
+                        {
+                            entry.BuildingKey = null;
+                            entry.BuildingNet = null;
+                        }
+                    }
                 }
                 finally
                 {
@@ -333,7 +406,8 @@ namespace Subterra
 
         private void OnPostRender(Camera camera)
         {
-            if (plan.Count == 0 || Time.frameCount <= planFrame || FlightCamera.fetch == null || camera != FlightCamera.fetch.mainCamera)
+            if (plan.Count == 0 || Time.frameCount <= planFrame || FlightCamera.fetch == null || camera != FlightCamera.fetch.mainCamera
+                || MapView.MapIsEnabled || InIva())
             {
                 return;
             }
@@ -374,37 +448,57 @@ namespace Subterra
             int drawn = 0;
             material.SetPass(0);
             GL.PushMatrix();
-            foreach (Entry entry in plan)
+            try
             {
-                Built built = entry.Built;
-                if (left <= 0 || built == null)
+                foreach (Entry entry in plan)
                 {
-                    break;
-                }
+                    Built built = entry.Built;
+                    if (left <= 0 || built == null)
+                    {
+                        break;
+                    }
 
-                // Local frame -> world: the PQS axes moved to the anchor. The anchor is near the floating origin, so
-                // its single-precision position is exact enough; the vertices are relative to it.
-                Vector3 anchor = (Vector3)Frames.ToWorld(body, built.Net.Anchor);
-                GL.PushMatrix();
-                GL.MultMatrix(Matrix4x4.TRS(anchor, rotation, Vector3.one));
-                GL.Begin(GL.LINES);
-                GL.Color(new Color(0.35f, 1f, 0.85f, entry.Alpha));
-                Vector3[] verts = built.Verts;
-                int count = Math.Min(left, verts.Length / 2);
-                for (int i = 0; i < count; i++)
-                {
-                    GL.Vertex(verts[2 * i]);
-                    GL.Vertex(verts[2 * i + 1]);
-                }
+                    // Local frame -> world: the PQS axes moved to the anchor. The anchor is near the floating origin, so
+                    // its single-precision position is exact enough; the vertices are relative to it.
+                    Vector3 anchor = (Vector3)Frames.ToWorld(body, built.Net.Anchor);
+                    GL.PushMatrix();
+                    try
+                    {
+                        GL.MultMatrix(Matrix4x4.TRS(anchor, rotation, Vector3.one));
+                        GL.Begin(GL.LINES);
+                        try
+                        {
+                            GL.Color(new Color(0.35f, 1f, 0.85f, entry.Alpha));
+                            Vector3[] verts = built.Verts;
+                            int count = Math.Min(left, verts.Length / 2);
+                            for (int i = 0; i < count; i++)
+                            {
+                                GL.Vertex(verts[2 * i]);
+                                GL.Vertex(verts[2 * i + 1]);
+                            }
 
-                GL.End();
+                            left -= count;
+                            drawn += count;
+                        }
+                        finally
+                        {
+                            GL.End();
+                        }
+                    }
+                    finally
+                    {
+                        GL.PopMatrix();
+                    }
+                }
+            }
+            finally
+            {
+                // An exception must not leave the GL matrix stack unbalanced for the cameras drawn after this one.
                 GL.PopMatrix();
-                left -= count;
-                drawn += count;
             }
 
-            GL.PopMatrix();
             VisibleSegments = drawn;
+            drawFrame = Time.frameCount;
             DrawnFrames++;
             if (LastCamera.Length == 0)
             {

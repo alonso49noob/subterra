@@ -475,7 +475,12 @@ namespace Subterra.DevTools
                 yield return null;
                 float a1 = AngleOff();
                 float rate = Mathf.DeltaAngle(a0, a1); // degrees per radian of heading
-                camera.camHdg = h0 + 1f - a1 / rate;
+                // A heading that hardly moved the camera (rate ~ 0) gives nothing to extrapolate from: leave it at the probe.
+                if (Mathf.Abs(rate) > 1f)
+                {
+                    camera.camHdg = h0 + 1f - a1 / rate;
+                }
+
                 yield return null;
                 yield return null;
                 aim = Invariant($", away from {net.Id} skylight: probes {a0:F0} then {a1:F0} deg off, now {AngleOff():F0} deg off, skylight {(skylight - pivot).magnitude:F0} m from the pivot");
