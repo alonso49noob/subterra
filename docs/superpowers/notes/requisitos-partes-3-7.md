@@ -393,3 +393,10 @@ hundió; a veces nace en un cráter-fuente. Pedido para cuando los tubos de lava
   del usuario instalado, sin copiarlas al mod, si la licencia no permite redistribuir).
 - Pruebas: el perfil `full` (ya incluye Parallax) para todos los escenarios visuales, más un perfil con Scatterer,
   EVE y TUFX.
+
+## Misión secundaria: núcleo de los asteroides (AsteroidalDetail) — pedido de Lucas, 2026-10-23, para la semana siguiente
+
+- Compatibilidad con AsteroidalDetail: perforar (taladro de núcleo, Topo y voladuras) hasta el núcleo de los asteroides.
+- Capas propias de un asteroide (escombros, roca, metal en los de tipo M), muestras de núcleo y ciencia por capa.
+- Pendiente de diseño: cómo se representan las cuevas y túneles en un cuerpo que no es un PQS (los asteroides son
+  piezas/vessels en KSP).

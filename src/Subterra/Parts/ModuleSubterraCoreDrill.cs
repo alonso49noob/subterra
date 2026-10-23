@@ -59,6 +59,12 @@ namespace Subterra
         [KSPField(guiActive = true, guiName = "#Subterra_Drill_Depth", guiFormat = "F1", guiUnits = " m")]
         public float uiDepth;
 
+        /// <summary>Explosive (kg) the hole would take if loaded now (refreshed once a second; caves along it not counted).</summary>
+        [KSPField(guiActive = true, guiName = "#Subterra_Drill_NeedKg", guiFormat = "F0", guiUnits = " kg")]
+        public float uiNeedKg;
+
+        private float nextNeed;
+
         [KSPField(guiActive = true, guiName = "#Subterra_Drill_Layer")]
         public string uiLayer = "-";
 
@@ -338,12 +344,12 @@ namespace Subterra
             CelestialBody body = vessel.mainBody;
             Vector3d world = part.transform.position;
             double lat = body.GetLatitude(world), lon = body.GetLongitude(world);
+            string biome = KspSampler.Biome(body, lat, lon);
+            UpdateNeed(runtime, biome);
             if (DrillSideways(dt, runtime, body))
             {
                 return;
             }
-
-            string biome = KspSampler.Biome(body, lat, lon);
 
             // A new hole where the vessel stands (first time, or after it moved away from the old one).
             if (depth < 0 || holeBody != body.bodyName || Distance(body, lat, lon, holeLat, holeLon) > HoleTolerance)
@@ -450,6 +456,26 @@ namespace Subterra
                 ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_Breakthrough", d.ToString("F0")), 6f, ScreenMessageStyle.UPPER_CENTER);
                 Log.Info($"Core drill on {vessel.GetDisplayName()} reached {net.Id} at {d:F0} m");
             }
+        }
+
+        // The explosive the hole as drilled would take (vertical: its decks; sideways: the round), once a second.
+        private void UpdateNeed(BodyRuntime runtime, string biome)
+        {
+            if (Time.time < nextNeed)
+            {
+                return;
+            }
+
+            nextNeed = Time.time + 1f;
+            if (sideways)
+            {
+                uiNeedKg = (float)(BlastDesign.PowderFactor(Layer) * Math.PI * blastRadius * blastRadius * roundLength);
+                return;
+            }
+
+            UndergroundState state = UndergroundTracker.For(vessel);
+            double top = state.Inside ? state.Depth : 0;
+            uiNeedKg = depth > top ? (float)BlastDesign.Plan(top, depth, blastRadius, runtime.Strata, biome, null).TotalKg : 0;
         }
 
         private void Show(Borehole.Progress p, string status)
