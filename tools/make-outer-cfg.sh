@@ -60,6 +60,7 @@ printf '\t}\n'
 field EveKarst karst "Lowlands, Midlands, Highlands, Foothills" 1.2 "8, 60" "1000, 6000" "20, 150" "1500, 5000" 0.5 0.2 0.75 91
 common_scatters
 scatter Stalactites "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 1 "0.5, 2.5" 1 false 0.03 0.4 2
+scatter Stalagmites "Subterra/Props/Stalagmite01" floor "TubeGallery, TubeChamber, TubeBranch" 0.6 "0.4, 3" 0 true 0.03 0.45 2 0.05
 scatter SaltCrystals "Subterra/Props/GeodeCrystal01" floor "Geode" 4 "0.6, 3" 0.9 false 0.02 -1 2 0.1
 rule Explodium "" Evaporites 3 ""
 echo "}"
@@ -126,7 +127,7 @@ node "$(awk -v a=${GILLY[0]} 'BEGIN { printf "%.4f", a + 0.8 }')" "$(awk -v a=${
 node "$(awk -v a=${GILLY[0]} 'BEGIN { printf "%.4f", a + 1.6 }')" "$(awk -v a=${GILLY[1]} 'BEGIN { printf "%.4f", a + 2.0 }')" 15 30 20 skylight 12
 edge 0 1 0.5 0.12; edge 1 2 0.5 0.12
 printf '\t}\n'
-field GillyGaps karst "Lowlands, Midlands, Highlands" 30 "8, 40" "400, 1500" "10, 60" "500, 1200" 0.5 0.3 0.5 94
+field GillyGaps rubble "Lowlands, Midlands, Highlands" 30 "8, 40" "400, 1500" "10, 60" "500, 1200" 0.5 0.3 0.5 94
 scatter BreakdownBoulders "Subterra/Props/Boulder01, Subterra/Props/Boulder02, Subterra/Props/Boulder03" floor "TubeGallery, TubeChamber, TubeBranch" 2 "0.3, 5" 0.6 true 0.035 0.5 2.5 0.3
 echo "}"
 } > "$out"; echo "wrote $out"
@@ -150,6 +151,8 @@ site_head BopKrakenChamber
 node $(along ${BOP[@]} 0.9) 650 150 90 geode
 printf '\t}\n'
 field BopCaverns lava "Valley, Slopes, Peaks, Ridges, Poles" 1 "40, 300" "800, 5000" "40, 300" "1500, 4000" 0.4 0.3 0.7 95
+# Bop is a rubble pile (a captured comet): rooms between its blocks all through it. [Claude, revisar]
+field BopRubble rubble "Valley, Slopes, Peaks, Ridges, Poles" 3 "15, 60" "800, 3000" "20, 200" "1500, 4000" 0.4 0.3 0.4 99
 scatter IceCrystals "Subterra/Props/IceCluster01" floor "TubeGallery, TubeChamber, TubeBranch" 0.8 "0.4, 2" 0.8 false 0.02 0.35 1.5 0.15
 # The Kraken chamber: ribcages arching over the floor (drive under them) and loose bones.
 scatter KrakenRibs "Subterra/Props/KrakenRibs01" floor "Geode" 0.015 "6, 14" 0.3 true 0.02 -1 1 0.15
@@ -159,8 +162,8 @@ echo "}"
 } > "$out"; echo "wrote $out"
 
 # --- Vall, Eeloo, Pol: small ice caves (their oceans and lakes come in sub-project 4) -----------------------------
-icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed
-  local body=$1 prefix=$2 temp=$3 comment=$4 name=$5 la0=$6 lo0=$7 la1=$8 lo1=$9 biomes=${10} seed=${11}
+icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed [fieldStyle]
+  local body=$1 prefix=$2 temp=$3 comment=$4 name=$5 la0=$6 lo0=$7 la1=$8 lo1=$9 biomes=${10} seed=${11} style=${12:-lava}
   out=GameData/Subterra/Bodies/$body/$body.cfg; mkdir -p "$(dirname "$out")"
   {
   head_body $body $prefix $temp "$comment"
@@ -174,7 +177,7 @@ icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed
   node $la1 $lo1 45 40 25 end
   edge 0 1 0.5 0.06; edge 1 2 0.5 0.06
   printf '\t}\n'
-  field ${body}Ice lava "$biomes" 3 "10, 80" "500, 4000" "10, 80" "1000, 3000" 0.5 0.15 0.6 $seed
+  field ${body}Ice $style "$biomes" 3 "10, 80" "500, 4000" "10, 80" "1000, 3000" 0.5 0.15 0.6 $seed
   scatter IceCrystals "Subterra/Props/IceCluster01" floor "TubeGallery, TubeChamber, TubeBranch, FrozenVault" 1 "0.4, 1.8" 0.8 false 0.02 0.3 1.5 0.15
   scatter IceDrips "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 0.6 "0.5, 1.5" 1 false
   scatter SkylightRubble "Subterra/Props/RubbleCone01, Subterra/Props/Boulder03" skylightRubble "" 2 "0.5, 3.5" 0.5 true 0.02 0.3 2.5 0.25
@@ -184,4 +187,5 @@ icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed
 }
 icy Vall VL 90 "ice caves of Vall (its subsurface ocean, lakes and cryovolcanoes come in sub-project 4)" VallIceCaves -1.0381 85.3411 -0.9300 85.4492 "Lowlands, Midlands, Highlands, Northeast Basin, Northwest Basin, Southern Basin, Southern Valleys" 96
 icy Eeloo EE 60 "ice caves of Eeloo (its subsurface ocean comes in sub-project 4)" EelooIceCaves -17.9440 149.8971 -18.0983 149.7347 "Lowlands, Midlands, Highlands, Ice Canyons, Northern Glaciers, Southern Glaciers, Mu Glacier" 97
-icy Pol PO 110 "ice caves of Pol" PolIceCaves -4.4722 -136.0378 -4.4718 -135.2541 "Lowlands, Midlands, Highlands" 98
+# Pol, small and lumpy: its procedural caves are voids between blocks under its ice. [Claude, revisar]
+icy Pol PO 110 "ice caves of Pol" PolIceCaves -4.4722 -136.0378 -4.4718 -135.2541 "Lowlands, Midlands, Highlands" 98 rubble

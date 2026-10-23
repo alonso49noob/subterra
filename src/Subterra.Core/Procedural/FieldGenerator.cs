@@ -129,7 +129,10 @@ namespace Subterra.Core.Procedural
             var walker = new Walker(h, b, allowedBiomes, radius, rect);
             for (int k = 0; k < origins.Count; k++)
             {
-                SiteSpec site = f.Style == FieldStyle.Karst ? KarstNetwork(f, rng, walker, origins[k]) : Network(f, rng, walker, origins[k]);
+                SiteSpec site = f.Style == FieldStyle.Karst ? KarstNetwork(f, rng, walker, origins[k])
+                    : f.Style == FieldStyle.Fissure ? FissureNetwork(f, rng, walker, origins[k])
+                    : f.Style == FieldStyle.Rubble ? RubbleNetwork(f, rng, walker, origins[k])
+                    : Network(f, rng, walker, origins[k]);
                 if (site == null)
                 {
                     continue;
@@ -631,6 +634,152 @@ namespace Subterra.Core.Procedural
         private const double KarstDolineChance = 0.35;
 
         // Adds a karst passage: its nodes (tall cross-sections) and the edges along it, the first from `joinFrom` if any.
+        // Fissures: two or three fault directions; along each a few straight slots 6–15 m wide and 40–150 m tall, their
+        // tops 8–30 m under the ground, crossing the others; a room where two cross, and long thin skylights on some.
+        private static SiteSpec FissureNetwork(FieldSpec f, Rng rng, Walker walker, Vec3d origin)
+        {
+            double length = Math.Min(MaxLength, rng.Range(f.Length.Min, f.Length.Max));
+            var site = new SiteSpec { IsNamed = false };
+            int faults = rng.NextDouble() < 0.5 ? 2 : 3;
+            Vec3d north = (new Vec3d(0, 1, 0) - origin * origin.Y).Normalized;
+            Vec3d baseHeading = walker.Rotate(origin, north.LengthSquared > 0 ? north : new Vec3d(1, 0, 0), rng.Range(0, Math.PI));
+            var slots = new List<List<int>>();
+            for (int fault = 0; fault < faults; fault++)
+            {
+                // The directions of the faults, 40–90° apart, and a couple of slots along each.
+                double turn = fault * rng.Range(40, 90) * BodyFrame.Deg2Rad;
+                int count = 1 + (int)(rng.NextDouble() * 2.5);
+                for (int s = 0; s < count; s++)
+                {
+                    Vec3d start = origin;
+                    if (slots.Count > 0)
+                    {
+                        // Starts on an existing slot (they cross), a little way along it.
+                        List<int> host = slots[(int)(rng.NextDouble() * slots.Count)];
+                        start = Direction(site.Nodes[host[(int)(rng.NextDouble() * host.Count)]]);
+                    }
+
+                    Vec3d heading = walker.Rotate(start, walker.Rotate(origin, baseHeading, turn), rng.Range(-8, 8) * BodyFrame.Deg2Rad);
+                    double slotLength = length * rng.Range(0.3, 0.7);
+                    int steps = Math.Max(2, (int)(slotLength / 200));
+                    double width = rng.Range(6, 15), height = rng.Range(40, 150), roof = rng.Range(8, 30);
+                    var nodes = new List<int>();
+                    int previous = -1;
+                    for (int k = 0; k <= steps; k++)
+                    {
+                        // Nearly straight: a fault does not meander; a slight jog now and then.
+                        Vec3d p = (start + heading * (k * 200 / walker.Radius) + walker.Rotate(start, heading, Math.PI / 2) * (rng.Range(-6, 6) / walker.Radius)).Normalized;
+                        NodeSpec node = MakeNode(p, roof, width, rng);
+                        node.Width = Math.Max(6, width * rng.Range(0.7, 1.3));
+                        node.Height = height * rng.Range(0.8, 1.2);
+                        node.Depth = Math.Max(TubePath.MinRoof(node.Width), roof * rng.Range(0.8, 1.2));
+                        site.Nodes.Add(node);
+                        int index = site.Nodes.Count - 1;
+                        if (previous >= 0)
+                        {
+                            site.Edges.Add(new EdgeSpec { From = previous, To = index, Sinuosity = 0.1, Roughness = 0.15 });
+                        }
+
+                        nodes.Add(index);
+                        previous = index;
+                    }
+
+                    if (slots.Count > 0)
+                    {
+                        // Where it leaves its host slot: a room in the crossing.
+                        int crossing = nodes[0];
+                        site.Nodes[crossing].Width = Math.Max(site.Nodes[crossing].Width, 30);
+                        MakeChamber(site.Nodes[crossing]);
+                    }
+
+                    slots.Add(nodes);
+                }
+            }
+
+            // Long thin skylights where the slot's top reaches the ground.
+            foreach (NodeSpec node in site.Nodes)
+            {
+                if (node.Feature == NodeFeature.None && node.Depth < 15 && rng.NextDouble() < 0.12)
+                {
+                    node.Feature = NodeFeature.Skylight;
+                    node.SkylightRadius = Math.Max(5, node.Width * 0.45);
+                }
+            }
+
+            return site.Nodes.Count >= 2 ? site : null;
+        }
+
+        // Rubble: 12–30 rooms by a random walk in three dimensions (30–110 m apart, up and down by up to 50 m), each linked
+        // to the one before by a crooked crawl and to a near earlier one now and then (loops); the shallowest open to the sky.
+        private static SiteSpec RubbleNetwork(FieldSpec f, Rng rng, Walker walker, Vec3d origin)
+        {
+            var site = new SiteSpec { IsNamed = false };
+            int rooms = 12 + (int)(rng.NextDouble() * 18);
+            Vec3d p = origin;
+            double roof = rng.Range(f.RoofDepth.Min, f.RoofDepth.Max);
+            Vec3d heading = walker.Rotate(p, (new Vec3d(0, 1, 0) - p * p.Y).Normalized, rng.Range(0, 2 * Math.PI));
+            for (int i = 0; i < rooms; i++)
+            {
+                if (i > 0)
+                {
+                    heading = walker.Rotate(p, heading, rng.Range(-90, 90) * BodyFrame.Deg2Rad);
+                    p = (p + heading * (rng.Range(30, 110) / walker.Radius)).Normalized;
+                    roof = Math.Max(8, roof + rng.Range(-50, 50));
+                }
+
+                // Rooms 15–60 m across (a chamber's width is its radius).
+                double size = rng.Range(15, 60);
+                NodeSpec node = MakeNode(p, roof, size * 0.5, rng);
+                node.Width = Math.Max(BranchWidthMin, size * 0.5);
+                node.Height = size * rng.Range(0.5, 0.9);
+                MakeChamber(node);
+                site.Nodes.Add(node);
+                int index = site.Nodes.Count - 1;
+                if (index > 0)
+                {
+                    site.Edges.Add(new EdgeSpec { From = index - 1, To = index, Sinuosity = 0.7, Roughness = 0.15 });
+                }
+
+                // A second way in to a near earlier room (not the last one).
+                for (int j = 0; j < index - 1; j++)
+                {
+                    if (BodyFrame.SurfaceDistance(p, Direction(site.Nodes[j]), walker.Radius) < 90 && rng.NextDouble() < 0.35)
+                    {
+                        site.Edges.Add(new EdgeSpec { From = j, To = index, Sinuosity = 0.7, Roughness = 0.15 });
+                        break;
+                    }
+                }
+            }
+
+            // The crawls between rooms are narrow: the edges take their width from the rooms, so a narrow node mid-way.
+            int roomCount = site.Nodes.Count;
+            var links = new List<EdgeSpec>(site.Edges);
+            site.Edges.Clear();
+            foreach (EdgeSpec e in links)
+            {
+                NodeSpec a = site.Nodes[e.From], b = site.Nodes[e.To];
+                Vec3d mid = (Direction(a) + Direction(b)).Normalized;
+                NodeSpec crawl = MakeNode(mid, (a.Depth + b.Depth) * 0.5 + 0.3 * Math.Max(a.Height, b.Height), rng.Range(7, 12), rng);
+                site.Nodes.Add(crawl);
+                int c = site.Nodes.Count - 1;
+                site.Edges.Add(new EdgeSpec { From = e.From, To = c, Sinuosity = e.Sinuosity, Roughness = e.Roughness });
+                site.Edges.Add(new EdgeSpec { From = c, To = e.To, Sinuosity = e.Sinuosity, Roughness = e.Roughness });
+            }
+
+            // The shallowest rooms open to the sky.
+            for (int i = 0; i < roomCount; i++)
+            {
+                NodeSpec room = site.Nodes[i];
+                if (room.Depth < 30 && rng.NextDouble() < 0.4)
+                {
+                    room.Feature = NodeFeature.Skylight;
+                    room.SkylightRadius = Math.Max(6, room.Width * 0.3);
+                }
+            }
+
+            return site;
+        }
+
         private static void AddPassage(SiteSpec site, List<Vec3d> points, int joinFrom, double depth, double width, Rng rng)
         {
             int previous = joinFrom;

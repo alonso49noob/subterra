@@ -12,6 +12,18 @@ namespace Subterra.Core.Model
         /// where passages meet, now and then a doline (a room open to the sky).
         /// </summary>
         Karst,
+
+        /// <summary>
+        /// Tectonic fissures: tall, narrow slots opened along faults (a few straight directions), crossing one another,
+        /// rooms where they cross; their tops reach close to the ground, where some open as long thin skylights.
+        /// </summary>
+        Fissure,
+
+        /// <summary>
+        /// Voids in a rubble pile (small moons and comets): small rooms between huge blocks at all depths, linked by
+        /// short crooked crawls, many loops, no main passage.
+        /// </summary>
+        Rubble,
     }
 
     /// <summary>Rules for procedural tube networks spread over some biomes of a body.</summary>

@@ -118,6 +118,8 @@ cat <<'EOF'
 	}
 EOF
 scatters
+# Dust blown in through the skylights: low drifts along the floors (drive over them). [Claude, revisar]
+scatter DustDrifts "Subterra/Props/DustDrift01" floor "TubeGallery, TubeChamber, TubeBranch" 0.5 "1.5, 6" 1 false 0.025 0.45 2 0.35
 rule Ore TubeGallery "" 1.5 ""
 rule Ore TubeChamber "" 2 ""
 rule Ore "" VolcanicBasalt 2 ""
@@ -178,6 +180,18 @@ cat <<'EOF'
 		chamberChance = 0.08
 		hiddenChance = 0.6
 		seed = 41
+	}
+	TUBE_FIELD
+	{
+		// Fissures opened by the tides Duna raises in Ike: tall narrow slots along faults in the high ground. [Claude, revisar]
+		name = IkeFaults
+		style = fissure
+		biomes = Highlands, Mountains, Central Mountain Range, Eastern Mountain Ridge, South Eastern Mountain Range
+		networksPer10k = 2
+		length = 1500, 6000
+		roofDepth = 8, 30
+		hiddenChance = 0.4
+		seed = 42
 	}
 EOF
 scatters

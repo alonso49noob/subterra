@@ -11,7 +11,7 @@ namespace Subterra.Core.Scatter
     /// </summary>
     public static class PropGenerator
     {
-        public static readonly string[] Names = { "Boulder01", "Boulder02", "Boulder03", "RubbleCone01", "Lavacicle01", "PahoehoeSlab01", "IceCluster01", "GeodeCrystal01", "GlowPatch01", "GlowMat01", "Fungus01", "KrakenRibs01", "KrakenBone01" };
+        public static readonly string[] Names = { "Boulder01", "Boulder02", "Boulder03", "RubbleCone01", "Lavacicle01", "PahoehoeSlab01", "IceCluster01", "GeodeCrystal01", "GlowPatch01", "GlowMat01", "Fungus01", "KrakenRibs01", "KrakenBone01", "Stalagmite01", "DustDrift01" };
 
         /// <summary>The prop for a model url or name (the part after the last '/'); null if unknown.</summary>
         public static MeshData Build(string model, int lod)
@@ -39,6 +39,8 @@ namespace Subterra.Core.Scatter
                 case "RubbleCone01": return Shape(subdivisions, seed, p => Cone(p), 0.12f);
                 case "Lavacicle01": return Shape(subdivisions, seed, p => Icicle(p), 0.05f, hanging: true);
                 case "PahoehoeSlab01": return Shape(subdivisions, seed, p => new Vec3(p.X * 1.6f, (p.Y + 1) * 0.12f, p.Z * 1.2f), 0.06f, baseAtZero: false);
+                case "Stalagmite01": return Shape(subdivisions, seed, p => Stalagmite(p), 0.06f);
+                case "DustDrift01": return Shape(subdivisions, seed, p => new Vec3(p.X * 2.2f, (p.Y + 1) * 0.18f, p.Z * 1.1f), 0.03f, baseAtZero: false);
                 case "IceCluster01": return Crystals(lod == 0 ? 2 : 1, seed);
                 case "GeodeCrystal01": return Crystals(lod == 0 ? 2 : 1, seed, 7, 1.5f, 2.2f);
                 case "GlowPatch01": return Patch(lod == 0 ? 24 : 12, seed, -1);
@@ -67,6 +69,14 @@ namespace Subterra.Core.Scatter
             float t = Math.Max(0f, Math.Min(1f, (p.Y + 1) * 0.5f));
             float r = 0.35f * (0.05f + 0.95f * (float)Math.Pow(t, 0.7));
             return new Vec3(p.X * r, -1.8f * (1 - t), p.Z * r);
+        }
+
+        private static Vec3 Stalagmite(Vec3 p)
+        {
+            // A stalagmite: wide foot, tapering up to a rounded tip 2.4 m up (the icicle's shape the other way up).
+            float t = Math.Max(0f, Math.Min(1f, (p.Y + 1) * 0.5f));
+            float r = 0.45f * (0.08f + 0.92f * (float)Math.Pow(1 - t, 0.8));
+            return new Vec3(p.X * r, 2.4f * t, p.Z * r);
         }
 
         // Unit icosphere deformed by `shape`, roughened along the normal, base moved to y = 0.

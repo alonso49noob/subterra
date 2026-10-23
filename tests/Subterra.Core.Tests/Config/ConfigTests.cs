@@ -125,7 +125,8 @@ SUBTERRA_BODY
             var ike = Parse("Data/shipped-Ike.cfg");
             Assert.Empty(ike.Warnings);
             Assert.Equal(new[] { "IkeTrench" }, ike.Value.Sites.Select(s => s.Name));
-            Assert.Equal(new[] { "IkePlains" }, ike.Value.Fields.Select(f => f.Name));
+            Assert.Equal(new[] { "IkePlains", "IkeFaults" }, ike.Value.Fields.Select(f => f.Name));
+            Assert.Equal(FieldStyle.Fissure, ike.Value.Fields[1].Style);
 
             var tylo = Parse("Data/shipped-Tylo.cfg");
             Assert.Empty(tylo.Warnings);

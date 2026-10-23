@@ -53,6 +53,30 @@ namespace Subterra.Core.Tests.Procedural
 
         [Fact] public void Deterministic() => Assert.Equal(Ser(Gen()), Ser(Gen()));
 
+        [Fact]
+        public void FissuresAreTallNarrowSlotsThatCross()
+        {
+            var sites = FieldGenerator.Generate(new FieldSpec { Name = "Faults", Style = FieldStyle.Fissure, Biomes = { "Lowlands" }, NetworksPer10k = 40 }, "Ike", "IK", Grid, Cell, Terrain, Terrain);
+            Assert.NotEmpty(sites);
+            var slots = sites.SelectMany(s => s.Nodes).Where(n => n.Feature == NodeFeature.None).ToList();
+            Assert.All(slots, n => Assert.True(n.Height > 2 * n.Width, $"{n.Width} wide, {n.Height} tall"));
+            Assert.Contains(sites, s => s.Nodes.Any(n => n.Feature == NodeFeature.Chamber));
+        }
+
+        [Fact]
+        public void RubbleIsRoomsLinkedByCrawlsWithLoops()
+        {
+            var sites = FieldGenerator.Generate(new FieldSpec { Name = "Rubble", Style = FieldStyle.Rubble, Biomes = { "Lowlands" }, NetworksPer10k = 40 }, "Bop", "BP", Grid, Cell, Terrain, Terrain);
+            Assert.NotEmpty(sites);
+            foreach (var s in sites)
+            {
+                Assert.True(s.Nodes.Count(n => n.Feature == NodeFeature.Chamber || n.Feature == NodeFeature.Skylight) >= 12);
+                Assert.True(s.Edges.Count >= s.Nodes.Count - 1);
+            }
+
+            Assert.Contains(sites, s => s.Edges.Count > s.Nodes.Count - 1);
+        }
+
         // Short trunks (a few nodes) with braids on them: once threw out of range in game (a braid longer than its trunk).
         [Fact]
         public void ShortNetworksGenerate() =>

@@ -171,6 +171,8 @@ EOF
 scatter BreakdownBoulders "Subterra/Props/Boulder01, Subterra/Props/Boulder02, Subterra/Props/Boulder03" floor "TubeGallery, TubeChamber, TubeBranch" 1.2 "0.3, 4" 0.6 true 0.035 0.62 3 0.3
 scatter SkylightRubble "Subterra/Props/RubbleCone01, Subterra/Props/Boulder03" skylightRubble "" 2.5 "0.6, 4.5" 0.5 true 0.02 0.3 2.5 0.25
 scatter Stalactites "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 1.2 "0.5, 2.5" 1 false 0.03 0.4 2
+# Stalagmites rising from the floors of the limestone caves, under the stalactites. [Claude, revisar]
+scatter Stalagmites "Subterra/Props/Stalagmite01" floor "TubeGallery, TubeChamber, TubeBranch" 0.8 "0.4, 3" 0 true 0.03 0.45 2 0.05
 # Glowing fungi (bioluminescent, like Mycena): clumps on the floors of caves with air and water, and a few giant ones
 # in the big chambers (the Lidenbrock Sea had its forest of mushrooms).
 glow GlowFungi "Subterra/Props/Fungus01" floor "TubeGallery, TubeChamber, TubeBranch" 0.25 "0.6, 2.2" "0.35,0.95,0.85" 18 0 false 0.04 0.55
