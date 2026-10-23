@@ -252,13 +252,187 @@ namespace Subterra.Core.Procedural
                 trunkIndices.Add(i);
             }
 
+            AddBraids(rng, walker, site, trunkIndices);
             AddBranches(f, rng, walker, site, trunkIndices, trunkIndices, length, depth, 1);
+            AddSideSkylights(f, rng, site, trunk.Count);
 
             return site;
         }
 
-        /// <summary>Deepest branching: branches of the trunk (1) and branches of those (2).</summary>
-        private const int MaxBranchOrder = 2;
+        /// <summary>
+        /// Grows a named site into a network around its own nodes (Lucas: named sites were three-node corridors): a braid
+        /// beside most of its passages, side branches from its nodes (some branching again, some rejoining the site), and
+        /// skylights on what was added. The site's own nodes, features and edges stay as they are. Skipped for special shapes
+        /// (sealed rooms, deep shafts at a fixed altitude, a rille's tube) and for sites with <c>network = false</c>.
+        /// Deterministic per site name.
+        /// </summary>
+        public static void Elaborate(SiteSpec site, double bodyRadius, IHeightSampler heights)
+        {
+            if (!site.IsNamed || !site.Network || site.Elaborated || site.UnderRelief || site.Nodes.Count < 2
+                || site.Nodes.Exists(n => !double.IsNaN(n.Altitude) || n.Feature == NodeFeature.Geode || n.Feature == NodeFeature.Portal))
+            {
+                return;
+            }
+
+            site.Elaborated = true;
+            var rng = new Rng(Hash.Combine(Hash.Of(site.Name), Hash.Of("elaborate")));
+            var walker = new Walker(heights, new AnyBiome(), new HashSet<string> { "" }, bodyRadius, (-90, 90, -180, 180));
+            int original = site.Nodes.Count;
+            var edges = new List<EdgeSpec>(site.Edges);
+
+            // A braid beside most passages: out to one side and back, some on a lower level.
+            foreach (EdgeSpec e in edges)
+            {
+                NodeSpec a = site.Nodes[e.From], z = site.Nodes[e.To];
+                Vec3d pa = Direction(a), pz = Direction(z);
+                double length = BodyFrame.SurfaceDistance(pa, pz, bodyRadius);
+                if (length < 500 || rng.NextDouble() > 0.7)
+                {
+                    continue;
+                }
+
+                int steps = Math.Max(2, (int)(length / 250));
+                double bow = Math.Min(300, length * rng.Range(0.12, 0.3)) * (rng.NextDouble() < 0.5 ? -1 : 1);
+                double width = Math.Max(BranchWidthMin, Math.Min(a.Width, z.Width) * rng.Range(0.3, 0.6));
+                double drop = rng.NextDouble() < 0.4 ? rng.Range(20, 50) : rng.Range(-5, 5);
+                Vec3d side = Vec3d.Cross(pa, walker.Heading(pa, pz)).Normalized;
+                int previous = e.From;
+                for (int k = 1; k < steps; k++)
+                {
+                    double t = k / (double)steps;
+                    Vec3d p = (pa + (pz - pa) * t).Normalized;
+                    Vec3d q = (p + side * (bow * Math.Sin(Math.PI * t) / bodyRadius)).Normalized;
+                    double roof = a.Depth + (z.Depth - a.Depth) * t + drop * Math.Sin(Math.PI * t);
+                    site.Nodes.Add(MakeNode(q, roof, width, rng));
+                    site.Edges.Add(new EdgeSpec { From = previous, To = site.Nodes.Count - 1, Sinuosity = 0.6 });
+                    previous = site.Nodes.Count - 1;
+                }
+
+                site.Edges.Add(new EdgeSpec { From = previous, To = e.To, Sinuosity = 0.6 });
+            }
+
+            // Side branches from the site's own nodes: 0.4–1.5 km, narrower, now and then one more off them; some come
+            // back into another of the site's nodes when they end near it.
+            for (int i = 0; i < original; i++)
+            {
+                if (rng.NextDouble() > 0.65)
+                {
+                    continue;
+                }
+
+                AddSiteBranch(site, rng, walker, i, original, rng.Range(400, 1500), 1);
+            }
+
+            var f = new FieldSpec { SkylightSpacing = new Range(1500, 3000) };
+            AddSideSkylights(f, rng, site, original);
+        }
+
+        private static void AddSiteBranch(SiteSpec site, Rng rng, Walker walker, int from, int original, double length, int order)
+        {
+            NodeSpec root = site.Nodes[from];
+            Vec3d p = Direction(root);
+            List<Vec3d> path = walker.Walk(p, walker.Rotate(p, RandomHeading(walker, p, rng), 0), length, rng);
+            if (path.Count < 2)
+            {
+                return;
+            }
+
+            double width = Math.Max(BranchWidthMin, root.Width * rng.Range(0.25, 0.55));
+            int previous = from;
+            for (int j = 1; j < path.Count; j++)
+            {
+                site.Nodes.Add(MakeNode(path[j], root.Depth + rng.Range(-5, 15), width, rng));
+                site.Edges.Add(new EdgeSpec { From = previous, To = site.Nodes.Count - 1 });
+                previous = site.Nodes.Count - 1;
+                if (order < 2 && j < path.Count - 1 && rng.NextDouble() < 0.3)
+                {
+                    AddSiteBranch(site, rng, walker, previous, original, length * 0.5, order + 1);
+                }
+            }
+
+            // Back into the site where it ends near one of its nodes (a loop).
+            Vec3d end = path[path.Count - 1];
+            for (int i = 0; i < original; i++)
+            {
+                if (i != from && BodyFrame.SurfaceDistance(end, Direction(site.Nodes[i]), walker.Radius) < 600 && rng.NextDouble() < 0.6)
+                {
+                    site.Edges.Add(new EdgeSpec { From = previous, To = i });
+                    break;
+                }
+            }
+        }
+
+        private static Vec3d RandomHeading(Walker walker, Vec3d p, Rng rng)
+        {
+            Vec3d north = (new Vec3d(0, 1, 0) - p * p.Y).Normalized;
+            return walker.Rotate(p, north.LengthSquared > 0 ? north : new Vec3d(1, 0, 0), rng.Range(0, 2 * Math.PI));
+        }
+
+        private sealed class AnyBiome : IBiomeSampler
+        {
+            public string Biome(double latDeg, double lonDeg) => "";
+        }
+
+        /// <summary>Braids per km of trunk: side channels that leave the trunk and come back into it (Lucas: corridors).</summary>
+        private const double BraidsPerKm = 0.7;
+
+        // Braided tubes, as lava splits around an obstacle and joins again: a channel beside the trunk between two of its
+        // nodes, bowing out 60–250 m, narrower, sometimes on a level of its own (tens of metres under, with ramps down and
+        // up at its ends): loops to drive round, two levels to explore.
+        private static void AddBraids(Rng rng, Walker walker, SiteSpec site, List<int> trunk)
+        {
+            int count = (int)Math.Round(trunk.Count * StepLength / 1000 * BraidsPerKm * rng.Range(0.6, 1.4));
+            for (int b = 0; b < count && trunk.Count >= 5; b++)
+            {
+                int span = 2 + (int)(rng.NextDouble() * 4);
+                int from = 1 + (int)(rng.NextDouble() * Math.Max(1, trunk.Count - span - 2));
+                int to = Math.Min(trunk.Count - 1, from + span);
+                NodeSpec a = site.Nodes[trunk[from]], z = site.Nodes[trunk[to]];
+                double bow = rng.Range(60, 250) * (rng.NextDouble() < 0.5 ? -1 : 1);
+                double width = Math.Max(BranchWidthMin, Math.Min(a.Width, z.Width) * rng.Range(0.35, 0.7));
+                double drop = rng.NextDouble() < 0.4 ? rng.Range(25, 70) : rng.Range(-8, 8);
+                int previous = trunk[from];
+                for (int k = 1; k < span * 2; k++)
+                {
+                    // Along the trunk's own course (its nodes, interpolated), pushed sideways by the bow.
+                    double t = k / (double)(span * 2);
+                    double at = from + t * span;
+                    int i0 = (int)Math.Floor(at), i1 = Math.Min(trunk.Count - 1, i0 + 1);
+                    Vec3d p0 = Direction(site.Nodes[trunk[i0]]), p1 = Direction(site.Nodes[trunk[i1]]);
+                    Vec3d p = (p0 + (p1 - p0) * (at - i0)).Normalized;
+                    Vec3d side = Vec3d.Cross(p, walker.Heading(p0, p1)).Normalized;
+                    double offset = bow * Math.Sin(Math.PI * t) * (1 + 0.25 * (rng.NextDouble() - 0.5));
+                    Vec3d q = (p + side * (offset / walker.Radius)).Normalized;
+                    double roof = a.Depth + (z.Depth - a.Depth) * t + drop * Math.Sin(Math.PI * t);
+                    site.Nodes.Add(MakeNode(q, roof, width, rng));
+                    site.Edges.Add(new EdgeSpec { From = previous, To = site.Nodes.Count - 1, Sinuosity = 0.6 });
+                    previous = site.Nodes.Count - 1;
+                }
+
+                site.Edges.Add(new EdgeSpec { From = previous, To = trunk[to], Sinuosity = 0.6 });
+            }
+        }
+
+        // Skylights off the trunk too (branches and braids): the roof falls in wherever it is thin, not along one line.
+        private static void AddSideSkylights(FieldSpec f, Rng rng, SiteSpec site, int trunkCount)
+        {
+            double chance = StepLength / Math.Max(StepLength, (f.SkylightSpacing.Min + f.SkylightSpacing.Max) * 0.5) * 0.8;
+            for (int i = trunkCount; i < site.Nodes.Count; i++)
+            {
+                NodeSpec node = site.Nodes[i];
+                if (node.Feature == NodeFeature.None && node.Depth < 120 && rng.NextDouble() < chance)
+                {
+                    node.Feature = NodeFeature.Skylight;
+                    node.SkylightRadius = Math.Max(8, Math.Min(node.Width / 2, node.Width * rng.Range(0.3, 0.5)));
+                }
+            }
+        }
+
+        /// <summary>Narrowest side passage (m): room for a rover, tight enough to feel like a crawl after the big tubes.</summary>
+        private const double BranchWidthMin = 10;
+
+        /// <summary>Deepest branching: branches of the trunk (1), of those (2) and of those again (3).</summary>
+        private const int MaxBranchOrder = 3;
 
         /// <summary>Share of branches that dive to a deeper level.</summary>
         private const double DiveChance = 0.35;
@@ -282,7 +456,7 @@ namespace Subterra.Core.Procedural
         {
             for (int k = 1; k < chain.Count - 1; k++)
             {
-                if (rng.NextDouble() >= f.BranchChance * (order == 1 ? 0.45 : 0.25))
+                if (rng.NextDouble() >= f.BranchChance * (order == 1 ? 1.1 : order == 2 ? 0.55 : 0.3))
                 {
                     continue;
                 }
@@ -298,7 +472,7 @@ namespace Subterra.Core.Procedural
                     continue;
                 }
 
-                double branchWidth = Math.Max(BodySpecWidthMin, site.Nodes[i].Width * rng.Range(0.35, 0.7));
+                double branchWidth = Math.Max(BranchWidthMin, site.Nodes[i].Width * rng.Range(0.25, 0.65));
 
                 // Some branches dive: over their first nodes they go down to a deeper level, where their own branches spread
                 // (deeper networks under the shallow ones).
@@ -474,7 +648,7 @@ namespace Subterra.Core.Procedural
         private static NodeSpec MakeNode(Vec3d dir, double depth, double width, Rng rng)
         {
             BodyFrame.ToLatLon(dir, out double lat, out double lon);
-            double nodeWidth = Math.Min(500, Math.Max(BodySpecWidthMin, width * rng.Range(0.94, 1.06)));
+            double nodeWidth = Math.Min(500, Math.Max(BranchWidthMin, width * rng.Range(0.94, 1.06)));
             return new NodeSpec
             {
                 Lat = lat,

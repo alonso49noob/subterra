@@ -18,6 +18,15 @@ namespace Subterra.Core.Model
         /// </summary>
         public bool UnderRelief { get; set; }
 
+        /// <summary>
+        /// A named site grows into a network around its own nodes (braids beside its passages, side branches, more
+        /// skylights) when it is compiled, unless it is a special shape (deep shafts, sealed rooms, a rille's tube).
+        /// </summary>
+        public bool Network { get; set; } = true;
+
+        /// <summary>Set once the network has grown (a site is compiled again when a game loads again).</summary>
+        public bool Elaborated { get; set; }
+
         /// <summary>The TUBE_FIELD a procedural network came from; null for named sites.</summary>
         public string Field { get; set; }
 

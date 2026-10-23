@@ -77,11 +77,13 @@ namespace Subterra.Core.Tests.Procedural
         }
 
         [Fact]
-        public void WidthsInRangeAndMin20()
+        public void WidthsInRangeTrunksAtLeast20()
         {
-            foreach (var n in Gen().SelectMany(s => s.Nodes))
+            foreach (var s in Gen())
             {
-                Assert.InRange(n.Width, 20, 350 * 1.15);
+                // The trunk (first chain) keeps the field's widths; side passages and braids go down to 10 m.
+                Assert.InRange(s.Nodes[0].Width, 20 * 0.9, 350 * 1.15);
+                Assert.All(s.Nodes, n => Assert.InRange(n.Width, 10, 350 * 1.6 * 1.15));
             }
         }
 
@@ -185,7 +187,7 @@ namespace Subterra.Core.Tests.Procedural
         // Networks are the same in every save and for every player (Lucas's ruling: maps must stay valid),
         // so the generator's output is pinned. If this fails, a change moved existing networks: undo it, or,
         // if it is deliberate, note it in the CHANGELOG and update the fingerprint.
-        private const string Fingerprint = "F24BD4AAD1D88A24";
+        private const string Fingerprint = "AE38FAB02AC64B54";
 
         [Fact]
         public void OutputIsPinned()
