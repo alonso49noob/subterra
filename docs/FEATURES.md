@@ -181,8 +181,9 @@ PART 7 - Other planet packs, contracts, impacts                        [PLANNED]
 -------------------------------------------------------------------------------
   [PLANNED] Configs for Outer Planets Mod (OPM) and Minor Planets Expansion (MPE) (e.g. Vant as a Vesta analogue).
   [PLANNED] Contracts (Contract Configurator) and achievements.
-  [PLANNED] Craters from impacts (asteroids, crashed ships; works with AsteroidalDetail) and destruction with
-            explosives, using the same persistent rock edits as tunnels.
+  [DONE, by AsteroidalDetail] Craters from impacts (asteroids, crashed ships): not built here.
+  [PLANNED] Destruction with explosives (craters), using the same persistent rock edits as tunnels. Last, after the
+            other parts. [Claude, revisar]
 
 
 -------------------------------------------------------------------------------

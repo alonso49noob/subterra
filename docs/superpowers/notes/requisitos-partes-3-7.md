@@ -440,3 +440,8 @@ Ideas para el diseño [Claude, revisar]:
   el radar compatible con SCANsat).
 - Ore: hoy el mineral viene del ResourcePatch por capa; pasaría a depender de la unidad.
 - Pendiente con Lucas: ¿las unidades se descubren al muestrear (mapa que se va llenando) o se ven desde el principio?
+
+## Parte 7 — decisiones de Lucas (2026-11-21)
+
+- Los **impactos (cráteres) ya los hizo AsteroidalDetail**: se quitan de la parte 7 (queda la destrucción con explosivos).
+- La parte 7 la hace la IA sola, **solo después de pulir las partes 1 a 4**.
