@@ -66,11 +66,11 @@ namespace Subterra
                     return;
                 }
 
+                // In the void with no floor in reach (a blast shaft kilometres deep): the ground is far below. Left alone, the
+                // result was the terrain at the top of the shaft, so KSP saw everything going in "crash through terrain"
+                // and destroyed it (Lucas: dug holes killed you as soon as you went in).
                 float? floor = state.Net.FloorBelow(state.Local);
-                if (floor.HasValue)
-                {
-                    __result = __instance.altitude - floor.Value;
-                }
+                __result = __instance.altitude - (floor ?? Core.Tubes.TubeNetwork.FloorSearchDistance);
             }
             catch (Exception e)
             {

@@ -27,7 +27,22 @@ namespace Subterra
             {
                 Part part = __instance.GetComponent<Part>();
                 Vessel vessel = part != null ? part.vessel : null;
-                if (vessel == null || !vessel.mainBody.ocean || vessel.altitude > 50)
+                if (vessel == null)
+                {
+                    return true;
+                }
+
+                // In Subterra's water (a cave's, or an ocean's under the ice): KSP's sea code would clear the part's water
+                // contact (no sea there); keep it, so the vessel counts as splashed and a kerbal swims.
+                SubterraWaterModule water = SubterraWaterModule.Of(vessel);
+                if (water != null && water.InWater(part, out double fraction))
+                {
+                    part.WaterContact = true;
+                    part.submergedPortion = fraction;
+                    return false;
+                }
+
+                if (!vessel.mainBody.ocean || vessel.altitude > 50)
                 {
                     return true;
                 }

@@ -154,6 +154,7 @@ namespace Subterra.Core.Config
             ocean.Thickness = Clamp(r.Double(node, "thickness", ocean.Thickness), 100, 200000, r, "thickness");
             ocean.Density = Clamp(r.Double(node, "density", ocean.Density), 500, 2000, r, "density");
             ocean.Temperature = Clamp(r.Double(node, "temperature", ocean.Temperature), 100, 400, r, "temperature");
+            ocean.CeilingRock = r.Bool(node, "ceilingRock", false);
             string colour = node.GetValue("colour");
             if (!string.IsNullOrEmpty(colour))
             {

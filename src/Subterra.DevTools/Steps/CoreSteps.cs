@@ -27,6 +27,7 @@ namespace Subterra.DevTools
             StepRegistry.Register("cameraInfo", CameraInfo);
             StepRegistry.Register("waitUntil", WaitUntil);
             StepRegistry.Register("eva", Eva);
+            StepRegistry.Register("evaRecover", EvaRecover);
             StepRegistry.Register("setPosition", SetPosition);
             StepRegistry.Register("snapshot", Snapshot);
             StepRegistry.Register("quicksave", QuickSave);
@@ -193,7 +194,7 @@ namespace Subterra.DevTools
             var parts = new System.Collections.Generic.List<string>();
             foreach (Camera c in Camera.allCameras)
             {
-                parts.Add(System.FormattableString.Invariant($"{c.name} depth {c.depth} near {c.nearClipPlane:F2} far {c.farClipPlane:F0} layer15 {((c.cullingMask & (1 << 15)) != 0)}"));
+                parts.Add(System.FormattableString.Invariant($"{c.name} depth {c.depth} near {c.nearClipPlane:F2} far {c.farClipPlane:F0} layer15 {((c.cullingMask & (1 << 15)) != 0)} layer0 {((c.cullingMask & 1) != 0)} enabled {c.enabled} target {(c.targetTexture != null ? c.targetTexture.name : "screen")}"));
             }
 
             ctx.Pass(string.Join("; ", parts));
@@ -238,6 +239,26 @@ namespace Subterra.DevTools
 
                 yield return null;
             }
+        }
+
+        // evaRecover — a ragdolled kerbal (the tracked vessel) gets up, as KSP does when the player moves him (an active
+        // kerbal only recovers on input); then waits up to 5 s for him to leave the ragdoll and recover states.
+        private static IEnumerator EvaRecover(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = ctx.TrackedVessel ?? RequireActiveVessel();
+            KerbalEVA eva = vessel.FindPartModuleImplementing<KerbalEVA>() ?? throw new InvalidOperationException("not a kerbal on EVA");
+            if (eva.fsm.CurrentState == eva.st_ragdoll)
+            {
+                eva.fsm.RunEvent(eva.On_recover_start);
+            }
+
+            float until = Time.time + 5f;
+            while (Time.time < until && (eva.fsm.CurrentState == eva.st_ragdoll || eva.fsm.CurrentState == eva.st_recover))
+            {
+                yield return null;
+            }
+
+            ctx.Pass($"{vessel.GetDisplayName()}: state {eva.fsm.currentStateName}, {vessel.situation}");
         }
 
         // eva kerbal = <optional name> — the first crew member next to an airlock (or the named

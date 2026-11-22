@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Subterra.Core.Numerics;
 using Subterra.Core.Tubes;
 using Subterra.Core.Water;
@@ -12,6 +13,12 @@ namespace Subterra
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public sealed class UnderwaterView : MonoBehaviour
     {
+        /// <summary>Shaders tried for the veil, in order.</summary>
+        private static readonly string[] VeilShaders =
+        {
+            "KSP/Alpha/Unlit Transparent", "Unlit/Transparent", "Legacy Shaders/Transparent/Diffuse", "Sprites/Default",
+        };
+
         /// <summary>Depth (m) at which the view is at its darkest. [Claude, revisar]</summary>
         private const float DarkDepth = 40f;
 
@@ -80,7 +87,21 @@ namespace Subterra
                 veil = GameObject.CreatePrimitive(PrimitiveType.Quad);
                 veil.name = "SubterraUnderwater";
                 Destroy(veil.GetComponent<Collider>());
-                material = new Material(Shader.Find("Sprites/Default")) { name = "Subterra underwater" };
+                // The first see-through unlit shader there is (KSP 1.12 has Sprites/Default; Retooled's Unity 6 drew
+                // nothing with it), drawn over everything.
+                Shader shader = null;
+                foreach (string name in VeilShaders)
+                {
+                    Shader found = Shader.Find(name);
+                    if (found != null && found.isSupported)
+                    {
+                        shader = found;
+                        break;
+                    }
+                }
+
+                material = new Material(shader ?? Shader.Find("Sprites/Default")) { name = "Subterra underwater", renderQueue = 4000 };
+                Log.Info($"Underwater view: veil shader {material.shader?.name ?? "none"}");
                 var renderer = veil.GetComponent<MeshRenderer>();
                 renderer.sharedMaterial = material;
                 renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -111,8 +132,36 @@ namespace Subterra
             RenderSettings.fogMode = FogMode.ExponentialSquared;
             RenderSettings.fogColor = tint;
             RenderSettings.fogDensity = Mathf.Lerp(0.03f, 0.08f, deep);
+
+            // Beyond the water there is only more water: no stars or planets behind it. The sky cameras are switched off
+            // and the main camera clears to the water's colour (an ocean has no walls to hide the sky; Lucas saw stars
+            // under Tylo's rock).
+            if (skyHidden == null)
+            {
+                skyHidden = new List<Camera>();
+                foreach (Camera sky in Camera.allCameras)
+                {
+                    if (sky != camera && sky.enabled && (sky.name == "GalaxyCamera" || sky.name == "Camera ScaledSpace"))
+                    {
+                        sky.enabled = false;
+                        skyHidden.Add(sky);
+                    }
+                }
+
+                mainCamera = camera;
+                clearFlags = camera.clearFlags;
+                background = camera.backgroundColor;
+            }
+
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = tint * 0.5f;
             Under = true;
         }
+
+        private List<Camera> skyHidden;
+        private Camera mainCamera;
+        private CameraClearFlags clearFlags;
+        private Color background;
 
         private void Leave()
         {
@@ -120,6 +169,26 @@ namespace Subterra
             if (veil != null && veil.activeSelf)
             {
                 veil.SetActive(false);
+            }
+
+            if (skyHidden != null)
+            {
+                foreach (Camera sky in skyHidden)
+                {
+                    if (sky != null)
+                    {
+                        sky.enabled = true;
+                    }
+                }
+
+                if (mainCamera != null)
+                {
+                    mainCamera.clearFlags = clearFlags;
+                    mainCamera.backgroundColor = background;
+                }
+
+                skyHidden = null;
+                mainCamera = null;
             }
 
             if (fogSaved)

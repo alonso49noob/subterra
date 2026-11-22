@@ -6,6 +6,15 @@
   over twice as tall, under a thicker roof) and about 12% narrow crawls (4-8 m, for compact craft). Per field:
   `giantChance`, `narrowChance`. Deliberate change of the generated networks (sizes only, not where they are or
   their layout): generator fingerprint updated.
+- Tylo twice as deep: its great caves' roofs 80-800 m, its ocean 3-8 km under the rock (a rock ceiling, not ice)
+  and 50 km deep.
+- Kerbals swim in cave water and in the oceans under ice, as in KSP's sea: the vessel counts as splashed, so the
+  kerbal goes into KSP's swimming state, and a ragdolled kerbal floats too (before, he only floated on the
+  jetpack, or fell and lay on the floor).
+- Under water, the sky (stars, planets) is no longer seen through the water: the view clears to the water's
+  colour.
+- Scatterer: its underwater view (blue haze, dimmed sun) no longer shows in dry caves or holes under the sea level;
+  in Subterra's water the view is Subterra's own.
 
 ## 0.2.0 (alpha, internal)
 

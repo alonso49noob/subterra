@@ -564,3 +564,20 @@ arma su criobot, su hydrobot o lo que se le ocurra):
    poco empuje. Sirve para nadar por los océanos bajo el hielo y para volver a subir.
 
 Reemplaza en el plan de la parte 4 a "cryobot (derrite un pozo real hasta el océano)" y "hydrobot" como piezas propias.
+
+## Océanos subsuperficiales: lo que aceptó y añadió Lucas — 2026-11-21
+
+Lucas aceptó las propuestas de rasgos por océano (Vall: lagos colgados en la corteza, criovolcanes, terreno caótico,
+fuentes hidrotermales; Eeloo: hielo finísimo en el polo sur con canales a los géiseres, bruma de sílice; Pol: aguanieve,
+salmuera, carámbanos; Tylo: techo de roca, fondo de hielo de alta presión) y añadió:
+
+- **Torres de hielo** colgando bajo el techo de los océanos subsuperficiales (como las "brinicles" de salmuera bajo el
+  hielo marino de la Tierra, o estalactitas gigantes de hielo). [Claude, revisar: en Tylo, con techo de roca, que sean de
+  roca o de sal]
+- **Pol: pilares que unen el techo con el fondo** (su océano tiene solo 5 km: columnas de hielo de techo a fondo, un
+  bosque de pilares).
+- **Pol y el azufre** (su aspecto sulfuroso): agua amarilla por azufre disuelto, cristales de azufre en el hielo y en los
+  pilares, fuentes de azufre en el fondo, ciencia propia. [Claude, revisar: Pol huele a Ío; azufre como recurso]
+- **Montañas submarinas con cuevas** en los océanos de estos cuerpos, explorables por las sondas que arme el jugador
+  (núcleo diminuto + taladro tipo IceMole + motor de agua): tubos y grietas dentro de los montes, de tamaño para sondas
+  pequeñas.

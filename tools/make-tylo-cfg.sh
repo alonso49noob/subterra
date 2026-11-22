@@ -31,9 +31,9 @@ EOF
 layer Regolith 0 10 0.15 1.6 3 "0.55,0.54,0.53"
 layer MareBasalt 10 3000 0.6 3.1 3 "0.40,0.39,0.38" "Lowlands, Mara, Midlands"
 layer AnorthositeBreccia 10 3000 0.55 2.8 3 "0.62,0.61,0.59" "*"
-layer Megaregolith 3000 12000 0.65 2.9 3 "0.48,0.47,0.45"
-layer IceShell 12000 40000 0.45 1.0 1.5 "0.72,0.76,0.80"
-layer LowerCrust 40000 120000 0.75 3.0 2 "0.44,0.42,0.40"
+# Rock down to the ocean's ceiling (3 km at the poles, 8 km at the equator), then the ocean (50 km), then the crust.
+layer Megaregolith 3000 58000 0.65 2.9 3 "0.48,0.47,0.45"
+layer LowerCrust 58000 120000 0.75 3.0 2 "0.44,0.42,0.40"
 layer Core 120000 600000 0.95 5.0 1 "0.42,0.32,0.24"
 printf '\t}\n'
 
@@ -42,9 +42,10 @@ site_head TyloGreatSystem
 for i in 0 1 2 3 4 5 6 7 8 9 10; do
   t=$(awk -v i=$i 'BEGIN { printf "%.3f", i / 10 }')
   case $i in
-    0|5|10) node $(along ${GREAT[@]} $t) 140 220 90 skylight 45 ;;
-    2|7) node $(along ${GREAT[@]} $t) 200 400 160 chamber ;;
-    *) node $(along ${GREAT[@]} $t) 180 260 100 ;;
+    # Twice as deep as the first version (Lucas, 2026-11-21).
+    0|5|10) node $(along ${GREAT[@]} $t) 280 220 90 skylight 45 ;;
+    2|7) node $(along ${GREAT[@]} $t) 400 400 160 chamber ;;
+    *) node $(along ${GREAT[@]} $t) 360 260 100 ;;
   esac
 done
 for i in 0 1 2 3 4 5 6 7 8 9; do edge $i $((i + 1)) 0.35 0.05; done
@@ -52,9 +53,9 @@ printf '\t}\n'
 
 # Highland caves: narrower tubes on a highland plateau, one skylight.
 site_head TyloHighlandCaves
-node "${HIGH[0]}" "${HIGH[1]}" 50 60 30 skylight 18
-node $(along ${HIGH[@]} 0.5) 80 80 40 chamber
-node "${HIGH[2]}" "${HIGH[3]}" 90 60 30 end
+node "${HIGH[0]}" "${HIGH[1]}" 100 60 30 skylight 18
+node $(along ${HIGH[@]} 0.5) 160 80 40 chamber
+node "${HIGH[2]}" "${HIGH[3]}" 180 60 30 end
 edge 0 1 0.4 0.06; edge 1 2 0.4 0.06
 printf '\t}\n'
 
@@ -66,7 +67,7 @@ cat <<'EOF'
 		networksPer10k = 2.5
 		width = 30, 450
 		length = 3000, 25000
-		roofDepth = 40, 400
+		roofDepth = 80, 800
 		skylightSpacing = 2500, 8000
 		branchChance = 0.65
 		chamberChance = 0.3
@@ -82,12 +83,24 @@ cat <<'EOF'
 		networksPer10k = 1
 		width = 15, 100
 		length = 800, 6000
-		roofDepth = 20, 120
+		roofDepth = 40, 240
 		skylightSpacing = 1500, 5000
 		branchChance = 0.4
 		chamberChance = 0.1
 		hiddenChance = 0.7
 		seed = 52
+	}
+	// Tylo's ocean, under rock (sub-project 4): 3 km of rock at the poles, 8 km at the equator, then 50 km of water
+	// (twice the first design, Lucas 2026-11-21). The floor lies 53-58 km down. [Claude, revisar]
+	OCEAN
+	{
+		ceilingPole = 3000
+		ceilingEquator = 8000
+		thickness = 50000
+		density = 1030
+		temperature = 275
+		colour = 0.04, 0.10, 0.16
+		ceilingRock = true
 	}
 EOF
 scatter BreakdownBoulders "Subterra/Props/Boulder01, Subterra/Props/Boulder02, Subterra/Props/Boulder03" floor "TubeGallery, TubeChamber, TubeBranch" 1.4 "0.3, 4.5" 0.6 true 0.035 0.62 3 0.3

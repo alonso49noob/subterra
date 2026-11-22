@@ -156,6 +156,32 @@ namespace Subterra
             return spec;
         }
 
+        /// <summary>
+        /// A closed pocket (an upright cylinder of <paramref name="radius"/>, <paramref name="height"/> tall) centred on
+        /// <paramref name="centre"/> (body coordinates): room carved for a vessel put deep in the rock by the cheat menu
+        /// (Lucas). Joins a cave it touches, like any dug hole.
+        /// </summary>
+        public static ExcavationSpec Pocket(BodyRuntime runtime, Vec3d centre, float radius, float height)
+        {
+            Subscribe();
+            CelestialBody body = runtime.Body;
+            Vec3d up = centre.Normalized;
+            Vec3d bottom = centre - up * (height * 0.5);
+            var spec = new ExcavationSpec($"XP-{body.bodyName}-{nextNumber++}", body.bodyName, bottom, radius) { Shape = ExcavationShape.Shaft };
+            spec.Points.Add(Vec3.Zero);
+            spec.Points.Add(spec.ToLocal(centre + up * (height * 0.5)));
+            Specs.Add(spec);
+            TubeNetwork reached = Reached(runtime, spec, 0);
+            if (reached != null)
+            {
+                spec.JoinedTo = reached.Id;
+            }
+
+            Build(runtime, spec, 0);
+            Log.Info($"Pocket {spec.Id} carved: radius {radius:F1} m, {height:F1} m tall, {centre.Length - body.Radius:F0} m altitude{(reached != null ? ", into " + reached.Id : "")}");
+            return spec;
+        }
+
         /// <summary>Loaded vessels within the danger radius of a charge at <paramref name="world"/>.</summary>
         public static List<Vessel> VesselsInDanger(Vector3d world, double kg, bool confined)
         {

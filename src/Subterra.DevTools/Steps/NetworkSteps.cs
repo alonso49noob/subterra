@@ -20,6 +20,56 @@ namespace Subterra.DevTools
             StepRegistry.Register("terrainProfile", TerrainProfile);
             StepRegistry.RegisterAssertion("insideNetwork", InsideNetwork);
             StepRegistry.RegisterAssertion("waterDepth", WaterDepth);
+            StepRegistry.RegisterAssertion("cameraUnderwater", CameraUnderwater);
+            StepRegistry.RegisterAssertion("evaState", EvaState);
+            StepRegistry.RegisterAssertion("scattererUnderwater", ScattererUnderwater);
+        }
+
+        // scattererUnderwater expect = false — whether any of Scatterer's oceans has its underwater view on (Scatterer
+        // installed; without it the step passes only for expect = false).
+        private static bool ScattererUnderwater(ConfigNode node, TestContext ctx)
+        {
+            Type type = HarmonyLib.AccessTools.TypeByName("Scatterer.OceanNode");
+            bool expect = node.ArgBool("expect", false);
+            if (type == null)
+            {
+                ctx.Detail = "Scatterer is not installed";
+                return !expect;
+            }
+
+            System.Reflection.FieldInfo field = HarmonyLib.AccessTools.Field(type, "isUnderwater");
+            bool under = false;
+            int count = 0;
+            foreach (UnityEngine.Object ocean in UnityEngine.Object.FindObjectsByType(type, FindObjectsSortMode.None))
+            {
+                count++;
+                under |= (bool)field.GetValue(ocean);
+            }
+
+            ctx.Detail = $"{count} Scatterer ocean(s), underwater view {(under ? "on" : "off")}, patch {(PatchManager.IsActive(ScattererPatch.Id) ? "active" : "not active")}";
+            return under == expect;
+        }
+
+        // evaState contains = Swim — the tracked kerbal's EVA state's name contains that text (and the vessel's situation).
+        private static bool EvaState(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+            KerbalEVA eva = vessel.FindPartModuleImplementing<KerbalEVA>();
+            string state = eva?.fsm?.currentStateName ?? "no EVA module";
+            ctx.Detail = $"{vessel.GetDisplayName()}: state {state}, {vessel.situation}, splashed {vessel.Splashed}";
+            return state.IndexOf(node.RequireArg("contains"), StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        // cameraUnderwater expect = true — whether the underwater view is on (camera under a cave's or an ocean's water,
+        // or inside the ice over an ocean), with where the camera is.
+        private static bool CameraUnderwater(ConfigNode node, TestContext ctx)
+        {
+            Camera camera = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
+            CelestialBody body = FlightGlobals.currentMainBody;
+            string where = camera == null || body == null ? "no camera" : Invariant($"camera {camera.name} at altitude {body.GetAltitude(camera.transform.position):F1} m, near clip {camera.nearClipPlane:F2}");
+            GameObject veil = GameObject.Find("SubterraUnderwater");
+            ctx.Detail = $"underwater view {(UnderwaterView.Under ? "on" : "off")}, veil {(veil == null ? "none" : veil.activeInHierarchy ? "shown on layer " + veil.layer : "hidden")}; {where}";
+            return UnderwaterView.Under == node.ArgBool("expect", true);
         }
 
         /// <summary>The network named by <c>site</c> (a named site, or <c>procedural</c> = the nearest generated one).</summary>
@@ -31,6 +81,14 @@ namespace Subterra.DevTools
             }
 
             string site = node.RequireArg("site");
+            if (string.Equals(site, "dug", StringComparison.OrdinalIgnoreCase))
+            {
+                // site = dug: the nearest hole dug alone (a shaft, a blast hole, a pocket), not joined to a cave.
+                Vec3d from = Frames.ToBody(vessel.mainBody, vessel.GetWorldPos3D());
+                return runtime.Catalog.All.Where(n => !n.IsNamed && n.Site == null).OrderBy(n => Vec3d.Distance(n.Anchor, from)).FirstOrDefault()
+                    ?? throw new InvalidOperationException("nothing dug yet");
+            }
+
             if (!string.Equals(site, "procedural", StringComparison.OrdinalIgnoreCase))
             {
                 TubeNetwork named = runtime.Catalog.Find("site:" + site);
@@ -257,6 +315,43 @@ namespace Subterra.DevTools
                 double lat = node.ArgDouble("lat", 0), depth = node.ArgDouble("depth", 100);
                 target = Core.Geo.BodyFrame.Direction(lat, node.ArgDouble("lon", 0)) * (runtime.Ocean.CeilingRadius(lat) - depth);
                 where = Invariant($"{bodyName} ocean {depth} m under the ice");
+                inside = false;
+            }
+            else if (string.Equals(node.Arg("site"), "dug", StringComparison.OrdinalIgnoreCase))
+            {
+                // site = dug end = bottom|top offsetUp = 3: over the deepest (or highest) point of the void of the nearest
+                // hole dug alone (a core drill's shaft, a blast hole), searched on a 1 m grid.
+                net = FindNetwork(node, vessel, out _);
+                bool top = string.Equals(node.Arg("end", "bottom"), "top", StringComparison.OrdinalIgnoreCase);
+                Aabb b = net.Bounds;
+                Vec3d deepest = default;
+                double lowest = double.MaxValue;
+                for (float x = b.Min.X; x <= b.Max.X; x += 1)
+                {
+                    for (float y = b.Min.Y; y <= b.Max.Y; y += 1)
+                    {
+                        for (float z = b.Min.Z; z <= b.Max.Z; z += 1)
+                        {
+                            var p = new Vec3(x, y, z);
+                            Vec3d at = net.ToBody(p);
+                            double score = top ? -at.Length : at.Length;
+                            if (score < lowest && net.IsInside(p))
+                            {
+                                lowest = score;
+                                deepest = at;
+                            }
+                        }
+                    }
+                }
+
+                if (lowest == double.MaxValue)
+                {
+                    throw new InvalidOperationException($"{net.Id} has no void");
+                }
+
+                target = deepest + deepest.Normalized * offsetUp;
+                bodyName = net.Body;
+                where = Invariant($"{net.Id} {(top ? "highest" : "deepest")} point (altitude {deepest.Length - vessel.mainBody.Radius:F0} m) + {offsetUp} m");
                 inside = false;
             }
             else

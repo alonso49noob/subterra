@@ -21,5 +21,8 @@ namespace Subterra.Core.Model
 
         /// <summary>r, g, b; null = the default water colour.</summary>
         public float[] Colour { get; set; }
+
+        /// <summary>The ceiling is rock, not ice (Tylo's ocean lies under its crust).</summary>
+        public bool CeilingRock { get; set; }
     }
 }

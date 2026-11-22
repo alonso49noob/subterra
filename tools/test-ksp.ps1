@@ -51,10 +51,11 @@ $ModProfiles = @{
     }
     full  = @{
         # KSPTextureLoader (Kopernicus, Parallax) and 000_KSPBurst (Parallax) are dependencies
-        # reported by KSP.log ("has not met dependency").
+        # reported by KSP.log ("has not met dependency"). OptiKerbal (Lucas's mod) carries the Retooled/Unity 6 fix for
+        # white Parallax scatters (an orphaned KSPTextureLoader asset bundle; its BundleReloadFix).
         Copy     = @('000_Harmony', 'ModuleManager.4.2.3.dll', 'Kopernicus', 'ModularFlightIntegrator',
                      'KSPCommunityFixes', 'ParallaxContinued', 'SCANsat', 'CommunityResourcePack',
-                     'KSPTextureLoader', '000_KSPBurst')
+                     'KSPTextureLoader', '000_KSPBurst', 'OptiKerbal')
         Junction = @('Parallax_StockTerrainTextures', 'Parallax_StockScatterTextures', 'Parallax_StockPlanetTextures')
     }
     # The full set plus the graphics mods of the reference install: Scatterer (with its stock configs and
@@ -63,7 +64,7 @@ $ModProfiles = @{
     graphics = @{
         Copy     = @('000_Harmony', 'ModuleManager.4.2.3.dll', 'Kopernicus', 'ModularFlightIntegrator',
                      'KSPCommunityFixes', 'ParallaxContinued', 'SCANsat', 'CommunityResourcePack',
-                     'KSPTextureLoader', '000_KSPBurst', 'Scatterer', 'ScattererAtmosphereCache', 'StockScattererConfigs',
+                     'KSPTextureLoader', '000_KSPBurst', 'OptiKerbal', 'Scatterer', 'ScattererAtmosphereCache', 'StockScattererConfigs',
                      'EnvironmentalVisualEnhancements', 'StockVolumetricClouds', 'zzz_Deferred')
         Junction = @('Parallax_StockTerrainTextures', 'Parallax_StockScatterTextures', 'Parallax_StockPlanetTextures')
     }

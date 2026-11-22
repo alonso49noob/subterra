@@ -95,7 +95,9 @@ namespace Subterra
             Mesh mesh = MeshUploader.Upload(prepared, "Subterra ice ceiling", readable: true);
             patch.AddComponent<MeshFilter>().sharedMesh = mesh;
             var renderer = patch.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = MaterialFactory.Create("Ice_d", "Ice_n", new Color(0.62f, 0.72f, 0.80f));
+            // Ice over most oceans; Tylo's lies under rock (its cave rock).
+            bool rock = BodyRegistry.Instance.TryGet(body, out BodyRuntime runtime) && runtime.Ocean != null && runtime.Ocean.Spec.CeilingRock;
+            renderer.sharedMaterial = rock ? MaterialFactory.ForSurface(body) : MaterialFactory.Create("Ice_d", "Ice_n", new Color(0.62f, 0.72f, 0.80f));
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             patch.AddComponent<MeshCollider>().sharedMesh = mesh;
             patchBody = body;

@@ -20,6 +20,12 @@ namespace Subterra
         /// <summary>A suited kerbal's density (kg/m³).</summary>
         private const double SuitDensity = 800;
 
+        /// <summary>A swimming kerbal: depth (m) of his middle under the surface where he floats, head out.</summary>
+        private const double FloatDepth = 0.3;
+
+        /// <summary>A swimming kerbal: rise speed (m/s) per metre under his float depth, and its limit.</summary>
+        private const double RiseRate = 1.0, MaxRise = 2.0;
+
         private float nextLook;
         private TubeNetwork net;
         private Subterra.Core.Water.OceanShell ocean;
@@ -30,6 +36,16 @@ namespace Subterra
 
         /// <summary>Deepest part under the water level (m), or 0.</summary>
         public double DeepestDepth { get; private set; }
+
+        // The parts in Subterra's water this physics frame, with the share of each under it.
+        private readonly System.Collections.Generic.Dictionary<Part, double> wet = new System.Collections.Generic.Dictionary<Part, double>();
+
+        /// <summary>
+        /// Whether <paramref name="part"/> is in a cave's or an ocean's water now, and how much of it. Its WaterContact is set
+        /// from this, so KSP counts the vessel as splashed and a kerbal swims (CaveSeaPatch keeps KSP's own sea from
+        /// clearing it).
+        /// </summary>
+        public bool InWater(Part part, out double fraction) => wet.TryGetValue(part, out fraction);
 
         public override Activation GetActivation() => Activation.LoadedVessels | Activation.FlightScene;
 
@@ -44,8 +60,51 @@ namespace Subterra
 
         private void FixedUpdate()
         {
+            bool wasWet = wet.Count > 0;
             Submerged = 0;
             DeepestDepth = 0;
+            foreach (Part dry in wet.Keys)
+            {
+                if (dry != null)
+                {
+                    dry.WaterContact = false;
+                }
+            }
+
+            wet.Clear();
+            try
+            {
+                Float();
+            }
+            finally
+            {
+                MarkSplashed(wasWet);
+            }
+        }
+
+        // KSP does not work vessel.Splashed out every frame: its sea code sets it when a part goes in (and re-checks the
+        // parts when one comes out), and that code is skipped in Subterra's water (CaveSeaPatch). Without it a kerbal in a
+        // cave's water was never "splashed": he fell, hit the floor and lay there as a ragdoll instead of swimming (Lucas).
+        private void MarkSplashed(bool wasWet)
+        {
+            if (vessel == null || !vessel.loaded)
+            {
+                return;
+            }
+
+            if (wet.Count > 0)
+            {
+                vessel.Splashed = true;
+                vessel.Landed = false;
+            }
+            else if (wasWet)
+            {
+                vessel.checkSplashed();
+            }
+        }
+
+        private void Float()
+        {
             if (vessel == null || !vessel.loaded || vessel.packed || !HighLogic.LoadedSceneIsFlight || !Settings.Current.WaterPhysics)
             {
                 return;
@@ -105,16 +164,21 @@ namespace Subterra
 
                     Submerged++;
                     DeepestDepth = Math.Max(DeepestDepth, sample.Value.Depth);
+                    wet[part] = fraction;
+                    part.WaterContact = true;
+                    part.submergedPortion = fraction;
                     double density = sample.Value.Density;
                     double g = FlightGlobals.getGeeForceAtPosition(world).magnitude;
                     Vector3d up = Frames.DirectionToWorld(body, sample.Value.Up).normalized;
 
                     // Lift: the water the part's box displaces (kN: KSP's forces are in kilonewtons, masses in tonnes).
                     double volume = size.x * size.y * size.z * WaterPhysics.FillFactor * part.buoyancy;
-                    if (part.isKerbalEVA())
+                    // part.isKerbalEVA() did not find kerbals in Retooled (Jeb sank): the EVA module is looked for itself.
+                    if (vessel.isEVA || part.FindModuleImplementing<KerbalEVA>() != null)
                     {
                         // A kerbal in a suit (air in it) is lighter than water, as in KSP's own sea: it floats. [Claude, revisar]
-                        volume = rb.mass * 1000 / SuitDensity;
+                        // His whole mass (the rigidbody's carries his kit; the part's can be less).
+                        volume = Math.Max(rb.mass, part.mass + part.GetResourceMass()) * 1000 / SuitDensity;
                     }
 
                     Vector3d force = up * (WaterPhysics.Buoyancy(volume * fraction, density, g) / 1000);
@@ -129,7 +193,36 @@ namespace Subterra
                         force -= velocity / speed * drag;
                     }
 
-                    rb.AddForce(force, ForceMode.Force);
+                    KerbalEVA eva = part.FindModuleImplementing<KerbalEVA>();
+                    if (eva != null && eva.isRagdoll && eva.ragdollNodes != null && eva.ragdollNodes.Length > 0)
+                    {
+                        // A ragdoll kerbal moves by his limbs' bodies, not his part's: the same lift and drag, as an
+                        // acceleration, on each limb. KSP floats a ragdoll only in its own sea (below sea level), where
+                        // its lift is already on the limb.
+                        Vector3 accel = force / Math.Max(rb.mass, 1e-3);
+                        foreach (KerbalRagdollNode node in eva.ragdollNodes)
+                        {
+                            if (node?.rb == null || (body.ocean && FlightGlobals.getAltitudeAtPos(node.go.transform.position, body) < 0))
+                            {
+                                continue;
+                            }
+
+                            node.rb.AddForce(accel, ForceMode.Acceleration);
+                        }
+                    }
+                    else if (eva != null && eva.fsm != null && (eva.fsm.CurrentState == eva.st_swim_idle || eva.fsm.CurrentState == eva.st_swim_fwd))
+                    {
+                        // Swimming, KSP sets the kerbal's velocity itself every physics step (the way he swims, nothing
+                        // up or down): a lift force only moved him a few centimetres a second, and Jeb stayed 19 m down.
+                        // Added as a velocity change on top of KSP's, he rises to the surface and floats there with his
+                        // head out. [Claude, revisar]
+                        double rise = Math.Max(-MaxRise, Math.Min(MaxRise, (sample.Value.Depth - FloatDepth) * RiseRate));
+                        rb.AddForce(up * rise, ForceMode.VelocityChange);
+                    }
+                    else
+                    {
+                        rb.AddForce(force, ForceMode.Force);
+                    }
 
                     // Crushed past its rated pressure (the air on the water's surface plus the water above it).
                     double kPa = WaterPhysics.PressureKPa(sample.Value.Depth, density, g, vessel.staticPressurekPa);

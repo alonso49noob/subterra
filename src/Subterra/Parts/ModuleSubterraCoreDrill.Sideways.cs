@@ -165,14 +165,17 @@ namespace Subterra
             }
 
             double kg = BlastDesign.PowderFactor(Layer) * Math.PI * blastRadius * blastRadius * roundLength;
-            double have = vessel.parts.Sum(p => p.Resources.Cast<PartResource>().Where(r => r.resourceName == "Explosive").Sum(r => r.amount));
-            if (have < kg)
+            if (!FreeBlasting)
             {
-                ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_NeedExplosive", kg.ToString("F0"), have.ToString("F0")), 6f);
-                return;
-            }
+                double have = vessel.parts.Sum(p => p.Resources.Cast<PartResource>().Where(r => r.resourceName == "Explosive").Sum(r => r.amount));
+                if (have < kg)
+                {
+                    ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_NeedExplosive", kg.ToString("F0"), have.ToString("F0")), 6f);
+                    return;
+                }
 
-            part.RequestResource("Explosive", kg);
+                part.RequestResource("Explosive", kg);
+            }
             roundKg = kg;
             roundArmed = true;
             drilling = false;

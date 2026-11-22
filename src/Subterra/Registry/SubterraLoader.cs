@@ -70,6 +70,8 @@ namespace Subterra
             ThermalPatches.Register();
             SciencePatches.Register();
             ResourcePatch.Register();
+            ScattererPatch.Register();
+            SetPositionPatch.Register();
         }
 
         private static void LoadBodies()

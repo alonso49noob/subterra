@@ -279,8 +279,9 @@ namespace Subterra.Core.Tubes
             Vec3 down = -UpAt(local);
             float travelled = 0;
             float inside = 0;
-            const float maxDistance = 2000f;
-            while (travelled < maxDistance)
+            // Steps of at least half a metre, and a bounded number: along a wall of a deep shaft the old 0.1 m steps took
+            // thousands of distance lookups per call (and KSP asks every frame).
+            for (int step = 0; step < FloorSearchSteps && travelled < FloorSearchDistance; step++)
             {
                 float d = Sdf.Distance(local + down * travelled);
                 if (d >= 0)
@@ -304,11 +305,17 @@ namespace Subterra.Core.Tubes
                 }
 
                 inside = travelled;
-                travelled += Math.Max(0.1f, -d * 0.9f);
+                travelled += Math.Max(0.5f, -d * 0.9f);
             }
 
             return null;
         }
+
+        /// <summary>How far down (m) <see cref="FloorBelow"/> looks for a floor; past it the floor is "far below".</summary>
+        public const float FloorSearchDistance = 2000f;
+
+        /// <summary>Most distance lookups one <see cref="FloorBelow"/> makes.</summary>
+        private const int FloorSearchSteps = 600;
 
         public ZoneInfo ZoneAt(Vec3 local)
         {
