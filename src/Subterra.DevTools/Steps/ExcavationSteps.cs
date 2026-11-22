@@ -20,6 +20,7 @@ namespace Subterra.DevTools
             StepRegistry.Register("addResource", AddResource);
             StepRegistry.Register("setField", SetField);
             StepRegistry.Register("teleportIntoTunnel", TeleportIntoTunnel);
+            StepRegistry.Register("aimLaser", AimLaser);
             StepRegistry.RegisterAssertion("resourceAtLeast", ResourceAtLeast);
             StepRegistry.RegisterAssertion("partExists", PartExists);
             StepRegistry.RegisterAssertion("objectExists", ObjectExists);
@@ -190,6 +191,23 @@ namespace Subterra.DevTools
             TestContext.RestOrbitHere(vessel);
             yield return null;
             ctx.Pass(Invariant($"{vessel.GetDisplayName()} in {tunnel.Id} at {along:P0} of its {length:F1} m (slope {slope:F0}°), altitude {vessel.altitude:F1} m"));
+        }
+
+        // aimLaser site = DevGeode node = 0 — aims the tracked vessel's laser (heading from its nose, elevation) at that
+        // network node's middle.
+        private static IEnumerator AimLaser(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+            var laser = (ModuleSubterraLaser)Find(ctx, nameof(ModuleSubterraLaser));
+            TubeNetwork net = NetworkSteps.FindNetwork(node, vessel, out _);
+            Core.Numerics.Vec3d target = NetworkSteps.NodePosition(net, NetworkSteps.NodeIndex(net, node.Arg("node", "0")), true, 0);
+            Vector3 dir = ((Vector3)(Frames.ToWorld(vessel.mainBody, target) - laser.part.transform.position)).normalized;
+            Vector3 up = (vessel.CoM - vessel.mainBody.position).normalized;
+            Vector3 nose = Vector3.ProjectOnPlane(vessel.ReferenceTransform.up, up).normalized;
+            laser.elevation = Mathf.Asin(Mathf.Clamp(Vector3.Dot(dir, up), -1f, 1f)) * Mathf.Rad2Deg;
+            laser.heading = Vector3.SignedAngle(nose, Vector3.ProjectOnPlane(dir, up), up);
+            yield return null;
+            ctx.Pass(Invariant($"laser aimed at {net.Id}: heading {laser.heading:F0}°, elevation {laser.elevation:F0}°"));
         }
 
         // partExists name = SubterraCoreDrill — the part was loaded (its cfg and modules parse).

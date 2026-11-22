@@ -215,7 +215,7 @@ namespace Subterra.DevTools
         }
 
         /// <summary>A node index, or "junction" (the node where most tubes meet) or "deepest".</summary>
-        private static int NodeIndex(TubeNetwork net, string arg)
+        internal static int NodeIndex(TubeNetwork net, string arg)
         {
             if (string.Equals(arg, "junction", StringComparison.OrdinalIgnoreCase) && net.Site != null)
             {
