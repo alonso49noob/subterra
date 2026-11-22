@@ -445,3 +445,25 @@ Ideas para el diseño [Claude, revisar]:
 
 - Los **impactos (cráteres) ya los hizo AsteroidalDetail**: se quitan de la parte 7 (queda la destrucción con explosivos).
 - La parte 7 la hace la IA sola, **solo después de pulir las partes 1 a 4**.
+
+## Sistemas cavernosos en los asteroides grandes (clases I, J, K de AsteroidalDetail) — pedido de Lucas, 2026-11-21
+
+Pedido: cuevas en los asteroides más grandes, como lo que se teoriza para Psyche. En AsteroidalDetail las clases
+I, J y K son las de decenas de km (Psyche: clase K, 31 km de radio, tipo M; Pallas: K, 51 km).
+
+Base real (para el diseño) [Claude, revisar]:
+- **Psyche (tipo M, metálico):** su densidad (~4 g/cm³, la del hierro es ~7,8) indica mucha porosidad o mezcla con
+  roca. Se teoriza **ferrovolcanismo**: hierro fundido que subió por un manto rocoso y dejó conductos y diques de
+  metal, como tubos de lava pero de hierro.
+- **Tipos C y S grandes:** muy porosos; los más grandes, en parte diferenciados (ver la regla de capas: solo los
+  grandes tienen capas).
+
+Propuesta:
+- Solo clases I, J y K. Estilo de red según el tipo espectral:
+  - M (Psyche): **tubos ferrovolcánicos** (paredes metálicas, brillo, recurso metal) y huecos de porosidad.
+  - C/S/otros: **huecos entre bloques** (el estilo "rubble" de Gilly y Bop) y fracturas de impacto.
+- Ciencia por tipo y capa; metal como recurso en los tipos M.
+- Técnico (lo difícil): los asteroides de AsteroidalDetail son naves (partes), no terreno PQS. El motor de cuevas
+  necesita un marco que se mueve y gira con el asteroide, colisiones sobre él, y abrir bocas en su malla (no hay
+  recorte de terreno PQS). Hace falta un puente con AsteroidalDetail (es mod de Lucas, D:\AsteroidalDetail):
+  diseñarlo junto con la regla de capas de los asteroides grandes.
