@@ -499,6 +499,14 @@ de que lo tuvo. Propuesta [Claude, revisar]:
   hidrotermales petrificadas. Ciencia por todo ello; sirve para fechar el cataclismo (unidades geológicas, datación).
 - **Agua residual:** bolsas profundas de salmuera que sobrevivieron (acuífero fósil), sin océano global.
 - **El cataclismo:** fracturas profundas de impacto, roca fundida enterrada, cavernas abiertas por el choque.
+- **Cuevas muy profundas y muy variadas** (Lucas, 2026-11-21): al perder el océano, el agua que se filtró disolvió y
+  excavó sistemas de varios km de profundidad. Mezcla de estilos (karst, tubos, fisuras de impacto, cavernas de
+  colapso), muchos tamaños (más bóvedas gigantes y pasajes estrechos que la media), niveles unidos por pozos.
+- **Las cuevas más hondas del sistema, más que Tylo, hasta el manto** (Lucas): Slate está muerto, su interior frío y
+  sólido; la roca fría resiste más y los huecos aguantan más hondo. Realismo: la presión cierra los huecos a unos
+  10–20 km con la gravedad de Slate. Propuesta [Claude, revisar]: la mayoría hasta la base de la corteza; unas pocas,
+  solo en Slate, entran en un manto frío y rígido como excepción de lore. Técnica: subirle a Slate la resistencia de
+  la roca (el límite de huecos) por cuerpo.
 
 ## Tal (OPM): luna de metal — pedido de Lucas, 2026-11-21
 
@@ -509,3 +517,32 @@ que se rompió (una de las teorías sobre Psyche).
   (patrón de Widmanstätten) en tamaño gigante, como una geoda de metal.
 - Recurso metálico, ciencia propia y una anomalía magnética detectable desde órbita (radar de alonso, parte 6).
 - Sin ferrovolcanismo (eso es para Zore y los asteroides metálicos grandes): Tal es demasiado pequeña.
+- **Entrada:** OPM ya tiene un agujero como easter egg en el hemisferio norte de Tal (dato de Lucas). Usarlo como la
+  entrada natural a las cavernas (como el Mohole en Moho): medir en el juego su posición y profundidad, y empezar la
+  red desde su fondo.
+
+## Cuevas por tipo espectral de AsteroidalDetail — pedido de Lucas, 2026-11-21
+
+Tipos de AD_SpectralTypes.cfg (unas 50 clases), agrupados. Sistemas completos solo en clases I–K; cavidades sueltas en
+las medianas; nada en las pequeñas (uniformes). [Claude, revisar]
+- **S, Sa, Sk, Sl, Sq, Sr, Sv, Q, O** (pétreos, condritas ordinarias): huecos entre bloques (montón de escombros) y
+  fracturas de impacto; los grandes, más compactos y con menos huecos.
+- **V** (corteza basáltica, como Vesta): tubos de lava antiguos en la corteza y fosas de impacto con cuevas (Vant).
+- **A** (casi olivino puro, manto de un cuerpo roto): grietas profundas y **cavernas de cristales verdes de olivino**
+  (peridoto).
+- **R** (olivino y piroxeno): fracturas profundas, cristales de ambos.
+- **K** (condrita carbonácea CV/CO): roca porosa con huecos pequeños y cámaras de colapso.
+- **L** (inclusiones ricas en calcio y aluminio, quizá la roca más antigua del sistema): cavernas con vetas blancas de
+  inclusiones, "cápsula del tiempo", ciencia extra.
+- **C, Cb, Cg, Ch, Cgh, B, G** (carbonáceos hidratados, alterados por agua): **cuevas de disolución** de un agua interior
+  antigua, pasajes revestidos de arcilla; **G y Cgh: cuevas con cristales de sal**; **B** (como Bennu): montón de
+  escombros con magnetita.
+- **F** (orgánicos horneados en seco): poroso, cavernas de colapso, orgánicos.
+- **D, P, T, Z** (material del sistema exterior, hielo y orgánicos): bolsas de hielo y cavidades de sublimación (como
+  los cometas); **Z** (rojísimo, colores del cinturón de Kuiper): cuevas de hielo teñido por tolinos.
+- **E, Xe** (enstatita, formada casi sin oxígeno): **cuevas de roca blanca brillante** que refleja las luces, con vetas
+  de metal nativo.
+- **X, Xc, Xk, Xn** (mezclas): según su grupo más cercano.
+- **M** (núcleo metálico desnudo): tubos ferrovolcánicos en los grandes y cavernas de cristales de metal (como Psyche).
+- **Ld, Gy, Mn, Kr, Po, Dr, El, Gr, Pu, Bl** (tipos propios de AD): revisar su descripción al diseñar.
+Requisito: el puente con AsteroidalDetail (los asteroides son naves, no terreno PQS).
