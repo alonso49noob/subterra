@@ -66,7 +66,7 @@ namespace Subterra.Core.Tests.Procedural
         [Fact]
         public void ConduitsSpiralDownToABigRoom()
         {
-            var sites = FieldGenerator.Generate(new FieldSpec { Name = "Pipes", Style = FieldStyle.Conduit, Biomes = { "Lowlands" }, NetworksPer10k = 40 }, "Vall", "VL", Grid, Cell, Terrain, Terrain);
+            var sites = FieldGenerator.Generate(new FieldSpec { Name = "Pipes", Style = FieldStyle.Conduit, Biomes = { "Lowlands" }, NetworksPer10k = 40, GiantChance = 0, NarrowChance = 0 }, "Vall", "VL", Grid, Cell, Terrain, Terrain);
             Assert.NotEmpty(sites);
             foreach (var s in sites)
             {
@@ -229,7 +229,7 @@ namespace Subterra.Core.Tests.Procedural
         // Networks are the same in every save and for every player (Lucas's ruling: maps must stay valid),
         // so the generator's output is pinned. If this fails, a change moved existing networks: undo it, or,
         // if it is deliberate, note it in the CHANGELOG and update the fingerprint.
-        private const string Fingerprint = "A4A493C631429530";
+        private const string Fingerprint = "334AC0A19586559A";
 
         [Fact]
         public void OutputIsPinned()
@@ -272,7 +272,7 @@ namespace Subterra.Core.Tests.Procedural
         }
 
         private static List<SiteSpec> Karst() =>
-            FieldGenerator.Generate(new FieldSpec { Name = "Karst", Biomes = { "Lowlands" }, NetworksPer10k = 40, Style = FieldStyle.Karst, Width = new Range(8, 40), Length = new Range(1500, 4000), RoofDepth = new Range(20, 60), ChamberChance = 0.2 }, "Kerbin", "KB", Grid, Cell, Terrain, Terrain);
+            FieldGenerator.Generate(new FieldSpec { Name = "Karst", Biomes = { "Lowlands" }, NetworksPer10k = 40, Style = FieldStyle.Karst, Width = new Range(8, 40), Length = new Range(1500, 4000), RoofDepth = new Range(20, 60), ChamberChance = 0.2, GiantChance = 0, NarrowChance = 0 }, "Kerbin", "KB", Grid, Cell, Terrain, Terrain);
 
         [Fact]
         public void KarstIsDeterministicAndConnected()
@@ -341,5 +341,74 @@ namespace Subterra.Core.Tests.Procedural
 
         [Fact]
         public void LavaFieldsAreUnchangedByKarst() => Assert.Equal(Ser(Gen()), Ser(FieldGenerator.Generate(new FieldSpec { Name = "MunMaria", Biomes = { "Lowlands" }, NetworksPer10k = 40, Style = FieldStyle.Lava }, "Mun", "MN", Grid, Cell, Terrain, Terrain)));
+
+        // The same networks of many cells (a cell holds at most ten), sized with the given chances.
+        private static List<SiteSpec> Sized(double giant, double narrow)
+        {
+            var spec = new FieldSpec { Name = "MunMaria", Biomes = { "Lowlands" }, NetworksPer10k = 1000, GiantChance = giant, NarrowChance = narrow };
+            var sites = new List<SiteSpec>();
+            var seen = new HashSet<CellId>();
+            for (double lat = -60; lat <= 60; lat += 12)
+            for (double lon = -180; lon < 180; lon += 12)
+            {
+                CellId cell = Grid.CellOf(BodyFrame.Direction(lat, lon));
+                if (seen.Add(cell))
+                {
+                    sites.AddRange(FieldGenerator.Generate(spec, "Mun", "MN", Grid, cell, Terrain, Terrain));
+                }
+            }
+
+            return sites;
+        }
+
+        [Fact]
+        public void GiantVaultsAreWiderTallerAndUnderAThickerRoof()
+        {
+            List<SiteSpec> plain = Sized(0, 0), giant = Sized(1, 0);
+            Assert.Equal(plain.Count, giant.Count);
+            for (int s = 0; s < plain.Count; s++)
+            {
+                for (int i = 0; i < plain[s].Nodes.Count; i++)
+                {
+                    NodeSpec a = plain[s].Nodes[i], b = giant[s].Nodes[i];
+                    Assert.Equal(a.Lat, b.Lat, 9);
+                    Assert.InRange(b.Width, Math.Min(400, a.Width * 2.5) - 1e-6, Math.Min(400, a.Width * 3.5) + 1e-6);
+                    Assert.True(b.Height >= a.Height * 2 - 1e-6);
+                    Assert.True(b.Depth >= TubePath.MinRoof(b.Width) - 1e-6);
+                }
+            }
+        }
+
+        [Fact]
+        public void NarrowCrawlsFitOnlyCompactCraft()
+        {
+            foreach (SiteSpec site in Sized(0, 1))
+            {
+                foreach (NodeSpec n in site.Nodes)
+                {
+                    double max = n.Feature == NodeFeature.Chamber ? 16 : 8;
+                    Assert.InRange(n.Width, 4 - 1e-6, max + 1e-6);
+                    Assert.False(n.Ramp);
+                    Assert.True(n.Depth >= TubePath.MinRoof(n.Width) - 1e-6);
+                }
+            }
+        }
+
+        [Fact]
+        public void MostNetworksKeepTheirSize()
+        {
+            List<SiteSpec> plain = Sized(0, 0), mixed = Sized(0.08, 0.12);
+            int giant = 0, narrow = 0;
+            for (int s = 0; s < plain.Count; s++)
+            {
+                double ratio = mixed[s].Nodes[0].Width / plain[s].Nodes[0].Width;
+                giant += ratio > 2 ? 1 : 0;
+                narrow += ratio < 0.9 ? 1 : 0;
+            }
+
+            Assert.True(plain.Count >= 30, $"{plain.Count} networks");
+            Assert.InRange((double)giant / plain.Count, 0.01, 0.2);
+            Assert.InRange((double)narrow / plain.Count, 0.03, 0.25);
+        }
     }
 }

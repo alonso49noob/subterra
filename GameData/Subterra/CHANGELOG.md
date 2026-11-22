@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Cave sizes vary: most procedural networks keep their size, about 8% are giant vaults (about three times as wide,
+  over twice as tall, under a thicker roof) and about 12% narrow crawls (4-8 m, for compact craft). Per field:
+  `giantChance`, `narrowChance`. Deliberate change of the generated networks (sizes only, not where they are or
+  their layout): generator fingerprint updated.
+
 ## 0.2.0 (alpha, internal)
 
 Drills, pumps and digging.

@@ -68,6 +68,15 @@ namespace Subterra.Core.Model
         /// <summary>Colour of that water (r, g, b; null = clear).</summary>
         public float[] WaterColour { get; set; }
 
+        /// <summary>
+        /// 0–1: share of networks that are giant vaults (about three times as wide, twice and a half as tall). Lucas:
+        /// most caves of a decent size, a few huge. [Claude, revisar]
+        /// </summary>
+        public double GiantChance { get; set; } = 0.08;
+
+        /// <summary>0–1: share of networks that are narrow crawls (4–8 m: compact craft or a kerbal on foot). [Claude, revisar]</summary>
+        public double NarrowChance { get; set; } = 0.12;
+
         public ulong Seed { get; set; } = 1;
     }
 }

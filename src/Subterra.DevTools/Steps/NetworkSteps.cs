@@ -55,10 +55,17 @@ namespace Subterra.DevTools
             Vec3d here = Frames.ToBody(vessel.mainBody, vessel.GetWorldPos3D());
             // field = <TUBE_FIELD name>: only networks of that field (to visit one style among several).
             string field = node.Arg("field", null);
-            TubeNetwork nearest = runtime.Catalog.All.Where(n => !n.IsNamed && (field == null || n.Site?.Field == field))
+            // size = giant | narrow: only networks of that size class (every passage at most 16 m wide: narrow; the first
+            // node 120 m or more: giant).
+            string size = node.Arg("size", null);
+            bool Sized(TubeNetwork n) =>
+                size == null || n.Site == null
+                || (size == "narrow" && n.Site.Nodes.TrueForAll(p => p.Width <= 16))
+                || (size == "giant" && n.Site.Nodes[0].Width >= 120);
+            TubeNetwork nearest = runtime.Catalog.All.Where(n => !n.IsNamed && (field == null || n.Site?.Field == field) && Sized(n))
                 .OrderBy(n => Vec3d.Distance(n.Anchor, here))
                 .FirstOrDefault();
-            return nearest ?? throw new InvalidOperationException("no procedural network generated yet");
+            return nearest ?? throw new InvalidOperationException($"no procedural network{(size != null ? " of size " + size : "")} generated yet");
         }
 
         // terrainProfile body = Moho lat0 = 88 lon0 = 0 lat1 = 88 lon1 = 180 samples = 200 — logs the terrain altitude along a

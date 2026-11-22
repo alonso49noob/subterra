@@ -55,11 +55,68 @@ namespace Subterra.Core.Procedural
             var rng = new Rng(Hash.Combine(Hash.Of(site.Name), Hash.Of("ramp")));
             foreach (NodeSpec node in site.Nodes)
             {
-                if (node.Feature == NodeFeature.Skylight && node.Depth + node.Height < 200 && rng.NextDouble() < 0.5)
+                if (node.Feature == NodeFeature.Skylight && node.Depth + node.Height < 200 && node.Width >= NetworkCompiler.RampWidth
+                    && rng.NextDouble() < 0.5)
                 {
                     node.Ramp = true;
                 }
             }
+        }
+
+        /// <summary>Widest a giant vault's passages get (m).</summary>
+        private const double GiantWidthMax = 400;
+
+        /// <summary>Width (m) of a narrow crawl's passages: a compact rover, or a kerbal on foot.</summary>
+        private static readonly Range NarrowWidth = new Range(4, 8);
+
+        /// <summary>
+        /// The network's size class, rolled per network id after its layout (so the rest of the generation is unchanged):
+        /// most stay as the field made them; a few become giant vaults (wider, taller, under a thicker roof) or narrow
+        /// crawls that only compact craft can explore (Lucas).
+        /// </summary>
+        internal static NetworkSize Resize(SiteSpec site, FieldSpec f)
+        {
+            var rng = new Rng(Hash.Combine(Hash.Of(site.Name), Hash.Of("size")));
+            double roll = rng.NextDouble();
+            if (roll < f.GiantChance)
+            {
+                double wide = rng.Range(2.5, 3.5), tall = rng.Range(2.0, 3.0);
+                foreach (NodeSpec node in site.Nodes)
+                {
+                    node.Width = Math.Min(GiantWidthMax, node.Width * wide);
+                    node.Height *= tall;
+                    node.SkylightRadius = Math.Min(node.SkylightRadius * wide, 0.45 * node.Width);
+                    node.Depth = Math.Max(node.Depth, TubePath.MinRoof(node.Width));
+                    if (node.Feature == NodeFeature.Chamber)
+                    {
+                        MakeChamber(node);
+                    }
+                }
+
+                return NetworkSize.Giant;
+            }
+
+            if (roll < f.GiantChance + f.NarrowChance)
+            {
+                foreach (NodeSpec node in site.Nodes)
+                {
+                    // Rooms stay rooms: twice the passage, still tight.
+                    double width = rng.Range(NarrowWidth.Min, NarrowWidth.Max) * (node.Feature == NodeFeature.Chamber ? 2 : 1);
+                    node.Width = width;
+                    node.Height = width * rng.Range(0.8, 1.2);
+                    node.SkylightRadius = Math.Min(node.SkylightRadius, Math.Max(3, 0.6 * width));
+                    node.Ramp = false;
+                    node.Depth = Math.Max(node.Depth, TubePath.MinRoof(node.Width));
+                    if (node.Feature == NodeFeature.Chamber)
+                    {
+                        MakeChamber(node);
+                    }
+                }
+
+                return NetworkSize.Narrow;
+            }
+
+            return NetworkSize.Normal;
         }
 
         // Still water in some of the network's rooms (a third of their height deep), chosen per network id so it does not
@@ -175,6 +232,7 @@ namespace Subterra.Core.Procedural
                     Hide(site);
                 }
 
+                Resize(site, f);
                 if (f.WaterChance > 0)
                 {
                     Flood(site, f);

@@ -375,6 +375,8 @@ namespace Subterra.Core.Config
             field.HiddenChance = Clamp(r.Double(node, "hiddenChance", field.HiddenChance), 0, 1, r, "hiddenChance");
             field.WaterChance = Clamp(r.Double(node, "waterChance", 0), 0, 1, r, "waterChance");
             field.RoomHeight = Clamp(r.Double(node, "roomHeight", 1), 0.5, 4, r, "roomHeight");
+            field.GiantChance = Clamp(r.Double(node, "giantChance", field.GiantChance), 0, 1, r, "giantChance");
+            field.NarrowChance = Clamp(r.Double(node, "narrowChance", field.NarrowChance), 0, 1 - field.GiantChance, r, "narrowChance");
             if (node.GetValue("waterColour") is string fieldWater)
             {
                 field.WaterColour = r.Colour(fieldWater, "waterColour");
