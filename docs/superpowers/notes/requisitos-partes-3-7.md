@@ -546,3 +546,21 @@ las medianas; nada en las pequeñas (uniformes). [Claude, revisar]
 - **M** (núcleo metálico desnudo): tubos ferrovolcánicos en los grandes y cavernas de cristales de metal (como Psyche).
 - **Ld, Gy, Mn, Kr, Po, Dr, El, Gr, Pu, Bl** (tipos propios de AD): revisar su descripción al diseñar.
 Requisito: el puente con AsteroidalDetail (los asteroides son naves, no terreno PQS).
+
+## Sin criobot: tres piezas para que el jugador arme su propia sonda — decisión de Lucas, 2026-11-21
+
+Lucas no quiere una pieza "criobot" hecha. En su lugar, tres piezas sueltas para fomentar la creatividad (el jugador
+arma su criobot, su hydrobot o lo que se le ocurra):
+
+1. **Núcleo de sonda diminuto** (~0,3 m): control, poca batería, antena de corto alcance; cabe en el pozo estrecho que
+   abre el taladro. [Claude, revisar: relé por cable/boyas para comunicar desde bajo el hielo o la roca]
+2. **Taladro tipo IceMole** (la sonda alemana que baja por el hielo con una cabeza de tornillo calentada y se puede
+   dirigir): pieza de punta que perfora hacia donde apunta, derrite el hielo y muele la roca (más lento en roca: el techo
+   de Tylo es roca), consume electricidad y calienta. Abre un pozo estrecho del diámetro de la pieza por donde baja la
+   sonda; en hielo el pozo se vuelve a cerrar (se congela) detrás. [Claude, revisar: velocidad y si perfora con el
+   juego en aceleración de tiempo, porque los techos tienen 1–10 km]
+3. **Motor que consume agua:** dentro del agua toma la del entorno como masa de reacción (hidrojet: propelente
+   ilimitado en un océano o una cueva inundada); fuera del agua gasta Water de un tanque, como propulsor de vapor de
+   poco empuje. Sirve para nadar por los océanos bajo el hielo y para volver a subir.
+
+Reemplaza en el plan de la parte 4 a "cryobot (derrite un pozo real hasta el océano)" y "hydrobot" como piezas propias.
