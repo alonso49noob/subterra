@@ -489,3 +489,13 @@ Propuesta:
 - **Océanos subsuperficiales variados:** fuentes hidrotermales, picos (montes submarinos), dorsales y otras
   formas en el fondo y el techo, para que no sean monótonos.
 - **Presión en el fondo:** sumar la carga del hielo o la roca de encima (hoy solo se cuenta el agua bajo el techo).
+
+## Slate (OPM): rastros de un océano antiguo — pedido de Lucas, 2026-11-21
+
+Su lore dice que tuvo atmósfera y la perdió por un cataclismo: debe tener océano subsuperficial o al menos indicios
+de que lo tuvo. Propuesta [Claude, revisar]:
+- **Indicios (lo principal):** karst antiguo (cuevas disueltas por un agua que ya no está), capas de sal y yeso
+  (evaporitas) donde se secó el mar, fondos marinos fósiles con sedimentos en franjas y vetas de minerales, chimeneas
+  hidrotermales petrificadas. Ciencia por todo ello; sirve para fechar el cataclismo (unidades geológicas, datación).
+- **Agua residual:** bolsas profundas de salmuera que sobrevivieron (acuífero fósil), sin océano global.
+- **El cataclismo:** fracturas profundas de impacto, roca fundida enterrada, cavernas abiertas por el choque.
