@@ -414,6 +414,7 @@ namespace Subterra
             }
 
             CelestialBody body = runtime.Body;
+            RaiseShaftTop(body, spec);
             Samples(body, spec, out List<Vec3d> dirs, out List<double> radii);
             List<Skylight> openings = Openings(body, spec);
             TubeNetwork alone = TubeNetwork.ForExcavation(spec, dirs, radii, openings);
@@ -524,6 +525,29 @@ namespace Subterra
         /// <summary>Longest trench (m) a nearly level tunnel opens before its mouth is capped.</summary>
         private const double MaxTrench = 30;
 
+        /// <summary>How far (m) a blast shaft rises past the ground, like a natural skylight's shaft.</summary>
+        private const double ShaftOvershoot = 10;
+
+        // A blast shaft ended right at the ground, so its top cap lay at the ground's level: where the network's terrain
+        // samples (every 2 m) were a little above it, the cap survived the clipping of the mesh above the ground and closed
+        // the mouth with an invisible floor (parts broke on it going down; Lucas's "invisible wall"). Its top is raised past
+        // the ground (also for shafts saved before), as natural skylight shafts are: the part above the ground is clipped.
+        private static void RaiseShaftTop(CelestialBody body, ExcavationSpec spec)
+        {
+            if (spec.Shape != ExcavationShape.Shaft || spec.Points.Count < 2)
+            {
+                return;
+            }
+
+            Vec3d top = spec.ToBody(spec.Points[spec.Points.Count - 1]);
+            BodyFrame.ToLatLon(top.Normalized, out double lat, out double lon);
+            double surface = KspSampler.SurfaceRadius(body, lat, lon);
+            if (top.Length < surface + ShaftOvershoot - 1 && top.Length > surface - spec.Radius - 1)
+            {
+                spec.Points[spec.Points.Count - 1] = spec.ToLocal(top.Normalized * (surface + ShaftOvershoot));
+            }
+        }
+
         private static List<Skylight> Openings(CelestialBody body, ExcavationSpec spec)
         {
             var list = new List<Skylight>();
@@ -531,7 +555,9 @@ namespace Subterra
             Vec3d start = spec.ToBody(spec.Shape == ExcavationShape.Shaft ? spec.Points[spec.Points.Count - 1] : spec.Points[0]);
             BodyFrame.ToLatLon(start.Normalized, out double lat, out double lon);
             double surface = KspSampler.SurfaceRadius(body, lat, lon);
-            if (Math.Abs(start.Length - surface) <= spec.Radius + 1)
+            // A blast shaft's top is raised past the ground (RaiseShaftTop): it opens wherever it reaches the ground.
+            bool opens = spec.Shape == ExcavationShape.Shaft ? start.Length >= surface - spec.Radius - 1 : Math.Abs(start.Length - surface) <= spec.Radius + 1;
+            if (opens)
             {
                 // A sloping tunnel opens a trench, not a round hole: the ground is open along its axis until the
                 // roof (one diameter over the floor) is under the terrain. The first piece's direction is

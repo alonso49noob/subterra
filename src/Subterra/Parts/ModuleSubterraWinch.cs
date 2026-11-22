@@ -280,7 +280,7 @@ namespace Subterra
             double off = offAxis.magnitude;
             if (motion != 0 && Time.time >= nextTrace)
             {
-                nextTrace = Time.time + 1f;
+                nextTrace = Time.time + 5f;
                 Log.Info($"Winch on {vessel.GetDisplayName()}: {paidOut:F1} m of cable out, {off:F2} m off the axis, vertical {Vector3d.Dot(vessel.srf_velocity, up):F1} m/s, target {vertical:F1} m/s");
             }
 
@@ -381,3 +381,4 @@ namespace Subterra
         }
     }
 }
+

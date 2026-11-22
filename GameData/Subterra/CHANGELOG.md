@@ -15,6 +15,9 @@
   colour.
 - Scatterer: its underwater view (blue haze, dimmed sun) no longer shows in dry caves or holes under the sea level;
   in Subterra's water the view is Subterra's own.
+- Fixed: a blast shaft's mouth could keep an invisible floor at ground level (its top cap survived where the
+  terrain samples were a little high): craft going in hit it. Shaft tops now rise past the ground, as natural
+  skylight shafts do; shafts in saved games are fixed when loaded.
 - Fixed: going into a dug shaft deeper than 2 km destroyed the craft ("crashed through terrain"): with no floor in
   reach, the ground under it counts as far below.
 - Core drill: no depth limit (only the rock's heat, and the body's centre). Hole diameter set in the editor or in
