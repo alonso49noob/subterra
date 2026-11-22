@@ -55,14 +55,59 @@ namespace Subterra
         private const double Gain = 2.0, MaxAccel = 15.0, AxisGain = 0.8, MaxAxisSpeed = 3.0, SpinDamping = 3.0;
 
         private LineRenderer cable;
+        private float nextTrace;
+
+        // A part of the hanging vessel destroyed: where it was (diagnostics: the top parts broke as it started down).
+        private void OnPartDie(Part p)
+        {
+            if (!hooked || p == null || p.vessel != vessel || vessel.mainBody == null)
+            {
+                return;
+            }
+
+            CelestialBody body = vessel.mainBody;
+            Vector3d fromBody = p.transform.position - body.position;
+            Vector3d axis = Frames.DirectionToWorld(body, BodyFrame.Direction(anchorLat, anchorLon).ToVec3());
+            Vector3d off = fromBody - axis * Vector3d.Dot(fromBody, axis);
+            Log.Info($"Winch on {vessel.GetDisplayName()}: {p.partInfo.title} destroyed {off.magnitude:F2} m off the axis, {fromBody.magnitude - anchorRadius:F1} m from the hook height, temperature {p.temperature:F0}/{p.maxTemp:F0} K, speed {vessel.srfSpeed:F1} m/s, vessel g {vessel.geeForce:F1}");
+        }
+
+        // What the hanging vessel hits (diagnostics: parts broke as it started down a shaft).
+        private void OnCollision(EventReport report)
+        {
+            if (hooked && report?.origin != null && report.origin.vessel == vessel)
+            {
+                Log.Info($"Winch on {vessel.GetDisplayName()}: {report.origin.partInfo.title} hit {report.other} at {vessel.srfSpeed:F1} m/s");
+            }
+        }
 
         [KSPEvent(guiActive = true, guiName = "#Subterra_Winch_Hook")]
         public void Hook()
         {
             CelestialBody body = vessel.mainBody;
-            Vec3d at = Frames.ToBody(body, vessel.CoMD);
+            // The vessel's own position (CoMD lags behind on a vessel just moved on rails).
+            Vec3d at = Frames.ToBody(body, vessel.GetWorldPos3D());
             BodyFrame.ToLatLon(at, out anchorLat, out anchorLon);
             anchorRadius = at.Length;
+
+            // Hooked by a blast shaft's mouth: the cable hangs on the shaft's axis (the vessel is drawn over it before it
+            // goes down), not wherever the vessel stood by the rim.
+            foreach (Core.Excavation.ExcavationSpec shaft in ExcavationService.All)
+            {
+                if (shaft.Shape != Core.Excavation.ExcavationShape.Shaft || shaft.Body != body.bodyName || shaft.Points.Count < 2)
+                {
+                    continue;
+                }
+
+                Vec3d top = shaft.ToBody(shaft.Points[shaft.Points.Count - 1]);
+                Vec3d axis = top.Normalized;
+                Vec3d off = at - axis * Vec3d.Dot(at, axis);
+                if (off.Length < shaft.Radius + 6 && Math.Abs(at.Length - top.Length) < 60)
+                {
+                    BodyFrame.ToLatLon(axis, out anchorLat, out anchorLon);
+                    break;
+                }
+            }
             anchorBody = body.bodyName;
             hooked = true;
             motion = 0;
@@ -109,6 +154,12 @@ namespace Subterra
 
         public override void OnStart(StartState state)
         {
+            if (HighLogic.LoadedSceneIsFlight)
+            {
+                GameEvents.onCollision.Add(OnCollision);
+                GameEvents.onPartDie.Add(OnPartDie);
+            }
+
             if (Fields[nameof(speed)].uiControlEditor is UI_FloatRange editor)
             {
                 editor.maxValue = maxSpeed;
@@ -179,7 +230,12 @@ namespace Subterra
             }
 
             double vertical = 0;
-            if (m == 1)
+            if (m == 1 && offAxis.magnitude > 1.0)
+            {
+                // Over the hole's axis first (hooked by the rim): the floor under the vessel would be the rim itself.
+                uiStatus = Localizer.Format("#Subterra_Winch_Centring");
+            }
+            else if (m == 1)
             {
                 double floor = Clearance(up);
                 double room = floor - StopGap;
@@ -222,6 +278,12 @@ namespace Subterra
             }
 
             double off = offAxis.magnitude;
+            if (motion != 0 && Time.time >= nextTrace)
+            {
+                nextTrace = Time.time + 1f;
+                Log.Info($"Winch on {vessel.GetDisplayName()}: {paidOut:F1} m of cable out, {off:F2} m off the axis, vertical {Vector3d.Dot(vessel.srf_velocity, up):F1} m/s, target {vertical:F1} m/s");
+            }
+
             Vector3d target = up * vertical;
             if (off > 0.05)
             {
@@ -309,6 +371,8 @@ namespace Subterra
 
         private void OnDestroy()
         {
+            GameEvents.onCollision.Remove(OnCollision);
+            GameEvents.onPartDie.Remove(OnPartDie);
             if (cable != null)
             {
                 Destroy(cable.material);

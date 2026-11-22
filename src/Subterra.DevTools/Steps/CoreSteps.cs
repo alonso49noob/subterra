@@ -197,6 +197,25 @@ namespace Subterra.DevTools
                 parts.Add(System.FormattableString.Invariant($"{c.name} depth {c.depth} near {c.nearClipPlane:F2} far {c.farClipPlane:F0} layer15 {((c.cullingMask & (1 << 15)) != 0)} layer0 {((c.cullingMask & 1) != 0)} enabled {c.enabled} target {(c.targetTexture != null ? c.targetTexture.name : "screen")}"));
             }
 
+            // The body's ocean: whether OceanHider is hiding it, and its quads' renderers (diagnostics for the sea seen from
+            // under the land).
+            CelestialBody body = FlightGlobals.currentMainBody;
+            parts.Add($"ocean hidden {OceanHider.CameraUnderSeaLevelInRock}");
+            if (body != null && body.pqsController != null)
+            {
+                foreach (PQS child in body.pqsController.ChildSpheres)
+                {
+                    int quads = 0, on = 0;
+                    foreach (MeshRenderer r in child.GetComponentsInChildren<MeshRenderer>(true))
+                    {
+                        quads++;
+                        on += r.enabled && r.gameObject.activeInHierarchy ? 1 : 0;
+                    }
+
+                    parts.Add($"child sphere {child.name} (active {child.gameObject.activeInHierarchy}, ocean mod {child.GetComponentInChildren<PQSMod_OceanFX>(true) != null}): {on}/{quads} renderers on, material {child.surfaceMaterial?.shader?.name ?? "-"}");
+                }
+            }
+
             ctx.Pass(string.Join("; ", parts));
             yield break;
         }

@@ -224,8 +224,16 @@ namespace Subterra
                         rb.AddForce(force, ForceMode.Force);
                     }
 
-                    // Crushed past its rated pressure (the air on the water's surface plus the water above it).
-                    double kPa = WaterPhysics.PressureKPa(sample.Value.Depth, density, g, vessel.staticPressurekPa);
+                    // Crushed past its rated pressure (the air on the water's surface plus the water above it; in an ocean
+                    // under ice or rock, the ceiling's weight too).
+                    double over = 0;
+                    if (net == null && ocean != null)
+                    {
+                        Core.Geo.BodyFrame.ToLatLon(bodyPos, out double lat, out _);
+                        over = ocean.OverburdenKPa(lat, g);
+                    }
+
+                    double kPa = WaterPhysics.PressureKPa(sample.Value.Depth, density, g, vessel.staticPressurekPa + over);
                     if (kPa > part.maxPressure)
                     {
                         ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Water_Crushed", part.partInfo.title, (kPa / 101.325).ToString("F0")), 5f);

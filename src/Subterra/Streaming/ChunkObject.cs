@@ -126,7 +126,7 @@ namespace Subterra
                 {
                     if (s.Collider == null)
                     {
-                        s.Collider = s.Object.AddComponent<MeshCollider>();
+                        s.Collider = NewCollider(s.Object);
                     }
 
                     s.Collider.sharedMesh = s.ColliderMesh;
@@ -136,7 +136,7 @@ namespace Subterra
 
             if (Collider == null)
             {
-                Collider = GameObject.AddComponent<MeshCollider>();
+                Collider = NewCollider(GameObject);
             }
 
             if (Collider.sharedMesh != ColliderMesh)
@@ -145,6 +145,16 @@ namespace Subterra
             }
 
             Collider.enabled = true;
+        }
+
+        // On a child of its own, with no MeshFilter: a MeshCollider added next to one takes its render mesh at once, and
+        // the render meshes are not readable, so Unity 6 (Retooled) logged "CollisionMeshData couldn't be created" for
+        // every chunk before the baked collider mesh was set.
+        private static MeshCollider NewCollider(GameObject owner)
+        {
+            var go = new GameObject("SubterraCollider") { layer = owner.layer };
+            go.transform.SetParent(owner.transform, false);
+            return go.AddComponent<MeshCollider>();
         }
 
         public void DisableCollider()

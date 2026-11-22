@@ -22,6 +22,17 @@
   explosive and no depth limit; ignore max temperature = drills hot rock.
 - SB-W winch: a cable hooked at a hole's mouth lowers the craft down a shaft (or hauls it up) at a set speed, keeps
   it off the walls and stops it over the floor.
+- The SB-T tunnel borer is gone, replaced by two mining lasers: SB-L1 "Ablador" (electricity) and SB-L2 "Excímero"
+  (xenon; faster, wider bores, longer reach). Aimed with a window (heading and elevation), any direction, bore radius
+  set by the player. Saved crafts keep the old borer's part, now a laser. Stockalike Mining Extension's stack drills
+  now use the mole module.
+- Probe parts for ice and ocean exploration (no ready-made cryobot): SB-C "Semilla" micro probe core, SB-M "Topo"
+  melting drill, SB-H "Géiser" water engine (Water: CommunityResourcePack's, or Subterra's own without it).
+- Ocean pressure counts the ice or rock above as well as the water (Tylo's rock ceiling crushes stock parts: the
+  probe parts are built for it).
+- KSP's sea (and Scatterer's ocean mesh) is not drawn while the camera is under the land below sea level: it
+  showed as water in shafts dug on land.
+- Retooled: no more "CollisionMeshData couldn't be created" errors for every cave chunk.
 - Cheat menu, Set Position with a negative altitude (safety check off): the craft goes that far under the ground; in
   solid rock a pocket its size is carved around it (`carveOnSetPosition`).
 

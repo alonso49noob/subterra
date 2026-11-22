@@ -349,6 +349,31 @@ namespace Subterra.DevTools
                     throw new InvalidOperationException($"{net.Id} has no void");
                 }
 
+                if (top)
+                {
+                    // The middle of the mouth, not its highest point (that is on the rim, by the higher ground).
+                    Vec3d sum = default;
+                    int count = 0;
+                    for (float x = b.Min.X; x <= b.Max.X; x += 1)
+                    {
+                        for (float y = b.Min.Y; y <= b.Max.Y; y += 1)
+                        {
+                            for (float z = b.Min.Z; z <= b.Max.Z; z += 1)
+                            {
+                                var p = new Vec3(x, y, z);
+                                Vec3d at = net.ToBody(p);
+                                if (at.Length > deepest.Length - 3 && net.IsInside(p))
+                                {
+                                    sum += at;
+                                    count++;
+                                }
+                            }
+                        }
+                    }
+
+                    deepest = sum.Normalized * deepest.Length;
+                }
+
                 target = deepest + deepest.Normalized * offsetUp;
                 bodyName = net.Body;
                 where = Invariant($"{net.Id} {(top ? "highest" : "deepest")} point (altitude {deepest.Length - vessel.mainBody.Radius:F0} m) + {offsetUp} m");

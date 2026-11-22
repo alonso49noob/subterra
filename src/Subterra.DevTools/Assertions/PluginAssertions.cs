@@ -42,8 +42,9 @@ namespace Subterra.DevTools
             UnityEngine.Vector3 origin = vessel.GetWorldPos3D() + (Vector3d)(up * (float)node.ArgDouble("fromUp", 0));
             if (!UnityEngine.Physics.Raycast(origin, -up, out UnityEngine.RaycastHit hit, 2000f, 1 << 15, UnityEngine.QueryTriggerInteraction.Ignore))
             {
+                // missOk = true: nothing within 2 km counts as a pass (an open shaft whose floor has no collider yet).
                 ctx.Detail = "no hit within 2 km";
-                return false;
+                return node.ArgBool("missOk", false);
             }
 
             ctx.Detail = System.FormattableString.Invariant($"hit {hit.collider.name} at {hit.distance:F1} m (expected {min}..{max})");

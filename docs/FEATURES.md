@@ -61,6 +61,7 @@ Parts (reusing stock models, no new assets needed)
   [DONE] SB-1 "Barrena" core drill: drills down through the rock layers; speed depends on hardness and rock
          temperature; needs electricity; stops when the rock is too hard or too hot.
   [DONE] SB-T "Topo" tunnel borer: digs drivable tunnels (5 m wide) in the direction its arm points.
+         (2026-11: replaced by the SB-L mining lasers, see below; saved crafts keep the part.)
   [DONE] SB-P "Fuente" well pump: pumps what the current layer yields (water from polar ice on the Mun, more on
          other bodies later).
   [DONE] Drilling and digging animations; dust effects.
@@ -88,6 +89,16 @@ Explosives
   [DONE] Blast damage to vessels nearby (destroy / damage radii, Hopkinson-Cranz scaling, confined charges).
   [DONE] Warning with the list of vessels in danger before detonation; fuse countdown.
   [DONE] Danger rings drawn on the ground while a hole is armed (red: destroyed, yellow: damaged).
+  [DONE] No depth limit for the core drill (only the rock's heat); hole diameter set in the editor or in flight (2-40 m).
+  [DONE] KSP cheats: infinite propellant = blasting needs no explosive and no depth limit; ignore max temperature =
+         drills hot rock (to test the mantle and the core).
+  [DONE] SB-W "Plomada" winch: lowers the craft down a shaft on a cable (or hauls it up), centred on the shaft's
+         axis, stopping over the floor.
+
+Lasers (2026-11, replace the tunnel borer)
+  [DONE] SB-L1 "Ablador" (electricity) and SB-L2 "Excimero" (xenon, 3x faster, wider, longer reach): vaporise the
+         rock where they are aimed (heading and elevation from an aim window), leaving a persistent tunnel; any
+         direction, bore radius set by the player.
 
 Other
   [DONE] Optional integration with Stockalike Mining Extension (no assets copied).
@@ -154,8 +165,15 @@ PART 4 - Subsurface oceans and subglacial lakes                   [IN PROGRESS]
          thinner ice at the poles. [Claude, revisar]
   [DONE] Ice ceiling seen and touched from below (a patch around the vessel); KSP does not count a vessel in the
          ocean as crashed through the terrain.
-  [PLANNED] Cryobot (melts a real shaft down to the ocean) and hydrobot; ballast; pressure hull.
-  [PLANNED] Tylo's ocean under its cave system; sea floor.
+  [DONE] Kerbals swim in cave water and in the oceans (KSP's swimming state; a ragdoll floats).
+  [DONE] Pressure counts the ice or rock over an ocean as well as the water.
+  [DONE] Probe parts instead of a ready-made cryobot (Lucas): SB-C "Semilla" micro probe core (deep-pressure rated,
+         radioisotope generator), SB-M "Topo" melting drill (bores the way it points, pulls its probe), SB-H
+         "Geiser" water engine (its intake keeps it full in water). [needs play-testing]
+  [DONE] Tylo's ocean under its cave system (3-8 km of rock, 50 km of water).
+  [DONE] KSP's sea not drawn while the camera is under the land below sea level (it showed in dug shafts);
+         Scatterer's underwater view kept out of caves.
+  [PLANNED] Sea floor features (vents, seamounts with caves, ice towers; Pol's pillars and sulfur).
   [PLANNED] Europa-like lakes, cryovolcanoes and conduits on Vall; lakes connected to the ocean.
   [PLANNED] Subglacial lakes (Kerbin's poles like Lake Vostok, Laythe, Duna).
   [PLANNED] Water science, water resource, radar targets (with alonso, part 6).

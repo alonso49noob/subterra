@@ -20,6 +20,10 @@ namespace Subterra
         // with the water's to set isUnderwater.
         private static FieldInfo height;
 
+        // OceanNode.waterMeshRenderer: its ocean surface, switched on every UpdateNode; off while the camera is under the land
+        // below sea level (seen from there it was a blue surface across a shaft, or a blue sky around a cave).
+        private static FieldInfo waterMesh;
+
         public static void Register()
         {
             Type node = AccessTools.TypeByName("Scatterer.OceanNode");
@@ -29,6 +33,7 @@ namespace Subterra
             }
 
             height = AccessTools.Field(node, "height");
+            waterMesh = AccessTools.Field(node, "waterMeshRenderer");
             MethodInfo update = AccessTools.Method(node, "UpdateNode");
             if (height == null || height.FieldType != typeof(double) || update == null)
             {
@@ -66,6 +71,11 @@ namespace Subterra
             if (__state != null)
             {
                 height.SetValue(__instance, __state.Value);
+            }
+
+            if (OceanHider.CameraUnderSeaLevelInRock && waterMesh?.GetValue(__instance) is MeshRenderer mesh && mesh != null)
+            {
+                mesh.enabled = false;
             }
         }
 

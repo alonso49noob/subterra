@@ -32,6 +32,17 @@ namespace Subterra.Core.Water
         /// <summary>Radius of the ceiling at <paramref name="latDeg"/>.</summary>
         public double CeilingRadius(double latDeg) => radius - CeilingDepth(latDeg);
 
+        /// <summary>Densities (kg/m³) of an ice ceiling and of a rock one (Tylo).</summary>
+        public const double IceDensity = 920, RockDensity = 2700;
+
+        /// <summary>
+        /// Pressure (kPa) the ceiling's weight puts on the water under it at <paramref name="latDeg"/>: its thickness ·
+        /// density · <paramref name="gravity"/> (Lucas: the pressure at the bottom counts the ice or rock above too). The
+        /// water's own weight is added on top of this.
+        /// </summary>
+        public double OverburdenKPa(double latDeg, double gravity) =>
+            CeilingDepth(latDeg) * (spec.CeilingRock ? RockDensity : IceDensity) * gravity / 1000;
+
         /// <summary>The water at <paramref name="bodyPos"/> (body frame), or null above the ceiling or under the floor.</summary>
         public WaterSample? At(Vec3d bodyPos)
         {

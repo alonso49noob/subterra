@@ -107,6 +107,16 @@ namespace Subterra.Core.Tests.Water
         }
 
         [Fact]
+        public void TheCeilingsWeightPressesOnTheWater()
+        {
+            // Vall's pole: 1 km of ice at 2.31 m/s² ≈ 2.1 MPa. Tylo's rock ceiling at its pole: 3 km of rock at 7.85 m/s² ≈ 64 MPa.
+            Assert.Equal(1000 * 920 * 2.31 / 1000, Vall().OverburdenKPa(90, 2.31), 3);
+            var tylo = new OceanShell(new OceanSpec { CeilingPole = 3000, CeilingEquator = 8000, Thickness = 50000, CeilingRock = true }, 600000);
+            Assert.Equal(3000 * 2700 * 7.85 / 1000, tylo.OverburdenKPa(90, 7.85), 3);
+            Assert.True(tylo.OverburdenKPa(0, 7.85) > tylo.OverburdenKPa(90, 7.85), "thicker at the equator");
+        }
+
+        [Fact]
         public void OceanNodeParses()
         {
             var spec = Subterra.Core.Config.BodySpecParser.Parse(Subterra.Core.Config.CfgText.Parse(
