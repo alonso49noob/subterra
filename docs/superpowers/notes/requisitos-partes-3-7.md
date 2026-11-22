@@ -499,3 +499,13 @@ de que lo tuvo. Propuesta [Claude, revisar]:
   hidrotermales petrificadas. Ciencia por todo ello; sirve para fechar el cataclismo (unidades geológicas, datación).
 - **Agua residual:** bolsas profundas de salmuera que sobrevivieron (acuífero fósil), sin océano global.
 - **El cataclismo:** fracturas profundas de impacto, roca fundida enterrada, cavernas abiertas por el choque.
+
+## Tal (OPM): luna de metal — pedido de Lucas, 2026-11-21
+
+Tal (22 km, sub-satélite de Wal) está hecha de metal. Propuesta [Claude, revisar]: el núcleo desnudo de un cuerpo
+que se rompió (una de las teorías sobre Psyche).
+- Grietas de contracción: el metal se encogió al enfriarse y dejó fisuras y huecos largos.
+- **Cavernas de cristales de metal** (seña única): las placas de hierro-níquel de los meteoritos metálicos
+  (patrón de Widmanstätten) en tamaño gigante, como una geoda de metal.
+- Recurso metálico, ciencia propia y una anomalía magnética detectable desde órbita (radar de alonso, parte 6).
+- Sin ferrovolcanismo (eso es para Zore y los asteroides metálicos grandes): Tal es demasiado pequeña.
