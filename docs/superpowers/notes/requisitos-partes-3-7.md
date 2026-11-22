@@ -467,3 +467,25 @@ Propuesta:
   necesita un marco que se mueve y gira con el asteroide, colisiones sobre él, y abrir bocas en su malla (no hay
   recorte de terreno PQS). Hace falta un puente con AsteroidalDetail (es mod de Lucas, D:\AsteroidalDetail):
   diseñarlo junto con la regla de capas de los asteroides grandes.
+
+## Pedidos de Lucas, 2026-11-21 (tanda grande)
+
+- **Moho:** cuevas muy profundas con otras entradas raras además del Mohole. Propuesta [Claude, revisar]: pozos de
+  colapso en las llanuras, "hollows" (huecos de sublimación como los de Mercurio) que dan a cavidades, grietas de los
+  escarpes lobulados (fallas de empuje) que bajan km, pozos en picos centrales de cráteres; redes de varios km de
+  profundidad, cada vez más calientes.
+- **Temperatura en geodas y cuevas que afecte a la nave:** hoy las piezas toman la temperatura de la roca (gradiente
+  geotérmico). Falta: zonas calientes de verdad (geodas tipo Naica, Moho profundo, cuevas volcánicas) y frías (hielo),
+  intercambio de calor más fuerte con la roca y el aire, y avisos. Piezas nuevas de refrigeración compactas
+  (propuesta: disipador de cambio de fase que se gasta y se recarga, refrigerador termoeléctrico eléctrico, radiador
+  de superficie pegado al casco).
+- **Gilly interconectado globalmente:** una red que atraviesa todo el cuerpo y une entradas de todo el globo
+  (generada con la semilla de Gilly, igual en todas las partidas).
+- **Tylo:** diversidad exclusiva de cuevas, de muchos tamaños y características (mezcla de estilos, más bóvedas
+  gigantes y pasajes estrechos que en ningún otro cuerpo).
+- **Generar más por procedimiento:** las redes ya son procedurales y fijas (semilla = cuerpo + campo + celda +
+  semilla del cfg). A mano solo están los sitios con nombre. Propuesta: generadores de sitios especiales por cuerpo
+  (deterministas) en vez de diseñarlos a mano; dejar pocos hitos hechos a mano.
+- **Océanos subsuperficiales variados:** fuentes hidrotermales, picos (montes submarinos), dorsales y otras
+  formas en el fondo y el techo, para que no sean monótonos.
+- **Presión en el fondo:** sumar la carga del hielo o la roca de encima (hoy solo se cuenta el agua bajo el techo).
