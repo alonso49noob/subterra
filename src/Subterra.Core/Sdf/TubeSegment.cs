@@ -40,6 +40,12 @@ namespace Subterra.Core.Sdf
 
         public Vec3 B { get; }
 
+        /// <summary>Straight distance (m) from floor centre a to b.</summary>
+        public float Length => length;
+
+        /// <summary>Tallest cross-section of the piece (m).</summary>
+        public float Height => Math.Max(heightA, heightB);
+
         public override float Distance(Vec3 p)
         {
             Vec3 ap = p - a;

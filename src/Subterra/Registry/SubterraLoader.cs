@@ -5,6 +5,7 @@ using System.Linq;
 using Subterra.Core.Config;
 using Subterra.Core.Geo;
 using Subterra.Core.Model;
+using Subterra.Core.Radar;
 using Subterra.Core.Tubes;
 using UnityEngine;
 
@@ -91,6 +92,9 @@ namespace Subterra
                     Log.Error($"SUBTERRA_BODY '{node.GetValue("body")}' skipped: {e}");
                 }
             }
+
+            // Sources registered for bodies that did not load have nowhere to go.
+            SubterraRadarApi.WarnUnattached();
         }
 
         private static void LoadBody(CfgNode node)
@@ -143,6 +147,11 @@ namespace Subterra
             PropLibrary.Preload(spec.Scatters);
             SkylightInjector.Inject(runtime);
             AnomalyRegistrar.Register(runtime);
+            runtime.NetworkTargets = new NetworkTargetSource(runtime.Catalog, runtime.Strata, new KspBiomeSampler(body));
+            runtime.Targets.Register(runtime.NetworkTargets);
+            // Water in the caves is a radar target too (ruling R27), next to the networks themselves.
+            runtime.Targets.Register(new CaveWaterTargetSource(runtime.Catalog, runtime.Strata, new KspBiomeSampler(body)));
+            SubterraRadarApi.Attach(runtime);
             BodyRegistry.Instance.Add(runtime);
             Log.Info($"Loaded body {spec.Body}: {runtime.Catalog.Named.Count} sites, {spec.Fields.Count} fields");
         }

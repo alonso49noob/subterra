@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using Subterra.Core.Excavation;
 using Subterra.Core.Model;
@@ -35,9 +36,9 @@ namespace Subterra.DevTools
             StepRegistry.RegisterAssertion("networkHasZone", NetworkHasZone);
         }
 
-        // addModule module = ModuleSubterraCoreDrill pitch = -20 <any KSPField = value> â adds the module to the
+        // addModule module = ModuleSubterraCoreDrill pitch = -20 <any KSPField = value> — adds the module to the
         // tracked vessel's root part, loads the given fields, starts it. pitch (degrees, borer only) sets
-        // digAxis to the vessel's forward direction turned up (+) or down (â).
+        // digAxis to the vessel's forward direction turned up (+) or down (−).
         private static IEnumerator AddModule(ConfigNode node, TestContext ctx)
         {
             Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
@@ -74,18 +75,47 @@ namespace Subterra.DevTools
             ctx.Pass($"{name} on {root.partInfo.title}");
         }
 
-        // moduleEvent module = ModuleSubterraCoreDrill event = StartDrilling â runs a module's KSPEvent.
+        // moduleEvent module = ModuleSubterraCoreDrill event = StartDrilling — runs a module's KSPEvent.
+        // With all = true it runs on every module of that name on the tracked vessel (not only the first); with
+        // part = SubterraEco on the first one on a part of that name.
         private static IEnumerator ModuleEvent(ConfigNode node, TestContext ctx)
         {
-            PartModule module = Find(ctx, node.RequireArg("module"));
+            string moduleName = node.RequireArg("module");
             string name = node.RequireArg("event");
-            BaseEvent e = module.Events[name] ?? throw new ArgumentException($"no event {name}");
-            e.Invoke();
+            var modules = new List<PartModule>();
+            if (node.ArgBool("all", false))
+            {
+                Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+                modules.AddRange(vessel.parts.SelectMany(p => p.Modules.Cast<PartModule>()).Where(m => m.moduleName == moduleName));
+                if (modules.Count == 0)
+                {
+                    throw new InvalidOperationException($"no {moduleName} on {vessel.GetDisplayName()}");
+                }
+            }
+            else if (node.HasValue("part"))
+            {
+                Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+                string partName = node.RequireArg("part");
+                modules.Add(vessel.parts.Where(p => p.partInfo != null && p.partInfo.name == partName)
+                    .SelectMany(p => p.Modules.Cast<PartModule>()).FirstOrDefault(m => m.moduleName == moduleName)
+                    ?? throw new InvalidOperationException($"no {moduleName} on a {partName} of {vessel.GetDisplayName()}"));
+            }
+            else
+            {
+                modules.Add(Find(ctx, moduleName));
+            }
+
+            foreach (PartModule module in modules)
+            {
+                BaseEvent e = module.Events[name] ?? throw new ArgumentException($"no event {name}");
+                e.Invoke();
+            }
+
             yield return null;
-            ctx.Pass($"{module.moduleName}.{name}");
+            ctx.Pass($"{moduleName}.{name} x{modules.Count}");
         }
 
-        // addResource name = Water max = 50 amount = 0 â a tank of that resource on the tracked vessel's root part.
+        // addResource name = Water max = 50 amount = 0 — a tank of that resource on the tracked vessel's root part.
         private static IEnumerator AddResource(ConfigNode node, TestContext ctx)
         {
             Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
@@ -105,10 +135,10 @@ namespace Subterra.DevTools
             ctx.Pass($"{name} tank on {vessel.rootPart.partInfo.title}");
         }
 
-        // objectExists prefix = SubterraBlastRings â a live GameObject whose name starts with that.
+        // objectExists prefix = SubterraBlastRings — a live GameObject whose name starts with that.
         private static bool ObjectExists(ConfigNode node, TestContext ctx) => CountObjects(node, ctx) > 0;
 
-        // objectGone prefix = SubterraBlastRings â no live GameObject whose name starts with that.
+        // objectGone prefix = SubterraBlastRings — no live GameObject whose name starts with that.
         private static bool ObjectGone(ConfigNode node, TestContext ctx) => CountObjects(node, ctx) == 0;
 
         private static int CountObjects(ConfigNode node, TestContext ctx)
@@ -119,7 +149,7 @@ namespace Subterra.DevTools
             return count;
         }
 
-        // componentExists type = ProfileWindow â a live component of that type (simple name).
+        // componentExists type = ProfileWindow — a live component of that type (simple name).
         private static bool ComponentExists(ConfigNode node, TestContext ctx)
         {
             string type = node.RequireArg("type");
@@ -128,7 +158,7 @@ namespace Subterra.DevTools
             return count > 0;
         }
 
-        // resourceAtLeast name = Water min = 0.1 â the tracked vessel holds at least that much.
+        // resourceAtLeast name = Water min = 0.1 — the tracked vessel holds at least that much.
         private static bool ResourceAtLeast(ConfigNode node, TestContext ctx)
         {
             Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
@@ -139,7 +169,7 @@ namespace Subterra.DevTools
             return amount >= node.ArgDouble("min", 0.1);
         }
 
-        // setField module = ModuleSubterraTunnelBorer field = baseRate value = 5 â sets a KSPField of a module on the tracked vessel.
+        // setField module = ModuleSubterraTunnelBorer field = baseRate value = 5 — sets a KSPField of a module on the tracked vessel.
         private static IEnumerator SetField(ConfigNode node, TestContext ctx)
         {
             PartModule module = Find(ctx, node.RequireArg("module"));
@@ -151,7 +181,7 @@ namespace Subterra.DevTools
             ctx.Pass($"{module.moduleName}.{field} = {module.Fields[field]?.GetValue(module)}");
         }
 
-        // teleportIntoTunnel along = 0.6 up = 1.5 â puts the tracked vessel inside the borer's tunnel, at that fraction
+        // teleportIntoTunnel along = 0.6 up = 1.5 — puts the tracked vessel inside the borer's tunnel, at that fraction
         // of its length, up metres over its floor, upright and facing along it (no roll: wheels on the floor).
         private static IEnumerator TeleportIntoTunnel(ConfigNode node, TestContext ctx)
         {
@@ -191,10 +221,10 @@ namespace Subterra.DevTools
             body.GetLatLonAlt(vessel.transform.position, out vessel.latitude, out vessel.longitude, out vessel.altitude);
             TestContext.RestOrbitHere(vessel);
             yield return null;
-            ctx.Pass(Invariant($"{vessel.GetDisplayName()} in {tunnel.Id} at {along:P0} of its {length:F1} m (slope {slope:F0}Â°), altitude {vessel.altitude:F1} m"));
+            ctx.Pass(Invariant($"{vessel.GetDisplayName()} in {tunnel.Id} at {along:P0} of its {length:F1} m (slope {slope:F0}°), altitude {vessel.altitude:F1} m"));
         }
 
-        // aimLaser site = DevGeode node = 0 â aims the tracked vessel's laser (heading from its nose, elevation) at that
+        // aimLaser site = DevGeode node = 0 — aims the tracked vessel's laser (heading from its nose, elevation) at that
         // network node's middle.
         private static IEnumerator AimLaser(ConfigNode node, TestContext ctx)
         {
@@ -208,10 +238,10 @@ namespace Subterra.DevTools
             laser.elevation = Mathf.Asin(Mathf.Clamp(Vector3.Dot(dir, up), -1f, 1f)) * Mathf.Rad2Deg;
             laser.heading = Vector3.SignedAngle(nose, Vector3.ProjectOnPlane(dir, up), up);
             yield return null;
-            ctx.Pass(Invariant($"laser aimed at {net.Id}: heading {laser.heading:F0}Â°, elevation {laser.elevation:F0}Â°"));
+            ctx.Pass(Invariant($"laser aimed at {net.Id}: heading {laser.heading:F0}°, elevation {laser.elevation:F0}°"));
         }
 
-        // partExists name = SubterraCoreDrill â the part was loaded (its cfg and modules parse).
+        // partExists name = SubterraCoreDrill — the part was loaded (its cfg and modules parse).
         private static bool PartExists(ConfigNode node, TestContext ctx)
         {
             string name = node.RequireArg("name");
@@ -229,7 +259,7 @@ namespace Subterra.DevTools
             return part != null && part.partPrefab.Modules.Cast<PartModule>().Any(m => m.moduleName == module);
         }
 
-        // drillDepthAtLeast min = 50 â the core drill's hole is at least that deep.
+        // drillDepthAtLeast min = 50 — the core drill's hole is at least that deep.
         private static bool DrillDepthAtLeast(ConfigNode node, TestContext ctx)
         {
             var drill = (ModuleSubterraCoreDrill)Find(ctx, nameof(ModuleSubterraCoreDrill));
@@ -238,7 +268,7 @@ namespace Subterra.DevTools
             return drill.Depth >= min;
         }
 
-        // drillLayer name = MareBasalt â the layer at the bottom of the hole.
+        // drillLayer name = MareBasalt — the layer at the bottom of the hole.
         private static bool DrillLayer(ConfigNode node, TestContext ctx)
         {
             var drill = (ModuleSubterraCoreDrill)Find(ctx, nameof(ModuleSubterraCoreDrill));
@@ -247,7 +277,7 @@ namespace Subterra.DevTools
             return drill.Layer?.Name == expected;
         }
 
-        // coreSample subject = subterraCoreSample@MunSrfLandedMareBasalt â takes a sample (closing the dialog) and checks its subject.
+        // coreSample subject = subterraCoreSample@MunSrfLandedMareBasalt — takes a sample (closing the dialog) and checks its subject.
         private static bool CoreSample(ConfigNode node, TestContext ctx)
         {
             var drill = (ModuleSubterraCoreDrill)Find(ctx, nameof(ModuleSubterraCoreDrill));
@@ -268,7 +298,7 @@ namespace Subterra.DevTools
             return data.Any(d => d.subjectID == expected);
         }
 
-        // tunnelLengthAtLeast min = 3 â the borer's tunnel is at least that long.
+        // tunnelLengthAtLeast min = 3 — the borer's tunnel is at least that long.
         private static bool TunnelLengthAtLeast(ConfigNode node, TestContext ctx)
         {
             var borer = (ModuleSubterraLaser)Find(ctx, nameof(ModuleSubterraLaser));
@@ -286,7 +316,7 @@ namespace Subterra.DevTools
             return length >= node.ArgDouble("min", 1);
         }
 
-        // tunnelJoined to = site:DevTube â the borer's tunnel joined that network.
+        // tunnelJoined to = site:DevTube — the borer's tunnel joined that network.
         private static bool TunnelJoined(ConfigNode node, TestContext ctx)
         {
             var borer = (ModuleSubterraLaser)Find(ctx, nameof(ModuleSubterraLaser));
@@ -295,7 +325,7 @@ namespace Subterra.DevTools
             return borer.Tunnel?.JoinedTo == expected;
         }
 
-        // networkHasZone id = site:DevTube zone = Excavation â the catalog's network has a primitive of that zone.
+        // networkHasZone id = site:DevTube zone = Excavation — the catalog's network has a primitive of that zone.
         private static bool NetworkHasZone(ConfigNode node, TestContext ctx)
         {
             Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");

@@ -15,6 +15,17 @@ namespace Subterra.DevTools
             StepRegistry.Register("floodlight", Floodlight);
             StepRegistry.Register("trace", Trace);
             StepRegistry.Register("cheats", Cheats);
+            StepRegistry.Register("renameVessel", RenameVessel);
+        }
+
+        // renameVessel name = Radar A - renames the active vessel, so several copies of one craft can be told apart by
+        // switchTo and the radar assertions.
+        private static IEnumerator RenameVessel(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel ?? throw new InvalidOperationException("no active vessel");
+            vessel.vesselName = node.RequireArg("name");
+            yield return null;
+            ctx.Pass("active vessel is now " + vessel.GetDisplayName());
         }
 
         // lights on = true — the tracked vessel's Light action group (its lamps).

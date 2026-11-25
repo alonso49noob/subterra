@@ -26,6 +26,12 @@ namespace Subterra
         public const int MaxFaults = 20;
         private static bool applied;
 
+        /// <summary>
+        /// Raised, with the group id, at the moment a group ends up not running: disabled in Settings.cfg, failed to
+        /// apply, or switched off after too many faults. Lets a group that others depend on say so once.
+        /// </summary>
+        public static event Action<string> Inactive;
+
         public static IReadOnlyDictionary<string, PatchStatus> Status => status;
 
         /// <summary>
@@ -45,6 +51,7 @@ namespace Subterra
             {
                 status[id] = PatchStatus.Failed;
                 Log.Error($"Patch '{id}' switched off after {MaxFaults} errors");
+                Inactive?.Invoke(id);
                 try
                 {
                     harmony.UnpatchAll(harmony.Id);
@@ -75,6 +82,7 @@ namespace Subterra
             {
                 status[id] = PatchStatus.Disabled;
                 Log.Info($"Patch '{id}' disabled in Settings.cfg");
+                Inactive?.Invoke(id);
                 return;
             }
 
@@ -89,6 +97,7 @@ namespace Subterra
             {
                 status[id] = PatchStatus.Failed;
                 Log.Error($"Patch '{id}' failed and is off: {e.GetType().Name}: {e.Message}");
+                Inactive?.Invoke(id);
                 try
                 {
                     harmony.UnpatchAll(harmony.Id);
@@ -114,6 +123,7 @@ namespace Subterra
                 {
                     status[id] = PatchStatus.Disabled;
                     Log.Info($"Patch '{id}' disabled in Settings.cfg");
+                    Inactive?.Invoke(id);
                     continue;
                 }
 
@@ -128,6 +138,7 @@ namespace Subterra
                 {
                     status[id] = PatchStatus.Failed;
                     Log.Error($"Patch '{id}' failed and is off: {e.GetType().Name}: {e.Message}");
+                    Inactive?.Invoke(id);
                     try
                     {
                         harmony.UnpatchAll(harmony.Id);

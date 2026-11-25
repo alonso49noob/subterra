@@ -54,6 +54,9 @@ namespace Subterra
         public bool WaterCrush;
         public int MaxTunnelSegments = 5000;
         public float VoidStrengthMPa = 150;
+
+        /// <summary>Radar overlay (scanned ground, hints and detections) on the focused body in the map view and the Tracking Station, with its toolbar button.</summary>
+        public bool RadarOverlay = true;
         public HashSet<string> DisabledBodies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> DisabledPatches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -82,6 +85,7 @@ namespace Subterra
                 settings.WaterCrush = ReadBool(n, "waterCrush", settings.WaterCrush);
                 settings.MaxTunnelSegments = (int)Math.Max(0, Read(n, "maxTunnelSegments", settings.MaxTunnelSegments));
                 settings.VoidStrengthMPa = (float)Math.Max(1, Read(n, "voidStrengthMPa", settings.VoidStrengthMPa));
+                settings.RadarOverlay = ReadBool(n, "radarOverlay", settings.RadarOverlay);
                 foreach (string body in Split(n.GetValue("disabledBodies")))
                 {
                     settings.DisabledBodies.Add(body);

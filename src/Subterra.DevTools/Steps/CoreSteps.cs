@@ -511,8 +511,48 @@ namespace Subterra.DevTools
                 camera.camHdg = (float)(node.ArgDouble("heading", 0) * Math.PI / 180);
             }
 
+            string aim = "";
+            if (node.HasValue("awayFromSkylight"))
+            {
+                // awayFromSkylight = SerenitySkylight - turns the camera (around the vessel) to the side opposite the first
+                // skylight of that site, so the skylight is seen beyond the vessel. KSP's heading is relative to the vessel
+                // and its sign is not known here, so the camera is measured at two headings and the third is computed.
+                Vessel vessel = FlightGlobals.ActiveVessel ?? throw new InvalidOperationException("no active vessel");
+                var site = new ConfigNode();
+                site.AddValue("site", node.RequireArg("awayFromSkylight"));
+                Subterra.Core.Tubes.TubeNetwork net = NetworkSteps.FindNetwork(site, vessel, out _);
+                if (net.Skylights.Count == 0)
+                {
+                    throw new InvalidOperationException(net.Id + " has no skylight");
+                }
+
+                CelestialBody body = vessel.mainBody;
+                Vector3 skylight = (Vector3)Subterra.Frames.ToWorld(body, net.ToBody(net.Skylights[0].SurfaceCenter));
+                Vector3 pivot = camera.GetPivot().position;
+                Vector3 up = (pivot - (Vector3)body.position).normalized;
+                Vector3 wanted = Vector3.ProjectOnPlane(pivot - skylight, up);
+                float AngleOff() => Vector3.SignedAngle(wanted, Vector3.ProjectOnPlane(camera.transform.position - camera.GetPivot().position, up), up);
+                yield return null;
+                yield return null;
+                float h0 = camera.camHdg, a0 = AngleOff();
+                camera.camHdg = h0 + 1f;
+                yield return null;
+                yield return null;
+                float a1 = AngleOff();
+                float rate = Mathf.DeltaAngle(a0, a1); // degrees per radian of heading
+                // A heading that hardly moved the camera (rate ~ 0) gives nothing to extrapolate from: leave it at the probe.
+                if (Mathf.Abs(rate) > 1f)
+                {
+                    camera.camHdg = h0 + 1f - a1 / rate;
+                }
+
+                yield return null;
+                yield return null;
+                aim = Invariant($", away from {net.Id} skylight: probes {a0:F0} then {a1:F0} deg off, now {AngleOff():F0} deg off, skylight {(skylight - pivot).magnitude:F0} m from the pivot");
+            }
+
             yield return null;
-            ctx.Pass(Invariant($"distance {camera.Distance:F1} m, pitch {camera.camPitch * 180 / Math.PI:F0}, heading {camera.camHdg * 180 / Math.PI:F0}"));
+            ctx.Pass(Invariant($"distance {camera.Distance:F1} m, pitch {camera.camPitch * 180 / Math.PI:F0}, heading {camera.camHdg * 180 / Math.PI:F0}") + aim);
         }
 
         // screenshot name = smoke — the frame as shown, UI included, to <ResultsDir>/<name>.png.
@@ -553,7 +593,7 @@ namespace Subterra.DevTools
             ctx.Pass($"{name}.png {width}x{height}");
         }
 
-        // scene name = KSC|MainMenu — leaving flight first saves the persistent game, like the pause menu.
+        // scene name = KSC|TrackingStation|MainMenu - leaving flight first saves the persistent game, like the pause menu.
         private static IEnumerator Scene(ConfigNode node, TestContext ctx)
         {
             string name = node.RequireArg("name");
@@ -566,9 +606,13 @@ namespace Subterra.DevTools
             {
                 target = GameScenes.MAINMENU;
             }
+            else if (string.Equals(name, "TrackingStation", StringComparison.OrdinalIgnoreCase))
+            {
+                target = GameScenes.TRACKSTATION;
+            }
             else
             {
-                throw new ArgumentException("name must be KSC or MainMenu");
+                throw new ArgumentException("name must be KSC, TrackingStation or MainMenu");
             }
 
             if (HighLogic.LoadedScene == target)

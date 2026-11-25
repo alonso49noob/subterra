@@ -92,6 +92,36 @@ namespace Subterra.Core.Tests.Procedural
         }
 
         [Fact]
+        public void VersionRisesWithEveryChangeOfTheNetworks()
+        {
+            var catalog = new NetworkCatalog(Spec(true), R);
+            int v = catalog.Version;
+            TubeNetwork named = Net("Named", 10), inCell = Net("InCell", 40), dug = Net("Dug", 70);
+
+            void Changed(string what)
+            {
+                Assert.True(catalog.Version > v, what + " must raise Version");
+                v = catalog.Version;
+            }
+
+            catalog.AddNamed(named);
+            Changed("AddNamed");
+            catalog.AddCell(catalog.Grid.CellOf(BodyFrame.Direction(0, 40)), new List<TubeNetwork> { inCell });
+            Changed("AddCell");
+            catalog.PutDug(dug);
+            Changed("PutDug");
+            Assert.True(catalog.Replace(named.WithPrimitives(new List<Subterra.Core.Sdf.Primitive>(), new Subterra.Core.Numerics.Vec3d[0], new double[0])));
+            Changed("Replace");
+            Assert.True(catalog.RemoveDug(dug.Id));
+            Changed("RemoveDug");
+
+            // Reading, or a change that did nothing, leaves it alone.
+            Assert.False(catalog.RemoveDug(dug.Id));
+            Assert.False(catalog.Replace(Net("Unknown", 100)));
+            Assert.Equal(v, catalog.Version);
+        }
+
+        [Fact]
         public void NoFieldsNoMissingCells() =>
             Assert.Empty(new NetworkCatalog(Spec(false), R).MissingCellsNear(BodyFrame.Direction(0, 10) * R, 60000));
     }

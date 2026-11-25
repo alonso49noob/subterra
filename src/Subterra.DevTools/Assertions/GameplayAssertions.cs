@@ -23,6 +23,7 @@ namespace Subterra.DevTools
             StepRegistry.RegisterAssertion("subjectValueRatio", SubjectValueRatio);
             StepRegistry.RegisterAssertion("abundanceRatio", AbundanceRatio);
             StepRegistry.RegisterAssertion("abundanceAtLeast", AbundanceAtLeast);
+            StepRegistry.RegisterAssertion("abundanceAtMost", AbundanceAtMost);
             StepRegistry.RegisterAssertion("discovered", Discovered);
             StepRegistry.RegisterAssertion("waypointCount", WaypointCount);
             StepRegistry.RegisterAssertion("scansatAnomaly", ScansatAnomaly);
@@ -166,20 +167,83 @@ namespace Subterra.DevTools
             return surface > 0 && Math.Abs(inside / surface - expected) < 0.02;
         }
 
-        // abundanceAtLeast resource = Water min = 0.05 — abundance at the vessel.
-        private static bool AbundanceAtLeast(ConfigNode node, TestContext ctx)
+        // The abundance an assertion looks at: at the tracked vessel (its altitude), or, with body = Mun lat = 5 lon = 20,
+        // at that point of that body (altitude 0, no variance: the same request SCANsat makes).
+        private static bool TryAbundance(ConfigNode node, TestContext ctx, string resource, out double value)
         {
-            Vessel v = ctx.TrackedVessel;
-            if (v == null || ResourceMap.Instance == null)
+            value = 0;
+            if (ResourceMap.Instance == null)
             {
-                ctx.Detail = "no vessel or resource map";
+                ctx.Detail = "no resource map";
                 return false;
             }
 
-            string resource = node.Arg("resource", "Water");
-            double value = Abundance(v, resource, v.altitude);
+            if (node.HasValue("body"))
+            {
+                string bodyName = node.Arg("body");
+                CelestialBody body = FlightGlobals.GetBodyByName(bodyName);
+                if (body == null)
+                {
+                    ctx.Detail = "unknown body " + bodyName;
+                    return false;
+                }
+
+                double lat = node.ArgDouble("lat", 0), lon = node.ArgDouble("lon", 0);
+                value = ResourceMap.Instance.GetAbundance(new AbundanceRequest
+                {
+                    Latitude = lat,
+                    Longitude = lon,
+                    Altitude = 0,
+                    BodyId = body.flightGlobalsIndex,
+                    ResourceName = resource,
+                    ResourceType = HarvestTypes.Planetary,
+                    CheckForLock = false,
+                    ExcludeVariance = false,
+                });
+                ctx.Detail = Invariant($"{resource} {value:F4} at {bodyName} lat {lat:F2} lon {lon:F2}");
+                return true;
+            }
+
+            Vessel v = ctx.TrackedVessel;
+            if (v == null)
+            {
+                ctx.Detail = "no vessel";
+                return false;
+            }
+
+            value = Abundance(v, resource, v.altitude);
             ctx.Detail = Invariant($"{resource} {value:F4}");
-            return value >= node.ArgDouble("min", 0) - 1e-6;
+            return true;
+        }
+
+        // abundanceAtLeast resource = Water min = 0.05 — abundance at the vessel; with body = Mun lat = 5 lon = 20 at that
+        // point instead. value is another name for min.
+        private static bool AbundanceAtLeast(ConfigNode node, TestContext ctx)
+        {
+            string resource = node.Arg("resource", "Water");
+            if (!TryAbundance(node, ctx, resource, out double value))
+            {
+                return false;
+            }
+
+            double min = node.ArgDouble("min", node.ArgDouble("value", 0));
+            ctx.Detail += Invariant($" (at least {min:F4})");
+            return value >= min - 1e-6;
+        }
+
+        // abundanceAtMost resource = SubterraCavity body = Mun lat = -40 lon = -100 value = 0 — the abundance there is at
+        // most that (max is another name for value).
+        private static bool AbundanceAtMost(ConfigNode node, TestContext ctx)
+        {
+            string resource = node.Arg("resource", "Water");
+            if (!TryAbundance(node, ctx, resource, out double value))
+            {
+                return false;
+            }
+
+            double max = node.ArgDouble("max", node.ArgDouble("value", 0));
+            ctx.Detail += Invariant($" (at most {max:F4})");
+            return value <= max + 1e-6;
         }
 
         // discovered id = MN-0427|nearest — the network (nearest = the one the vessel is in) is recorded as discovered.

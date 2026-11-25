@@ -19,5 +19,9 @@ namespace Subterra
             body.position + (QuaternionD)body.pqsController.transform.rotation * bodyPos.ToKsp();
 
         public static Vector3 DirectionToWorld(CelestialBody body, Vec3 dir) => body.pqsController.transform.rotation * dir.ToUnity();
+
+        /// <summary>A world-space direction in body coordinates (the inverse of the rotation part of <see cref="ToBody"/>).</summary>
+        public static Vec3d DirectionToBody(CelestialBody body, Vector3d worldDir) =>
+            (QuaternionD.Inverse(body.pqsController.transform.rotation) * worldDir).ToCore();
     }
 }

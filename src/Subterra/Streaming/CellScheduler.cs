@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Subterra.Core.Geo;
 using Subterra.Core.Model;
+using Subterra.Core.Numerics;
 using Subterra.Core.Procedural;
 using Subterra.Core.Tubes;
 using UnityEngine;
@@ -13,7 +14,9 @@ namespace Subterra
     /// <summary>
     /// Generates the procedural networks of the cells near the camera (60 km): heights and biomes are
     /// sampled on the main thread in 2 ms slices, generation and compilation run on the worker pool.
-    /// Also pumps the pool's main-thread queue every frame.
+    /// Also pumps the pool's main-thread queue every frame. Cells of any body can also be asked for with
+    /// <see cref="Request"/> (the radar's lazy detection): those wait in a low-priority queue served only when no
+    /// cell near the camera is missing.
     /// </summary>
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public sealed class CellScheduler : MonoBehaviour
@@ -30,6 +33,9 @@ namespace Subterra
         private const double MaxAltitude = 25000;
 
         private readonly HashSet<(string, CellId)> inProgress = new HashSet<(string, CellId)>();
+
+        // Low-priority requests: the active body's cells nearest the active vessel first, then the other bodies'.
+        private readonly CellRequestQueue<BodyRuntime> requests = new CellRequestQueue<BodyRuntime>();
         private float nextCheck;
 
         public static CellScheduler Instance { get; private set; }
@@ -37,6 +43,31 @@ namespace Subterra
         public int CellsInProgress => inProgress.Count;
 
         public int CellsGenerated { get; private set; }
+
+        /// <summary>Requested cells still waiting in the low-priority queue.</summary>
+        public int CellsRequested => requests.Count;
+
+        /// <summary>
+        /// Asks for a cell's networks at low priority: the request waits until no cell near the camera is missing,
+        /// fewer than <see cref="MaxConcurrentCells"/> cells are being generated and time runs at most
+        /// <see cref="MaxWarpRate"/>x. It ignores <see cref="MaxAltitude"/> and may be for any body (sampling a body
+        /// that is not the current one gives the same results, M0 task 4 / ruling R11). A cell already generated,
+        /// being generated or already waiting is not queued again; the cell's networks arrive through
+        /// <see cref="NetworksAdded"/> like any other cell's.
+        /// </summary>
+        public void Request(BodyRuntime runtime, CellId cell)
+        {
+            if (runtime == null || runtime.Spec.Fields.Count == 0 || runtime.Catalog.IsCellReady(cell))
+            {
+                return;
+            }
+
+            string body = runtime.Body.bodyName;
+            if (!inProgress.Contains((body, cell)))
+            {
+                requests.Add(body, cell, runtime.Catalog.Grid, runtime);
+            }
+        }
 
         private void Awake()
         {
@@ -68,33 +99,93 @@ namespace Subterra
                 }
 
                 nextCheck = Time.realtimeSinceStartup + 1f;
-                CelestialBody body = FlightGlobals.currentMainBody;
-                if (!BodyRegistry.Instance.TryGet(body, out BodyRuntime runtime) || runtime.Spec.Fields.Count == 0)
-                {
-                    return;
-                }
 
                 // Not while time runs fast (the ground track sweeps cell after cell: the sampling and the terrain cuts
-                // dropped frames) nor high above the ground (nothing there is close enough to need networks yet).
-                Vessel active = FlightGlobals.ActiveVessel;
-                if (TimeWarp.CurrentRate > MaxWarpRate || (active != null && active.altitude - Math.Max(0, active.terrainAltitude) > MaxAltitude))
+                // dropped frames); this holds for requested cells too.
+                if (TimeWarp.CurrentRate > MaxWarpRate)
                 {
                     return;
                 }
 
-                var camera = Frames.ToBody(body, FlightCamera.fetch.mainCamera.transform.position);
-                foreach (CellId cell in runtime.Catalog.MissingCellsNear(camera, Radius))
+                if (StartNearbyCells())
                 {
-                    if (inProgress.Count >= MaxConcurrentCells)
-                    {
-                        break;
-                    }
-
-                    if (inProgress.Add((body.bodyName, cell)))
-                    {
-                        StartCoroutine(Generate(runtime, cell));
-                    }
+                    return;
                 }
+
+                StartRequestedCells();
+            }
+        }
+
+        // Starts the missing cells near the camera, as many as the cap allows. True if some cell near the camera is
+        // still missing (being generated or waiting for a free slot): requested cells wait for those.
+        private bool StartNearbyCells()
+        {
+            CelestialBody body = FlightGlobals.currentMainBody;
+            if (!BodyRegistry.Instance.TryGet(body, out BodyRuntime runtime) || runtime.Spec.Fields.Count == 0)
+            {
+                return false;
+            }
+
+            // Not high above the ground (nothing there is close enough to need networks yet).
+            Vessel active = FlightGlobals.ActiveVessel;
+            if (active != null && active.altitude - Math.Max(0, active.terrainAltitude) > MaxAltitude)
+            {
+                return false;
+            }
+
+            bool missing = false;
+            var camera = Frames.ToBody(body, FlightCamera.fetch.mainCamera.transform.position);
+            foreach (CellId cell in runtime.Catalog.MissingCellsNear(camera, Radius))
+            {
+                missing = true;
+                if (inProgress.Count >= MaxConcurrentCells)
+                {
+                    break;
+                }
+
+                if (inProgress.Add((body.bodyName, cell)))
+                {
+                    StartCoroutine(Generate(runtime, cell));
+                }
+            }
+
+            return missing;
+        }
+
+        // Starts one requested cell if there is a free slot: the current body's first, nearest the active vessel (or
+        // the camera) first; other bodies' in the order they were asked for (ruling R26). One per check (a second):
+        // starting a cell samples its first slice in the same frame, and a cell takes about a second anyway
+        // (decidido por Claude, revisar).
+        private void StartRequestedCells()
+        {
+            if (requests.Count == 0 || inProgress.Count >= MaxConcurrentCells)
+            {
+                return;
+            }
+
+            // Only a Subterra body can have queued cells (and a PQS to measure from); around any other body (Jool) the
+            // queue is served in the order asked.
+            CelestialBody main = FlightGlobals.currentMainBody;
+            string activeBody = null;
+            Vec3d direction = Vec3d.Zero;
+            if (BodyRegistry.Instance.TryGet(main, out _) && main.pqsController != null)
+            {
+                Vessel active = FlightGlobals.ActiveVessel;
+                Vector3d world = active != null ? active.GetWorldPos3D() : (Vector3d)FlightCamera.fetch.mainCamera.transform.position;
+                direction = Frames.ToBody(main, world);
+                activeBody = main.bodyName;
+            }
+
+            while (inProgress.Count < MaxConcurrentCells
+                && requests.TryTake(activeBody, direction, out string body, out CellId cell, out BodyRuntime runtime))
+            {
+                if (runtime.Catalog.IsCellReady(cell) || !inProgress.Add((body, cell)))
+                {
+                    continue;
+                }
+
+                StartCoroutine(Generate(runtime, cell));
+                return;
             }
         }
 
