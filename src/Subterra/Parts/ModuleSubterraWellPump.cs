@@ -49,7 +49,7 @@ namespace Subterra
 
         private void FixedUpdate()
         {
-            if (!HighLogic.LoadedSceneIsFlight || vessel == null || !vessel.loaded)
+            if (!HighLogic.LoadedSceneIsFlight || vessel == null || !vessel.loaded || Off)
             {
                 return;
             }
@@ -74,6 +74,12 @@ namespace Subterra
             List<KeyValuePair<string, double>> yields = layer == null
                 ? new List<KeyValuePair<string, double>>()
                 : layer.Yields.Where(y => PartResourceLibrary.Instance.GetDefinition(y.Key) != null).ToList();
+            // A hole into a flooded cave: its water comes up (Lucas: pump from caves and lakes the hole breaks into).
+            if (drill != null && PartResourceLibrary.Instance.GetDefinition("Water") != null && drill.HoleReachesWater())
+            {
+                yields.Add(new KeyValuePair<string, double>("Water", CaveWaterRate));
+            }
+
             // Gas a drill struck comes up too, until the pocket is empty.
             bool gas = drill != null && drill.gasLeft > 0 && PartResourceLibrary.Instance.GetDefinition(drill.gasResource) != null;
             if (gas)
@@ -119,10 +125,26 @@ namespace Subterra
         /// <summary>Units per second (times pumpRate) drawn from a gas pocket (decidido por Claude, revisar).</summary>
         private const double GasRate = 0.5;
 
-        private void UpdateEvents()
+        /// <summary>Water per second (times pumpRate) from a flooded cave the hole broke into.</summary>
+        private const double CaveWaterRate = 0.05;
+
+        private void UpdateEvents() => RefreshEvents();
+
+        // On a stock drill the pump is one of its borehole tools: hidden (and idle) while borehole mode is off.
+        private bool Off => part.FindModuleImplementing<ModuleSubterraCoreDrill>() is ModuleSubterraCoreDrill drill && !drill.BoreholeActive;
+
+        internal void RefreshEvents()
         {
-            Events[nameof(StartPumping)].active = !pumping;
-            Events[nameof(StopPumping)].active = pumping;
+            bool off = Off;
+            if (off && pumping)
+            {
+                pumping = false;
+            }
+
+            Events[nameof(StartPumping)].active = !off && !pumping;
+            Events[nameof(StopPumping)].active = !off && pumping;
+            Fields[nameof(uiOutput)].guiActive = !off;
+            Fields[nameof(uiStatus)].guiActive = !off;
         }
     }
 }

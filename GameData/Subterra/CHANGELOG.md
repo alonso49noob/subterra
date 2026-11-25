@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Fixed (Lucas's play): craft dropping into a deep dug shaft were still killed ("crashed through terrain") right under
+  the mouth: KSP's check is skipped in and near voids.
+- Fixed: a shaft dug through Vall's ice into its ocean showed rock walls all through the water; walls stop at the
+  ice, and the ice ceiling's patch opens over holes (it closed the way back up).
+- Fixed: inside a shaft dug in the ice over an ocean the whole view went dark blue.
+- Water no longer crushes parts by default (`waterCrush` in Settings.cfg): it held testing and players back.
+- Borehole mode on the stock Drill-O-Matic Junior (drill, samples, vertical and horizontal blasting, pump); the stock
+  ore tanks can hold explosive; Subterra's SB-1, SB-P and magazine are kept hidden for saved crafts.
+- Horizontal blasting for vaults: rounds up to 40 m (200 m with infinite propellant), from inside a cave the hole
+  starts at the face; the round's blast is counted per delay.
+- The well pump draws 40 times more; it pumps the water of a flooded cave its hole breaks into; more yields
+  (Kerbin aquifers, Duna permafrost, methane and ammonia in icy bodies with CommunityResourcePack, Tylo's wet rock).
+- Explodium and explosive recipes in the stock Convert-O-Trons.
+- SB-K0/K1 evaporative coolers (inline): boil water to take heat out of the whole craft.
+- The drill string: a rod from the drill down its hole, seen where the hole crosses a cave.
+- A mole bore (or a laser aimed steeply down) opens a round hole, not a ramp trench.
+- One DLL for KSP 1.12.5 and Retooled (built against 1.12.5).
 - Cave sizes vary: most procedural networks keep their size, about 8% are giant vaults (about three times as wide,
   over twice as tall, under a thicker roof) and about 12% narrow crawls (4-8 m, for compact craft). Per field:
   `giantChance`, `narrowChance`. Deliberate change of the generated networks (sizes only, not where they are or

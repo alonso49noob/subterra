@@ -581,3 +581,27 @@ salmuera, carámbanos; Tylo: techo de roca, fondo de hielo de alta presión) y a
 - **Montañas submarinas con cuevas** en los océanos de estos cuerpos, explorables por las sondas que arme el jugador
   (núcleo diminuto + taladro tipo IceMole + motor de agua): tubos y grietas dentro de los montes, de tamaño para sondas
   pequeñas.
+
+## Rediseño visual de todas las piezas — pedido de Lucas, 2026-11-22
+
+"Rediseña cada pieza y que ojalá se vea cool". Hoy todas son modelos stock escalados (MiniDrill, foco, punto de anclaje,
+tanques RCS, cono, OKTO2, Puff). Propuesta [Claude, revisar]:
+- **Modelos procedurales en C#** (como ya se generan las rocas y texturas de las cuevas, sin Blender ni Python): un
+  módulo dibuja la geometría propia de cada pieza sobre un modelo stock mínimo que da el colisionador y los nodos.
+  Permite piezas que se mueven (el carrete del cabrestante gira y el cable sale de él; la lente del láser brilla y
+  apunta hacia donde dispara; la broca del taladro gira; aletas del enfriador que echan vapor).
+- Alternativa más simple: combinar varios modelos stock por pieza (varios MODEL con posición/rotación/escala) y cambiar
+  texturas stock.
+- Lista: SB-1 taladro, SB-P bomba, cargador de explosivos, SB-W cabrestante, SB-L1/L2 láseres, SB-C núcleo, SB-M topo,
+  SB-H motor de agua, SB-K0/K1 enfriadores.
+
+## Texturas por tipo de roca y bandas de capas — pedido de Lucas, 2026-11-22
+
+Hoy cada capa solo tiñe la textura de acantilado del cuerpo, y el tinte se elige por trozo de malla (los cambios de capa
+en un pozo van en bloques). Pedido: "hazlo cuando puedas". Propuesta [Claude, revisar]:
+- Texturas procedurales por tipo de roca, generadas en C# como las de las rocas de las cuevas: basalto vesicular,
+  caliza y arenisca con estratos, anortosita clara, hielo (translúcido, con burbujas), sal/evaporitas cristalinas,
+  regolito, metal (Tal, asteroides M), olivino (asteroides A). Cada LAYER elige su tipo (`texture = basalt` etc.).
+- Bandas por capa en las paredes: el color y la textura según la profundidad real de cada vértice (o del píxel en el
+  shader), no del centro del trozo; transición suave entre capas.
+- Encaja con las unidades geológicas (extras) y con el rediseño visual de las piezas.

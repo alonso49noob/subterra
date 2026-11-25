@@ -518,11 +518,12 @@ namespace Subterra
                 pending.Add(key);
                 int revision = RevisionOf(net.Id);
                 IReadOnlyList<ScatterSpec> scatterSpecs = runtime.Spec.Scatters;
+                Subterra.Core.Water.OceanShell ocean = runtime.Ocean;
                 WorkerPool.Shared.Enqueue(() =>
                 {
                     try
                     {
-                        MeshData data = MeshClip.DropAboveSurface(SurfaceNets.Build(net.Sdf.ForRegion(key.Bounds), key.Origin, key.CellSize, skirts: true), net);
+                        MeshData data = MeshClip.DropInOcean(MeshClip.DropAboveSurface(SurfaceNets.Build(net.Sdf.ForRegion(key.Bounds), key.Origin, key.CellSize, skirts: true), net), net, ocean);
                         MeshData collider = key.Lod == 0 && !data.IsEmpty ? WithoutSkirts(data) : null;
                         List<ScatterMesh> scatters = ScatterBuilder.Build(data, key, net, scatterSpecs);
                         if (!data.IsEmpty && MaterialFactory.Mode == RockShaderMode.BumpedSpecularBoxUv)
@@ -730,13 +731,13 @@ namespace Subterra
             }
 
             chunk.ColliderMesh = MeshUploader.Upload(chunk.ColliderData, chunk.Key + " collider", readable: true);
-            var ids = new List<int> { chunk.ColliderMesh.GetInstanceID() };
+            var ids = new List<object> { PhysicsBake.IdOf(chunk.ColliderMesh) };
             foreach (ChunkObject.ScatterPart part in chunk.Scatters)
             {
                 if (part.Data.Collider != null && !part.Data.Collider.IsEmpty)
                 {
                     part.ColliderMesh = MeshUploader.Upload(part.Data.Collider, chunk.Key + " " + part.Data.Model + " collider", readable: true);
-                    ids.Add(part.ColliderMesh.GetInstanceID());
+                    ids.Add(PhysicsBake.IdOf(part.ColliderMesh));
                 }
             }
 
@@ -747,9 +748,9 @@ namespace Subterra
                 Exception error = null;
                 try
                 {
-                    foreach (int id in ids)
+                    foreach (object id in ids)
                     {
-                        Physics.BakeMesh(id, false);
+                        PhysicsBake.Bake(id);
                     }
                 }
                 catch (Exception e)

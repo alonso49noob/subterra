@@ -141,7 +141,7 @@ BOP=(-54.6323 -109.1868 -54.2567 -108.5466)
 out=GameData/Subterra/Bodies/Bop/Bop.cfg; mkdir -p "$(dirname "$out")"
 {
 head_body Bop BP 140 "the insides of Bop, likely a captured comet: huge caverns of dirty ice (with something large and old deep inside)"
-layer DirtyIce 0 20000 0.35 1.0 0.5 "0.52,0.50,0.47" "*" "Water:0.03"
+layer DirtyIce 0 20000 0.35 1.0 0.5 "0.52,0.50,0.47" "*" "Water:0.03;LqdMethane:0.008"
 layer Core 20000 65000 0.6 1.6 0.3 "0.44,0.42,0.40"
 printf '\t}\n'
 # Bop's Cavern: a vast cavern under a valley, entered by a shaft; the Kraken nod is its sealed far end (dig to it).
@@ -172,7 +172,7 @@ icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed
   {
   head_body $body $prefix $temp "$comment"
   layer IceRegolith 0 5 0.2 0.95 0.5 "0.70,0.72,0.74"
-  layer WaterIce 5 8000 0.45 0.95 0.5 "0.64,0.68,0.72" "*" "Water:0.04"
+  layer WaterIce 5 8000 0.45 0.95 0.5 "0.64,0.68,0.72" "*" "Water:0.04;LqdMethane:0.005;Ammonia:0.005"
   layer RockyCore 8000 400000 0.85 3.0 0.3 "0.44,0.42,0.40"
   printf '\t}\n'
   site_head $name

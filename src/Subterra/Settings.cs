@@ -49,6 +49,9 @@ namespace Subterra
         /// <summary>The cheat menu's Set Position with a negative altitude (safety check off) carves a pocket the size of the vessel
         /// around it when it lands in solid rock.</summary>
         public bool CarveOnSetPosition = true;
+
+        /// <summary>Parts are crushed past their maxPressure in deep water (Lucas: off, it was a pain to test and held players back).</summary>
+        public bool WaterCrush;
         public int MaxTunnelSegments = 5000;
         public float VoidStrengthMPa = 150;
         public HashSet<string> DisabledBodies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -76,6 +79,7 @@ namespace Subterra
                 settings.WaterPhysics = ReadBool(n, "waterPhysics", settings.WaterPhysics);
                 settings.Ramps = ReadBool(n, "ramps", settings.Ramps);
                 settings.CarveOnSetPosition = ReadBool(n, "carveOnSetPosition", settings.CarveOnSetPosition);
+                settings.WaterCrush = ReadBool(n, "waterCrush", settings.WaterCrush);
                 settings.MaxTunnelSegments = (int)Math.Max(0, Read(n, "maxTunnelSegments", settings.MaxTunnelSegments));
                 settings.VoidStrengthMPa = (float)Math.Max(1, Read(n, "voidStrengthMPa", settings.VoidStrengthMPa));
                 foreach (string body in Split(n.GetValue("disabledBodies")))

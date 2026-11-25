@@ -31,6 +31,30 @@ namespace Subterra
             AddNetworks(runtime, runtime.Catalog.Named);
         }
 
+        /// <summary>
+        /// Takes away every opening of <paramref name="owner"/> (a dug hole) from the terrain: the ground comes back, and the
+        /// id can be cut again. For the holes of a game that is left (loaded over, reverted): they stayed cut, holes with no
+        /// void under them, and a new hole that got the same id was never cut (Lucas: the ground covered dug holes).
+        /// </summary>
+        internal static void RemoveOwner(BodyRuntime runtime, string owner)
+        {
+            PQSMod_SubterraSkylight mod = ModFor(runtime.Body.pqsController);
+            foreach ((string, int) key in new List<(string, int)>(HoleIndex.Keys))
+            {
+                if (key.Item1 != owner)
+                {
+                    continue;
+                }
+
+                mod?.RemoveHole(HoleIndex[key]);
+                HoleIndex.Remove(key);
+                Mouths.Remove(MouthKey(runtime, owner, key.Item2));
+            }
+
+            Added.Remove(runtime.Body.bodyName + "/" + owner);
+            SkylightRenderer.Instance?.Forget(owner);
+        }
+
         /// <summary>True while the terrain over that skylight is cut and on screen.</summary>
         public static bool IsOpen(CelestialBody body, TubeNetwork net, Skylight skylight)
         {

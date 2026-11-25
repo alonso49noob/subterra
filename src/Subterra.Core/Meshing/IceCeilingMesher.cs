@@ -15,7 +15,7 @@ namespace Subterra.Core.Meshing
         /// <summary>Most the ceiling's underside rises or hangs from its mean level (m).</summary>
         public const float Relief = 25f;
 
-        public static MeshData Build(OceanShell ocean, Vec3d centreDir, float halfSize, float cell, ulong seed, out Vec3d centre)
+        public static MeshData Build(OceanShell ocean, Vec3d centreDir, float halfSize, float cell, ulong seed, out Vec3d centre, Func<Vec3d, bool> isOpen = null)
         {
             centreDir = centreDir.Normalized;
             BodyFrame.ToLatLon(centreDir, out double lat0, out _);
@@ -46,6 +46,13 @@ namespace Subterra.Core.Meshing
                 for (int i = 0; i < n; i++)
                 {
                     int a = j * (n + 1) + i, b = a + 1, c = a + n + 1, d = c + 1;
+                    // Left open where a shaft or cave goes through the ice (a hole dug down to the ocean: Lucas's way up was
+                    // closed by the ceiling's patch).
+                    if (isOpen != null && isOpen(centre + Vec3d.FromVec3((m.Vertices[a] + m.Vertices[d]) * 0.5f)))
+                    {
+                        continue;
+                    }
+
                     m.Triangles.Add(a);
                     m.Triangles.Add(c);
                     m.Triangles.Add(b);

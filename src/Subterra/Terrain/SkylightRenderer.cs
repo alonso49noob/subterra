@@ -148,6 +148,39 @@ namespace Subterra
             Destroy(capMaterial);
         }
 
+        /// <summary>Drops the rims and caps of one owner's openings (a dug hole of a game that was left: loaded over, reverted).</summary>
+        public void Forget(string owner)
+        {
+            var gone = new List<(string, int)>();
+            foreach (KeyValuePair<(string, int), Entry> pair in entries)
+            {
+                if (pair.Key.Item1 != owner)
+                {
+                    continue;
+                }
+
+                Entry e = pair.Value;
+                e.Cancelled = true;
+                if (e.Rim != null)
+                {
+                    Destroy(e.Rim.GetComponent<MeshFilter>().sharedMesh);
+                    Destroy(e.Rim);
+                }
+
+                if (e.Cap != null)
+                {
+                    Destroy(e.Cap);
+                }
+
+                gone.Add(pair.Key);
+            }
+
+            foreach ((string, int) key in gone)
+            {
+                entries.Remove(key);
+            }
+        }
+
         private void Clear()
         {
             foreach (Entry e in entries.Values)

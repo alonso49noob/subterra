@@ -81,7 +81,8 @@ namespace Subterra
                 }
 
                 Vec3d centre = BodyFrame.Direction(w.Lat, w.Lon) * (body.Radius + w.Altitude);
-                if (Settings.Current.CarveOnSetPosition && Settings.Current.Excavation && runtime.Catalog.FindContaining(centre) == null)
+                if (Settings.Current.CarveOnSetPosition && Settings.Current.Excavation && runtime.Catalog.FindContaining(centre) == null
+                    && runtime.Ocean?.At(centre) == null)
                 {
                     Vector3 size = vessel.vesselSize;
                     float longest = Mathf.Max(size.x, Mathf.Max(size.y, size.z), 1f);

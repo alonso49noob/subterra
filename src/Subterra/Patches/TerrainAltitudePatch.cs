@@ -22,9 +22,15 @@ namespace Subterra
 
         public static void Register()
         {
-            PatchManager.Register(Id, harmony => harmony.Patch(
-                AccessTools.Method(typeof(Vessel), nameof(Vessel.PQSAltitude)),
-                postfix: new HarmonyMethod(typeof(TerrainAltitudePatch), nameof(PqsAltitudePostfix))));
+            PatchManager.Register(Id, harmony =>
+            {
+                harmony.Patch(
+                    AccessTools.Method(typeof(Vessel), nameof(Vessel.PQSAltitude)),
+                    postfix: new HarmonyMethod(typeof(TerrainAltitudePatch), nameof(PqsAltitudePostfix)));
+                harmony.Patch(
+                    AccessTools.Method(typeof(Vessel), nameof(Vessel.CheckKill)) ?? throw new MissingMethodException("Vessel", "CheckKill"),
+                    prefix: new HarmonyMethod(typeof(TerrainAltitudePatch), nameof(CheckKillPrefix)));
+            });
             PatchManager.Register(GroundId, harmony =>
             {
                 harmony.Patch(AccessTools.Method(typeof(Vessel), nameof(Vessel.CheckGroundCollision)),
@@ -32,6 +38,38 @@ namespace Subterra
                 harmony.Patch(AccessTools.Method(typeof(Vessel), "getCorrectedLandedAltitude") ?? throw new MissingMethodException("Vessel", "getCorrectedLandedAltitude"),
                     prefix: new HarmonyMethod(typeof(TerrainAltitudePatch), nameof(CorrectedLandedAltitudePrefix)));
             });
+        }
+
+        /// <summary>How far (m) from a void a vessel is spared KSP's "crashed through terrain".</summary>
+        private const float KillMargin = 10f;
+
+        // KSP destroys a vessel whose altitude is under its terrainAltitude; that value comes from a ray down (or from
+        // PQSAltitude), and a frame can keep the terrain of the surface it stood on. A vessel dropping into a dug shaft was
+        // killed right under the mouth (Lucas, a 200 km shaft on the Mun), where the real terrain was a little higher than
+        // the network's samples and its underground state not yet updated. In or near a void (or in an ocean under ice)
+        // the check is skipped: the void is open space, whatever the terrain over it says.
+        private static bool CheckKillPrefix(Vessel __instance)
+        {
+            try
+            {
+                if (__instance == null || __instance.mainBody == null || !BodyRegistry.Instance.TryGet(__instance.mainBody, out BodyRuntime runtime))
+                {
+                    return true;
+                }
+
+                Vector3d world = __instance.GetWorldPos3D();
+                Core.Numerics.Vec3d at = Frames.ToBody(__instance.mainBody, world);
+                if (runtime.Catalog.FindNear(at, KillMargin) != null || Underground.OceanAt(__instance.mainBody, world) != null)
+                {
+                    return false;
+                }
+            }
+            catch (Exception e)
+            {
+                PatchManager.Fault(Id, e);
+            }
+
+            return true;
         }
 
         private static void PqsAltitudePostfix(Vessel __instance, ref double __result)

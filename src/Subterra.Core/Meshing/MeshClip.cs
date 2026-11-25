@@ -91,6 +91,59 @@ namespace Subterra.Core.Meshing
             return result;
         }
 
+        /// <summary>
+        /// Removes the triangles wholly in a body's ocean (more than <paramref name="inset"/> m under its ceiling): a shaft dug
+        /// down through the ice into the ocean showed its rock walls on through the water (Lucas: Vall's ocean "full of rock").
+        /// Under the ceiling there is only water; the walls stop at the ice.
+        /// </summary>
+        public static MeshData DropInOcean(MeshData mesh, TubeNetwork net, Water.OceanShell ocean, float inset = 0.5f)
+        {
+            if (mesh.IsEmpty || ocean == null)
+            {
+                return mesh;
+            }
+
+            var wet = new bool[mesh.Vertices.Count];
+            bool any = false;
+            for (int i = 0; i < wet.Length; i++)
+            {
+                Water.WaterSample? s = ocean.At(net.ToBody(mesh.Vertices[i]));
+                wet[i] = s != null && s.Value.Depth > inset;
+                any |= wet[i];
+            }
+
+            if (!any)
+            {
+                return mesh;
+            }
+
+            var result = new MeshData();
+            result.Vertices.AddRange(mesh.Vertices);
+            result.Normals.AddRange(mesh.Normals);
+            result.Uvs.AddRange(mesh.Uvs);
+            int skirtStart = -1;
+            for (int i = 0; i < mesh.Triangles.Count; i += 3)
+            {
+                if (i == mesh.SkirtTriangleStart)
+                {
+                    skirtStart = result.Triangles.Count;
+                }
+
+                int a = mesh.Triangles[i], b = mesh.Triangles[i + 1], c = mesh.Triangles[i + 2];
+                if (wet[a] && wet[b] && wet[c])
+                {
+                    continue;
+                }
+
+                result.Triangles.Add(a);
+                result.Triangles.Add(b);
+                result.Triangles.Add(c);
+            }
+
+            result.SkirtTriangleStart = skirtStart < 0 ? result.Triangles.Count : skirtStart;
+            return result;
+        }
+
         // Cheap test: can any vertex be within reach of the lowest terrain over the network?
         private static bool NearSurface(MeshData mesh, TubeNetwork net, float below)
         {

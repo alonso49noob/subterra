@@ -194,8 +194,9 @@ namespace Subterra
                             return;
                         }
 
-                        // Started behind the part, so the probe is inside its own bore from the first step.
-                        Vec3d back = Frames.ToBody(body, part.transform.position - axisWorld * (headOffset + 1));
+                        // Started at the part (a little behind its nose), so the probe is inside its own bore from the first step and,
+                        // on the ground, the bore's top is low enough for its mouth to open.
+                        Vec3d back = Frames.ToBody(body, part.transform.position - axisWorld * (headOffset * 0.5));
                         bore = ExcavationService.Start(runtime, back - back.Normalized * radius, radius);
                         excavationId = bore.Id;
                         face = back;

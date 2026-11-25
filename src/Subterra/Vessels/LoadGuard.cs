@@ -34,6 +34,14 @@ namespace Subterra
                 needed = streamer == null || !streamer.CollidersReady(vessel.mainBody, vessel.GetWorldPos3D(), Radius);
             }
 
+            // A vessel already off rails is only pinned when nothing holds it up: colliders being rebuilt around it (a mole or a
+            // laser digging under it, a winch lowering it into new chunks) yanked it onto rails mid-move, and it came off them
+            // with a jolt that broke parts. Held by Subterra's winch or mole, or with ground under it, it is left alone.
+            if (needed && !vessel.packed && (HeldBySubterra(vessel) || GroundUnder(vessel)))
+            {
+                needed = false;
+            }
+
             if (!needed)
             {
                 Release(vessel);
@@ -66,6 +74,31 @@ namespace Subterra
                     s.pack = 1.5f;
                 }
             }
+        }
+
+        /// <summary>How far down (m) a collider under an unpacked vessel counts as ground holding it.</summary>
+        private const float GroundReach = 30f;
+
+        private static bool GroundUnder(Vessel vessel)
+        {
+            Vector3 down = -(Vector3)(vessel.CoMD - vessel.mainBody.position).normalized;
+            return Physics.Raycast(vessel.CoMD, down, GroundReach, 1 << ChunkObject.Layer, QueryTriggerInteraction.Ignore);
+        }
+
+        private static bool HeldBySubterra(Vessel vessel)
+        {
+            foreach (Part p in vessel.parts)
+            {
+                foreach (PartModule m in p.Modules)
+                {
+                    if ((m is ModuleSubterraWinch winch && winch.hooked) || (m is ModuleSubterraMole mole && mole.boring))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         public void Release(Vessel vessel)

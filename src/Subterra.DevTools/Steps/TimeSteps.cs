@@ -12,16 +12,32 @@ namespace Subterra.DevTools
     {
         private static readonly System.Collections.Generic.Dictionary<string, double> TempSnapshots = new System.Collections.Generic.Dictionary<string, double>();
 
+        // heatVessel k = 600 — every part of the tracked vessel (core and skin) set to that temperature (to test the coolers).
+        private static System.Collections.IEnumerator HeatVessel(ConfigNode node, TestContext ctx)
+        {
+            Vessel v = ctx.TrackedVessel ?? throw new System.InvalidOperationException("no tracked vessel");
+            double k = node.ArgDouble("k", 600);
+            foreach (Part p in v.parts)
+            {
+                p.temperature = System.Math.Min(k, p.maxTemp * 0.9);
+                p.skinTemperature = System.Math.Min(k, p.skinMaxTemp * 0.9);
+            }
+
+            yield return null;
+            ctx.Pass(System.FormattableString.Invariant($"{v.parts.Count} parts heated to {k:F0} K"));
+        }
+
         internal static void Register()
         {
             StepRegistry.Register("setNoon", SetNoon);
+            StepRegistry.Register("heatVessel", HeatVessel);
             StepRegistry.RegisterAssertion("partTempNear", PartTempNear);
             StepRegistry.RegisterAssertion("partTempSnapshot", PartTempSnapshot);
             StepRegistry.RegisterAssertion("partTempRise", PartTempRise);
             StepRegistry.RegisterAssertion("partTempAway", PartTempAway);
         }
 
-        // setNoon body = Mun lon = 0 — moves the clock until the sun is within 2° of the zenith at (0, lon).
+        // setNoon body = Mun lon = 0 â moves the clock until the sun is within 2Â° of the zenith at (0, lon).
         private static IEnumerator SetNoon(ConfigNode node, TestContext ctx)
         {
             CelestialBody body = FlightGlobals.GetBodyByName(node.Arg("body", "Mun")) ?? throw new ArgumentException("unknown body");
@@ -56,11 +72,11 @@ namespace Subterra.DevTools
 
             if (angle > 2)
             {
-                ctx.Fail(Invariant($"sun still {angle:F1}° from the zenith"));
+                ctx.Fail(Invariant($"sun still {angle:F1}Â° from the zenith"));
             }
             else
             {
-                ctx.Pass(Invariant($"UT {Planetarium.GetUniversalTime():F0}, sun {angle:F2}° from the zenith at lon {lon}"));
+                ctx.Pass(Invariant($"UT {Planetarium.GetUniversalTime():F0}, sun {angle:F2}Â° from the zenith at lon {lon}"));
             }
         }
 
@@ -96,12 +112,12 @@ namespace Subterra.DevTools
             FlightIntegrator fi = v.GetComponent<FlightIntegrator>();
             string integrator = fi == null
                 ? "no FlightIntegrator"
-                : Invariant($"analytic {fi.isAnalytical}, solar {fi.solarFlux:F0} W/m², bg {fi.backgroundRadiationTemp:F1}/{fi.backgroundRadiationTempExposed:F1} K, body flux {fi.bodyEmissiveFlux:F0}+{fi.bodyAlbedoFlux:F0}");
+                : Invariant($"analytic {fi.isAnalytical}, solar {fi.solarFlux:F0} W/mÂ², bg {fi.backgroundRadiationTemp:F1}/{fi.backgroundRadiationTempExposed:F1} K, body flux {fi.bodyEmissiveFlux:F0}+{fi.bodyAlbedoFlux:F0}");
             return Invariant(
-                $"UT {Planetarium.GetUniversalTime():F0}, packed {v.packed}, {integrator}; skin {v.parts.Min(p => p.skinTemperature):F1}..{v.parts.Max(p => p.skinTemperature):F1} K, internal {v.parts.Min(p => p.temperature):F1}..{v.parts.Max(p => p.temperature):F1} K, mean skin mass {v.parts.Average(p => p.skinThermalMass):F1} kJ/K, radiative area {v.parts.Sum(p => p.radiativeArea):F2} m², exposed {v.parts.Sum(p => p.exposedArea):F2} m², drag cube area {v.parts.Sum(p => p.DragCubes.Area):F2} ({v.parts.Count(p => p.DragCubes.Area <= 0)} at zero) m²");
+                $"UT {Planetarium.GetUniversalTime():F0}, packed {v.packed}, {integrator}; skin {v.parts.Min(p => p.skinTemperature):F1}..{v.parts.Max(p => p.skinTemperature):F1} K, internal {v.parts.Min(p => p.temperature):F1}..{v.parts.Max(p => p.temperature):F1} K, mean skin mass {v.parts.Average(p => p.skinThermalMass):F1} kJ/K, radiative area {v.parts.Sum(p => p.radiativeArea):F2} mÂ², exposed {v.parts.Sum(p => p.exposedArea):F2} mÂ², drag cube area {v.parts.Sum(p => p.DragCubes.Area):F2} ({v.parts.Count(p => p.DragCubes.Area <= 0)} at zero) mÂ²");
         }
 
-        // partTempNear k = 250.3 tol = 5 — every part's skin and internal temperature within tol of k.
+        // partTempNear k = 250.3 tol = 5 â every part's skin and internal temperature within tol of k.
         private static bool PartTempNear(ConfigNode node, TestContext ctx)
         {
             Vessel v = ctx.TrackedVessel;
@@ -131,7 +147,7 @@ namespace Subterra.DevTools
             return true;
         }
 
-        // partTempAway k = 250.3 min = 20 — the mean skin temperature is at least min K away from k (outside the
+        // partTempAway k = 250.3 min = 20 â the mean skin temperature is at least min K away from k (outside the
         // cave KSP's own thermal model applies again).
         private static bool PartTempAway(ConfigNode node, TestContext ctx)
         {
@@ -147,7 +163,7 @@ namespace Subterra.DevTools
             return Math.Abs(mean - k) >= node.ArgDouble("min", 20);
         }
 
-        // partTempRise ref = cave min = 20 — the mean skin temperature rose at least min K since the snapshot.
+        // partTempRise ref = cave min = 20 â the mean skin temperature rose at least min K since the snapshot.
         private static bool PartTempRise(ConfigNode node, TestContext ctx)
         {
             Vessel v = ctx.TrackedVessel;
@@ -164,7 +180,7 @@ namespace Subterra.DevTools
             }
 
             double rise = MeanSkinTemp(v) - before;
-            ctx.Detail = Invariant($"mean skin {before:F1} → {MeanSkinTemp(v):F1} K (+{rise:F1}), sun {v.directSunlight}; {ThermalInfo(v)}");
+            ctx.Detail = Invariant($"mean skin {before:F1} â {MeanSkinTemp(v):F1} K (+{rise:F1}), sun {v.directSunlight}; {ThermalInfo(v)}");
             return rise >= node.ArgDouble("min", 20);
         }
     }

@@ -32,7 +32,7 @@ layer Regolith 0 10 0.15 1.6 3 "0.55,0.54,0.53"
 layer MareBasalt 10 3000 0.6 3.1 3 "0.40,0.39,0.38" "Lowlands, Mara, Midlands"
 layer AnorthositeBreccia 10 3000 0.55 2.8 3 "0.62,0.61,0.59" "*"
 # Rock down to the ocean's ceiling (3 km at the poles, 8 km at the equator), then the ocean (50 km), then the crust.
-layer Megaregolith 3000 58000 0.65 2.9 3 "0.48,0.47,0.45"
+layer Megaregolith 3000 58000 0.65 2.9 3 "0.48,0.47,0.45" "*" "Water:0.02"
 layer LowerCrust 58000 120000 0.75 3.0 2 "0.44,0.42,0.40"
 layer Core 120000 600000 0.95 5.0 1 "0.42,0.32,0.24"
 printf '\t}\n'

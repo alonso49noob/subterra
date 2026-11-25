@@ -23,9 +23,19 @@ namespace Subterra.DevTools
             StepRegistry.RegisterAssertion("cameraUnderwater", CameraUnderwater);
             StepRegistry.RegisterAssertion("evaState", EvaState);
             StepRegistry.RegisterAssertion("scattererUnderwater", ScattererUnderwater);
+            StepRegistry.RegisterAssertion("altitudeBelow", AltitudeBelow);
         }
 
-        // scattererUnderwater expect = false — whether any of Scatterer's oceans has its underwater view on (Scatterer
+        // altitudeBelow max = 1300 — the tracked vessel's altitude (over the datum) is at most that (it went down).
+        private static bool AltitudeBelow(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+            double max = node.ArgDouble("max", 0);
+            ctx.Detail = Invariant($"{vessel.GetDisplayName()}: altitude {vessel.altitude:F1} m (at most {max:F0}), {vessel.situation}, {vessel.srfSpeed:F1} m/s, packed {vessel.packed}");
+            return vessel.altitude <= max;
+        }
+
+        // scattererUnderwater expect = false â whether any of Scatterer's oceans has its underwater view on (Scatterer
         // installed; without it the step passes only for expect = false).
         private static bool ScattererUnderwater(ConfigNode node, TestContext ctx)
         {
@@ -40,7 +50,7 @@ namespace Subterra.DevTools
             System.Reflection.FieldInfo field = HarmonyLib.AccessTools.Field(type, "isUnderwater");
             bool under = false;
             int count = 0;
-            foreach (UnityEngine.Object ocean in UnityEngine.Object.FindObjectsByType(type, FindObjectsSortMode.None))
+            foreach (UnityEngine.Object ocean in UnityEngine.Object.FindObjectsOfType(type))
             {
                 count++;
                 under |= (bool)field.GetValue(ocean);
@@ -50,7 +60,7 @@ namespace Subterra.DevTools
             return under == expect;
         }
 
-        // evaState contains = Swim — the tracked kerbal's EVA state's name contains that text (and the vessel's situation).
+        // evaState contains = Swim â the tracked kerbal's EVA state's name contains that text (and the vessel's situation).
         private static bool EvaState(ConfigNode node, TestContext ctx)
         {
             Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
@@ -60,7 +70,7 @@ namespace Subterra.DevTools
             return state.IndexOf(node.RequireArg("contains"), StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
-        // cameraUnderwater expect = true — whether the underwater view is on (camera under a cave's or an ocean's water,
+        // cameraUnderwater expect = true â whether the underwater view is on (camera under a cave's or an ocean's water,
         // or inside the ice over an ocean), with where the camera is.
         private static bool CameraUnderwater(ConfigNode node, TestContext ctx)
         {
@@ -126,7 +136,7 @@ namespace Subterra.DevTools
             return nearest ?? throw new InvalidOperationException($"no procedural network{(size != null ? " of size " + size : "")} generated yet");
         }
 
-        // terrainProfile body = Moho lat0 = 88 lon0 = 0 lat1 = 88 lon1 = 180 samples = 200 — logs the terrain altitude along a
+        // terrainProfile body = Moho lat0 = 88 lon0 = 0 lat1 = 88 lon1 = 180 samples = 200 â logs the terrain altitude along a
         // great circle (diagnostics: to measure a feature such as the Mohole).
         private static IEnumerator TerrainProfile(ConfigNode node, TestContext ctx)
         {
@@ -155,7 +165,7 @@ namespace Subterra.DevTools
             ctx.Pass(Invariant($"lowest {min:F0} m at {minLat:F4}, {minLon:F4}"));
         }
 
-        // networkInfo site = procedural — logs the network's nodes (feature, roof depth, width, height, terrain) and where its void
+        // networkInfo site = procedural â logs the network's nodes (feature, roof depth, width, height, terrain) and where its void
         // comes within 1 m of the terrain outside its skylights (diagnostics).
         private static IEnumerator NetworkInfo(ConfigNode node, TestContext ctx)
         {
@@ -268,7 +278,7 @@ namespace Subterra.DevTools
             return at + (topUp + (p.Up - topUp) * along).Normalized * offsetUp;
         }
 
-        // waterDepth min = 0 max = 3 — the tracked vessel's deepest part is that far under a cave's water (submerged = true: some part is).
+        // waterDepth min = 0 max = 3 â the tracked vessel's deepest part is that far under a cave's water (submerged = true: some part is).
         private static bool WaterDepth(ConfigNode node, TestContext ctx)
         {
             Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
@@ -279,7 +289,7 @@ namespace Subterra.DevTools
             return depth >= node.ArgDouble("min", double.MinValue) && depth <= node.ArgDouble("max", double.MaxValue) && (!node.ArgBool("submerged", true) || parts > 0);
         }
 
-        // insideNetwork site = X — the tracked vessel is inside that network's rock (in its tubes, not on the ground).
+        // insideNetwork site = X â the tracked vessel is inside that network's rock (in its tubes, not on the ground).
         private static bool InsideNetwork(ConfigNode node, TestContext ctx)
         {
             Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
@@ -290,7 +300,7 @@ namespace Subterra.DevTools
             return d < 0;
         }
 
-        // teleportToNetwork site = DevTube|procedural node = 1 inside = true offsetUp = 2 hold = false —
+        // teleportToNetwork site = DevTube|procedural node = 1 inside = true offsetUp = 2 hold = false â
         // moves the active vessel (after it is off rails) to that point, at rest.
         private static IEnumerator TeleportToNetwork(ConfigNode node, TestContext ctx)
         {
@@ -326,11 +336,14 @@ namespace Subterra.DevTools
                 Aabb b = net.Bounds;
                 Vec3d deepest = default;
                 double lowest = double.MaxValue;
-                for (float x = b.Min.X; x <= b.Max.X; x += 1)
+                // A 1 m grid, coarser on big holes (a 2.4 km shaft took 70 s at 1 m): at most about two million points.
+                Vec3 extent = b.Max - b.Min;
+                float g = Math.Max(1f, (float)Math.Pow(Math.Max(1.0, (double)extent.X * extent.Y * extent.Z) / 2e6, 1.0 / 3.0));
+                for (float x = b.Min.X; x <= b.Max.X; x += g)
                 {
-                    for (float y = b.Min.Y; y <= b.Max.Y; y += 1)
+                    for (float y = b.Min.Y; y <= b.Max.Y; y += g)
                     {
-                        for (float z = b.Min.Z; z <= b.Max.Z; z += 1)
+                        for (float z = b.Min.Z; z <= b.Max.Z; z += g)
                         {
                             var p = new Vec3(x, y, z);
                             Vec3d at = net.ToBody(p);
@@ -354,15 +367,15 @@ namespace Subterra.DevTools
                     // The middle of the mouth, not its highest point (that is on the rim, by the higher ground).
                     Vec3d sum = default;
                     int count = 0;
-                    for (float x = b.Min.X; x <= b.Max.X; x += 1)
+                    for (float x = b.Min.X; x <= b.Max.X; x += g)
                     {
-                        for (float y = b.Min.Y; y <= b.Max.Y; y += 1)
+                        for (float y = b.Min.Y; y <= b.Max.Y; y += g)
                         {
-                            for (float z = b.Min.Z; z <= b.Max.Z; z += 1)
+                            for (float z = b.Min.Z; z <= b.Max.Z; z += g)
                             {
                                 var p = new Vec3(x, y, z);
                                 Vec3d at = net.ToBody(p);
-                                if (at.Length > deepest.Length - 3 && net.IsInside(p))
+                                if (at.Length > deepest.Length - Math.Max(3, g) && net.IsInside(p))
                                 {
                                     sum += at;
                                     count++;
@@ -402,7 +415,7 @@ namespace Subterra.DevTools
             yield return ctx.WaitFor(() => vessel.loaded, 60, "the vessel to be loaded");
             // Like the cheat menu's SetVesselPosition: on rails first (moving an unpacked vessel far in one
             // frame gives its parts a huge velocity), moved while pinned (Landed = idle orbit driver);
-            // KSP — or Subterra's load guard, inside a cave — lets it go.
+            // KSP â or Subterra's load guard, inside a cave â lets it go.
             OrbitPhysicsManager.HoldVesselUnpack(2);
             if (!vessel.packed)
             {
@@ -412,7 +425,7 @@ namespace Subterra.DevTools
             // Keep the vessel's attitude to the local vertical (it lands upright, not as it stood on the other side).
             Vector3d world = Frames.ToWorld(body, target);
             Vector3 before = (vessel.transform.position - body.position).normalized;
-            string axes = Invariant($"up·vertical {Vector3.Dot(vessel.transform.up, before):F2}, forward·vertical {Vector3.Dot(vessel.transform.forward, before):F2}");
+            string axes = Invariant($"upÂ·vertical {Vector3.Dot(vessel.transform.up, before):F2}, forwardÂ·vertical {Vector3.Dot(vessel.transform.forward, before):F2}");
             // upright = true: wheels down whatever it did before (an SPH craft's top is its root's -forward).
             Vector3 newUp = (world - body.position).normalized;
             Vector3 oldUp = node.ArgBool("upright", false) ? -vessel.transform.forward : (vessel.transform.position - body.position).normalized;

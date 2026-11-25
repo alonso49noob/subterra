@@ -151,5 +151,17 @@ namespace Subterra.Core.Tests.Water
 
             Assert.True(Vec3.Dot(m.Normals[m.Normals.Count / 2], dir.ToVec3()) < -0.5f, "faces look down into the water");
         }
+
+        [Fact]
+        public void CeilingPatchOpensOverAHole()
+        {
+            var ocean = new OceanShell(new OceanSpec { CeilingPole = 1000, CeilingEquator = 10000, Thickness = 30000 }, 300000);
+            Vec3d dir = Subterra.Core.Geo.BodyFrame.Direction(88, 0);
+            MeshData whole = IceCeilingMesher.Build(ocean, dir, 200, 10, 7, out Vec3d centre);
+            // A shaft 20 m wide straight down the patch's middle: the cells over it are left out.
+            MeshData open = IceCeilingMesher.Build(ocean, dir, 200, 10, 7, out _, p => (p - dir * Vec3d.Dot(p, dir)).Length < 20);
+            Assert.True(open.Triangles.Count < whole.Triangles.Count, "cells over the hole are left out");
+            Assert.True(open.Triangles.Count > whole.Triangles.Count * 0.9, "only those");
+        }
     }
 }

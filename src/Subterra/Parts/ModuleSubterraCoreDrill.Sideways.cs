@@ -24,13 +24,35 @@ namespace Subterra
         /// </summary>
         [KSPField] public Vector3 drillAxis = Vector3.zero;
 
-        /// <summary>Longest horizontal hole (m): one round. [Claude, revisar]</summary>
-        [KSPField] public float maxRound = 12f;
+        /// <summary>Longest horizontal hole (m): one round (Lucas: long enough to blast deep vaults). [Claude, revisar]</summary>
+        [KSPField] public float maxRound = 40f;
+
+        /// <summary>
+        /// Drill horizontally whatever the mount (Lucas: the blast tool should work sideways too, to make very deep vaults): the
+        /// bit swings level and drills toward <see cref="blastHeading"/>, degrees from the vessel's nose. Mounted on its side,
+        /// the drill also drills sideways, toward its bit.
+        /// </summary>
+        [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = "#Subterra_Drill_Horizontal")]
+        [UI_Toggle(disabledText = "#Subterra_Off", enabledText = "#Subterra_On")]
+        public bool horizontal;
+
+        [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = "#Subterra_Drill_Heading", guiUnits = "°")]
+        [UI_FloatRange(minValue = -180f, maxValue = 180f, stepIncrement = 5f)]
+        public float blastHeading;
+
+        // The longest round now: with KSP's infinite propellant cheat (free blasting) five times longer.
+        private double MaxRoundNow => FreeBlasting ? maxRound * 5 : maxRound;
 
         [KSPField(isPersistant = true)] public bool sideways;
         [KSPField(isPersistant = true)] public string roundBody = "";
         [KSPField(isPersistant = true)] public double roundX, roundY, roundZ, roundDirX, roundDirY, roundDirZ;
         [KSPField(isPersistant = true)] public double roundLength;
+
+        /// <summary>Metres of open space (a cave, a pocket) between the drill and the rock face where its hole starts.</summary>
+        [KSPField(isPersistant = true)] public double roundOffset;
+
+        /// <summary>Farthest (m) a sideways hole starts from the drill, across open space to the face.</summary>
+        private const double MaxReachToFace = 20;
         [KSPField(isPersistant = true)] public double roundKg;
         [KSPField(isPersistant = true)] public bool roundArmed;
 
@@ -44,15 +66,30 @@ namespace Subterra
         // True when the drill is mounted on its side: the sideways hole is worked here instead of the vertical one.
         private bool DrillSideways(double dt, BodyRuntime runtime, CelestialBody body)
         {
-            if (drillAxis == Vector3.zero)
+            Vector3d upWorld = (part.transform.position - body.position).normalized;
+            Vector3d axis;
+            if (horizontal)
+            {
+                // Level, toward the heading from the vessel's nose.
+                Vector3 nose = Vector3.ProjectOnPlane(vessel.ReferenceTransform.up, (Vector3)upWorld);
+                if (nose.sqrMagnitude < 1e-4f)
+                {
+                    nose = Vector3.ProjectOnPlane(-vessel.ReferenceTransform.forward, (Vector3)upWorld);
+                }
+
+                axis = Quaternion.AngleAxis(blastHeading, (Vector3)upWorld) * nose.normalized;
+                sideways = true;
+            }
+            else if (drillAxis != Vector3.zero)
+            {
+                axis = part.transform.TransformDirection(drillAxis.normalized);
+                sideways = Math.Abs(Vector3d.Dot(axis, upWorld)) < SidewaysSine;
+            }
+            else
             {
                 sideways = false;
                 return false;
             }
-
-            Vector3d axis = part.transform.TransformDirection(drillAxis.normalized);
-            Vector3d upWorld = (part.transform.position - body.position).normalized;
-            sideways = Math.Abs(Vector3d.Dot(axis, upWorld)) < SidewaysSine;
             if (!sideways)
             {
                 return false;
@@ -83,6 +120,7 @@ namespace Subterra
                 roundDirY = dir.Y;
                 roundDirZ = dir.Z;
                 roundLength = 0;
+                roundOffset = -1;
             }
 
             uiDepth = (float)roundLength;
@@ -98,14 +136,31 @@ namespace Subterra
                 return true;
             }
 
-            if (roundLength >= maxRound - 0.01)
+            if (roundLength >= MaxRoundNow - 0.01)
             {
                 Finish("#Subterra_Drill_RoundReady");
                 return true;
             }
 
             // Only rock ahead: not open air, not a cave.
-            Vec3d tip = mouthBody + dir * (roundLength + 0.5);
+            // From inside a cave or pocket, the hole starts at the rock face ahead (the bit reaches across to it).
+            if (roundOffset < 0)
+            {
+                roundOffset = 0;
+                while (roundOffset < MaxReachToFace && runtime.Catalog.FindContaining(mouthBody + dir * (roundOffset + 0.5)) != null)
+                {
+                    roundOffset += 0.5;
+                }
+
+                if (roundOffset >= MaxReachToFace)
+                {
+                    roundOffset = -1;
+                    Finish("#Subterra_Drill_NoRock");
+                    return true;
+                }
+            }
+
+            Vec3d tip = mouthBody + dir * (roundOffset + roundLength + 0.5);
             BodyFrame.ToLatLon(tip.Normalized, out double tipLat, out double tipLon);
             if (tip.Length > KspSampler.SurfaceRadius(body, tipLat, tipLon) - 0.2 || runtime.Catalog.FindContaining(tip) != null)
             {
@@ -129,7 +184,7 @@ namespace Subterra
                 return true;
             }
 
-            roundLength = Math.Min(maxRound, roundLength + rate * dt);
+            roundLength = Math.Min(MaxRoundNow, roundLength + rate * dt);
             working = true;
             uiStatus = Localizer.Format("#Subterra_Drill_Sideways");
             return true;
@@ -178,8 +233,9 @@ namespace Subterra
             }
             roundKg = kg;
             roundArmed = true;
+            Log.Info($"Round loaded on {vessel.GetDisplayName()}: {roundLength:F1} m from {Math.Max(0, roundOffset):F1} m ahead, {kg:F0} kg, radius {blastRadius:F1} m");
             drilling = false;
-            (double destroy, double damage) = BlastSafety.Radii(kg, true);
+            (double destroy, double damage) = BlastSafety.Radii(ExcavationService.RoundDelayKg(kg, roundLength), true);
             ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_Loaded", 1, kg.ToString("F0"), destroy.ToString("F0"), damage.ToString("F0")),
                 8f, ScreenMessageStyle.UPPER_CENTER);
             UpdateEvents();
@@ -195,8 +251,8 @@ namespace Subterra
                 return;
             }
 
-            Vector3d face = Frames.ToWorld(body, RoundFloor + RoundDir * (roundLength * 0.5));
-            List<Vessel> inDanger = ExcavationService.VesselsInDanger(face, roundKg, true);
+            Vector3d face = Frames.ToWorld(body, RoundFloor + RoundDir * (Math.Max(0, roundOffset) + roundLength * 0.5));
+            List<Vessel> inDanger = ExcavationService.VesselsInDanger(face, ExcavationService.RoundDelayKg(roundKg, roundLength), true);
             if (inDanger.Count > 0)
             {
                 ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_Danger", string.Join(", ", inDanger.Select(v => v.GetDisplayName()))), 6f, ScreenMessageStyle.UPPER_CENTER);
@@ -204,8 +260,9 @@ namespace Subterra
 
             roundArmed = false;
             UpdateEvents();
-            StartCoroutine(FuseRound(runtime, RoundFloor, RoundDir, roundLength, roundKg));
+            StartCoroutine(FuseRound(runtime, RoundFloor + RoundDir * Math.Max(0, roundOffset), RoundDir, roundLength, roundKg));
             roundLength = 0;
+            roundOffset = -1;
         }
 
         private System.Collections.IEnumerator FuseRound(BodyRuntime runtime, Vec3d floor, Vec3d dir, double length, double kg)

@@ -13,8 +13,9 @@ node() { # lat lon depth width height [feature [radius [water [waterColour]]]]
 edge() { printf '\t\tEDGE\n\t\t{\n\t\t\tfrom = %s\n\t\t\tto = %s\n\t\t\tsinuosity = %s\n\t\t\troughness = %s\n\t\t\tbench = %s\n\t\t}\n' "$1" "$2" "$3" "$4" "${5:-0}"; }
 site_head() { printf '\tTUBE_SITE\n\t{\n\t\tname = %s\n\t\tdisplayName = #Subterra_Site_%s\n' "$1" "$1"; }
 layer() { printf '\t\tLAYER\n\t\t{\n\t\t\tname = %s\n\t\t\tdisplayName = #Subterra_Layer_%s\n\t\t\ttop = %s\n\t\t\tbottom = %s\n\t\t\thardness = %s\n\t\t\tdensity = %s\n\t\t\tgradient = %s\n\t\t\ttint = %s\n' "$1" "$1" "$2" "$3" "$4" "$5" "$6" "$7"; [ -n "${8:-}" ] && printf '\t\t\twhere = %s\n' "$8"
-  # Optional 9th argument "Resource:rate": what a well pump draws from the layer.
-  if [ -n "${9:-}" ]; then printf '\t\t\tYIELD\n\t\t\t{\n\t\t\t\tresource = %s\n\t\t\t\trate = %s\n\t\t\t}\n' "${9%%:*}" "${9#*:}"; fi
+  # Optional 9th argument "Resource:rate[;Resource:rate...]": what a well pump draws from the layer (resources a game
+  # does not have, such as CommunityResourcePack's without it, are skipped by the pump).
+  if [ -n "${9:-}" ]; then local y ys; IFS=";" read -ra ys <<<"$9"; for y in "${ys[@]}"; do printf '\t\t\tYIELD\n\t\t\t{\n\t\t\t\tresource = %s\n\t\t\t\trate = %s\n\t\t\t}\n' "${y%%:*}" "${y#*:}"; done; fi
   # Optional 10th argument "Resource:chance": gas pockets a core drill can strike in the layer.
   if [ -n "${10:-}" ]; then printf '\t\t\tgasResource = %s\n\t\t\tgasChance = %s\n' "${10%%:*}" "${10#*:}"; fi
   printf '\t\t}\n'; }

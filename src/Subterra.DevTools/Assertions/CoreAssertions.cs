@@ -42,7 +42,8 @@ namespace Subterra.DevTools
             bool dead = vessel.state == Vessel.State.DEAD;
             ctx.Detail = Invariant(
                 $"{vessel.GetDisplayName()}: {parts}/{ctx.TrackedPartCount} parts{(dead ? ", DEAD" : "")}, {vessel.situation} at {vessel.mainBody.bodyName}, altitude {vessel.altitude:F1} m");
-            return !dead && parts >= ctx.TrackedPartCount;
+            // minParts = 20: at least that many parts left (a test that may lose a fragile part or two); default: all.
+            return !dead && parts >= node.ArgDouble("minParts", ctx.TrackedPartCount);
         }
 
         // vesselLanded — the tracked vessel is off rails and touching the ground (a packed vessel's Landed

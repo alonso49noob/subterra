@@ -29,7 +29,7 @@ namespace Subterra
 
         public void DisableModule() => retracted = true;
 
-        public bool ModuleIsActive() => working;
+        public bool ModuleIsActive() => working && BoreholeOn;
 
         public bool IsSituationValid() => true;
 
@@ -338,6 +338,17 @@ namespace Subterra
         {
             ApplyDiameter();
             Fields[nameof(holeDiameter)].OnValueModified += _ => ApplyDiameter();
+            Fields[nameof(horizontal)].OnValueModified += _ => UpdateEvents();
+            Fields[nameof(boreholeMode)].OnValueModified += _ =>
+            {
+                if (!BoreholeOn && drilling)
+                {
+                    StopDrilling();
+                }
+
+                UpdateEvents();
+                part.FindModuleImplementing<ModuleSubterraWellPump>()?.RefreshEvents();
+            };
             UpdateEvents();
             if (HighLogic.LoadedSceneIsFlight && !string.IsNullOrEmpty(armedBlastId) && ExcavationService.FindBlast(armedBlastId) is ExcavationService.ArmedBlast armed)
             {
@@ -384,7 +395,7 @@ namespace Subterra
 
         private void FixedUpdate()
         {
-            if (!HighLogic.LoadedSceneIsFlight || vessel == null || !vessel.loaded)
+            if (!HighLogic.LoadedSceneIsFlight || vessel == null || !vessel.loaded || !BoreholeOn)
             {
                 return;
             }
@@ -431,6 +442,7 @@ namespace Subterra
                 gasLeft = 0;
                 UndergroundState state = UndergroundTracker.For(vessel);
                 depth = state.Inside ? state.Depth : 0;
+                holeTop = depth;
             }
 
             if (!drilling || !vessel.Landed || retracted)
@@ -558,10 +570,67 @@ namespace Subterra
 
         private void UpdateEvents()
         {
-            Events[nameof(StartDrilling)].active = !drilling;
-            Events[nameof(StopDrilling)].active = drilling;
+            bool on = boreholeMode || !modeSwitch;
+            Fields[nameof(boreholeMode)].guiActive = modeSwitch;
+            Fields[nameof(boreholeMode)].guiActiveEditor = modeSwitch;
+            foreach (string field in BoreholeFields)
+            {
+                Fields[field].guiActive = on;
+                Fields[field].guiActiveEditor = on && (field == nameof(holeDiameter) || field == nameof(horizontal));
+            }
+
+            Fields[nameof(blastHeading)].guiActive = on && horizontal;
+            Fields[nameof(blastHeading)].guiActiveEditor = on && horizontal;
+            Events[nameof(StartDrilling)].active = on && !drilling;
+            Events[nameof(StopDrilling)].active = on && drilling;
+            Events[nameof(TakeCoreSample)].active = on;
+            Events[nameof(ShowProfile)].active = on;
+            Events[nameof(LoadCharges)].active = on;
+            // A loaded hole can always be fired.
             Events[nameof(Detonate)].active = !string.IsNullOrEmpty(armedBlastId) || roundArmed;
         }
+
+        // The fields shown only in borehole mode.
+        private static readonly string[] BoreholeFields =
+        {
+            nameof(uiDepth), nameof(uiNeedKg), nameof(uiLayer), nameof(uiRockTemp), nameof(uiRate), nameof(uiStatus), nameof(holeDiameter), nameof(horizontal),
+        };
+
+        /// <summary>
+        /// On a stock drill (the Drill-O-Matics, Lucas: the same stock parts with an extra mode, not copies of them) the module
+        /// waits behind a "borehole mode" switch: off, the drill mines Ore as KSP's own does; on, it bores, samples and blasts.
+        /// Subterra's own SB-1 (kept for saved crafts) is always in borehole mode.
+        /// </summary>
+        [KSPField] public bool modeSwitch;
+
+        [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = "#Subterra_Drill_BoreholeMode")]
+        [UI_Toggle(disabledText = "#Subterra_Off", enabledText = "#Subterra_On")]
+        public bool boreholeMode;
+
+        private bool BoreholeOn => boreholeMode || !modeSwitch;
+
+        /// <summary>Whether the hole has broken into a cave with water in it (the pump can draw that water).</summary>
+        public bool HoleReachesWater()
+        {
+            if (string.IsNullOrEmpty(reachedCaves) || !BodyRegistry.Instance.TryGet(vessel.mainBody, out BodyRuntime runtime))
+            {
+                return false;
+            }
+
+            foreach (string id in reachedCaves.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                Subterra.Core.Tubes.TubeNetwork net = runtime.Catalog.Find(id);
+                if (net != null && net.Waters.Count > 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>The borehole tools are on (always, on the SB-1; with the switch, on a stock drill).</summary>
+        public bool BoreholeActive => BoreholeOn;
 
         private static double Distance(CelestialBody body, double lat0, double lon0, double lat1, double lon1)
         {

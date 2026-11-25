@@ -23,6 +23,7 @@ namespace Subterra
         private CelestialBody patchBody;
         private Vec3d patchCentre;
         private bool building;
+        private int patchRevision = -1;
         private float nextLook;
 
         /// <summary>True while a ceiling patch is shown (for tests).</summary>
@@ -59,13 +60,15 @@ namespace Subterra
                 return;
             }
 
-            if (building || (patch != null && patchBody == body && (at.Normalized * patchCentre.Length - patchCentre).Length < Rebuild))
+            if (building || (patch != null && patchBody == body && patchRevision == ExcavationService.Revision && (at.Normalized * patchCentre.Length - patchCentre).Length < Rebuild))
             {
                 return;
             }
 
             building = true;
+            patchRevision = ExcavationService.Revision;
             OceanShell ocean = runtime.Ocean;
+            Subterra.Core.Procedural.NetworkCatalog catalog = runtime.Catalog;
             ulong seed = Hash.Of(body.bodyName + "/ice");
             WorkerPool.Shared.Enqueue(() =>
             {
@@ -73,7 +76,8 @@ namespace Subterra
                 Vec3d centre;
                 try
                 {
-                    data = IceCeilingMesher.Build(ocean, at, HalfSize, Cell, seed, out centre);
+                    data = IceCeilingMesher.Build(ocean, at, HalfSize, Cell, seed, out centre,
+                        p => catalog.FindContaining(p + p.Normalized * 1.5) != null || catalog.FindContaining(p - p.Normalized * 1.5) != null);
                 }
                 catch (Exception e)
                 {

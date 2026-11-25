@@ -196,7 +196,7 @@ namespace Subterra.Core.Procedural
             foreach (TubeNetwork net in All)
             {
                 Vec3 local = net.ToLocal(bodyPos);
-                if (net.Bounds.Contains(local) && net.Sdf.Distance(local) < margin)
+                if (WithinBounds(net.Bounds, local, margin) && net.Sdf.Distance(local) < margin)
                 {
                     return net;
                 }
@@ -204,6 +204,11 @@ namespace Subterra.Core.Procedural
 
             return null;
         }
+
+        // Inside the box grown by the margin on every side (a point just outside a void is outside its box too).
+        private static bool WithinBounds(Aabb b, Vec3 p, float margin) =>
+            p.X >= b.Min.X - margin && p.Y >= b.Min.Y - margin && p.Z >= b.Min.Z - margin
+            && p.X <= b.Max.X + margin && p.Y <= b.Max.Y + margin && p.Z <= b.Max.Z + margin;
 
         public TubeNetwork Find(string id)
         {

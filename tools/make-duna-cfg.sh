@@ -40,10 +40,10 @@ SUBTERRA_BODY
 	STRATA
 	{
 EOF
-layer Regolith 0 5 0.15 1.5 8 "0.55,0.53,0.52"
+layer Regolith 0 5 0.15 1.5 8 "0.55,0.53,0.52" "*" "Water:0.005"
 layer PolarIce 5 1500 0.35 1.1 6 "0.62,0.62,0.64" "Poles, Polar Highlands, Polar Craters" "Water:0.04"
 # Layered sediments of old seas and canyons: soft, with a little old water in the pores.
-layer LayeredSediments 5 900 0.4 2.3 9 "0.52,0.50,0.48" "Midland Sea, Northern Basin, Southern Basin, Northern Shelf, Midland Canyon, Eastern Canyon, Western Canyon" "Water:0.01"
+layer LayeredSediments 5 900 0.4 2.3 9 "0.52,0.50,0.48" "Midland Sea, Northern Basin, Southern Basin, Northern Shelf, Midland Canyon, Eastern Canyon, Western Canyon" "Water:0.02"
 layer VolcanicBasalt 5 4000 0.6 3.0 8 "0.36,0.35,0.35" "*"
 layer Megaregolith 4000 9000 0.65 2.9 8 "0.42,0.41,0.40"
 layer LowerCrust 9000 50000 0.75 3.0 8 "0.40,0.39,0.38"

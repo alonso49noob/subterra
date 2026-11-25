@@ -27,6 +27,9 @@ namespace Subterra
 
         public static IReadOnlyList<ExcavationSpec> All => Specs;
 
+        /// <summary>Goes up whenever a hole is dug or changed (the ice ceiling patch is rebuilt to open over new holes).</summary>
+        public static int Revision { get; private set; }
+
         public static ExcavationSpec Find(string id) => Specs.Find(s => s.Id == id);
 
         /// <summary>Starts a tunnel whose floor begins at <paramref name="floor"/> (body coordinates).</summary>
@@ -136,13 +139,15 @@ namespace Subterra
         public static ExcavationSpec BlastRound(BodyRuntime runtime, Vec3d floor, Vec3d dir, double length, float radius, double kg)
         {
             ExcavationSpec spec = Start(runtime, floor, radius);
-            for (double d = 1; d < length + 0.5; d += 1)
+            // A metre at a time for an ordinary round; a long one (up to 200 m with free blasting) in at most 40 steps.
+            double step = Math.Max(1, length / 40);
+            for (double d = step; d < length + step * 0.5; d += step)
             {
                 Dig(runtime, spec, floor + dir * Math.Min(d, length));
             }
 
             Vector3d world = Frames.ToWorld(runtime.Body, floor + dir * (length * 0.5));
-            Damage(world, kg, confined: true);
+            Damage(world, RoundDelayKg(kg, length), confined: true);
             try
             {
                 FXMonger.ExplodeWithDebris(world, Math.Min(1, kg / 500), null);
@@ -181,6 +186,16 @@ namespace Subterra
             Log.Info($"Pocket {spec.Id} carved: radius {radius:F1} m, {height:F1} m tall, {centre.Length - body.Radius:F0} m altitude{(reached != null ? ", into " + reached.Id : "")}");
             return spec;
         }
+
+        /// <summary>
+        /// The charge that goes off at once in a horizontal round of <paramref name="kg"/> along <paramref name="length"/> m: its
+        /// holes fire on delays, a couple of metres at a time, as in real drill-and-blast tunnelling (a 40 m vault's round
+        /// counted whole wrecked everything for hundreds of metres).
+        /// </summary>
+        public static double RoundDelayKg(double kg, double length) => kg / Math.Max(1, length / RoundDelayMetres);
+
+        /// <summary>Metres of a horizontal round fired on one delay.</summary>
+        public const double RoundDelayMetres = 2;
 
         /// <summary>Loaded vessels within the danger radius of a charge at <paramref name="world"/>.</summary>
         public static List<Vessel> VesselsInDanger(Vector3d world, double kg, bool confined)
@@ -271,6 +286,9 @@ namespace Subterra
                     {
                         ChunkStreamer.Instance?.NetworkRemoved(spec.Id);
                     }
+
+                    // Its opening in the ground goes too (it stayed cut after a load or a revert).
+                    SkylightInjector.RemoveOwner(runtime, spec.Id);
                 }
 
                 foreach (KeyValuePair<string, TubeNetwork> pair in Bases.Where(p => p.Key.StartsWith(runtime.Body.bodyName + "/", StringComparison.Ordinal)).ToList())
@@ -413,6 +431,7 @@ namespace Subterra
                 return;
             }
 
+            Revision++;
             CelestialBody body = runtime.Body;
             RaiseShaftTop(body, spec);
             Samples(body, spec, out List<Vec3d> dirs, out List<double> radii);
@@ -426,7 +445,7 @@ namespace Subterra
                 {
                     // While the tunnel grows under its trench, the rim (which closes the trench where there is no tunnel yet) is rebuilt.
                     bool underMouth = (spec.ToBody(spec.Points[spec.Points.Count - 1]) - spec.ToBody(opening.SurfaceCenter)).Length < opening.Radius + spec.Radius;
-                    SkylightRenderer.Instance?.BuildRimNow(runtime, alone, opening, rebuild: changed >= 0 && spec.Shape == ExcavationShape.Tunnel && underMouth);
+                    SkylightRenderer.Instance?.BuildRimNow(runtime, alone, opening, rebuild: changed >= 0 && spec.Shape == ExcavationShape.Tunnel && opening.Smooth && underMouth);
                 }
 
                 SkylightInjector.AddNetworks(runtime, new[] { alone });
@@ -444,6 +463,13 @@ namespace Subterra
                 }
                 foreach (Skylight opening in openings)
                 {
+                    // A round opening is cut once: vehicles are steadied then, not at every metre dug under it (a mole's rig
+                    // was held back while its bore went on).
+                    if (!opening.Smooth && spec.PieceCount > 1 && changed > 0)
+                    {
+                        continue;
+                    }
+
                     SkylightRenderer.Instance?.Settle(alone.ToBody(opening.SurfaceCenter), opening.Radius);
                 }
             }
@@ -525,6 +551,9 @@ namespace Subterra
         /// <summary>Longest trench (m) a nearly level tunnel opens before its mouth is capped.</summary>
         private const double MaxTrench = 30;
 
+        /// <summary>Sine of the descent (60 degrees) past which a tunnel opens a round hole instead of a trench.</summary>
+        private const double SteepSine = 0.866;
+
         /// <summary>How far (m) a blast shaft rises past the ground, like a natural skylight's shaft.</summary>
         private const double ShaftOvershoot = 10;
 
@@ -564,7 +593,11 @@ namespace Subterra
                 // extended to find that point; the opening covers the trench (its smooth rim closes the rest).
                 Vec3d centre = start.Normalized * surface;
                 float radius = spec.Radius + 0.5f;
-                if (spec.Shape == ExcavationShape.Tunnel && spec.Points.Count >= 2)
+                // A tunnel going (nearly) straight down (a mole's bore, a laser aimed down) opens a round hole like a shaft:
+                // the trench and its closed back are for ramps (the back half closed under a mole's rig and held it up).
+                bool steep = spec.Shape == ExcavationShape.Tunnel && spec.Points.Count >= 2
+                    && Vec3d.Dot((spec.ToBody(spec.Points[1]) - start).Normalized, start.Normalized) < -SteepSine;
+                if (spec.Shape == ExcavationShape.Tunnel && spec.Points.Count >= 2 && !steep)
                 {
                     Vec3d dir = (spec.ToBody(spec.Points[1]) - start).Normalized;
                     double trench = 0;
@@ -596,7 +629,7 @@ namespace Subterra
                     Lon = lon,
                     Index = 0,
                     Owner = spec.Id,
-                    Smooth = spec.Shape == ExcavationShape.Tunnel,
+                    Smooth = spec.Shape == ExcavationShape.Tunnel && !steep,
                 });
             }
 

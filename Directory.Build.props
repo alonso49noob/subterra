@@ -9,8 +9,12 @@
     <KSPRefDir Condition="'$(KSPRefDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program</KSPRefDir>
     <!-- KSPTestDir is the throwaway KSP copy where the automated scenarios run. -->
     <KSPTestDir Condition="'$(KSPTestDir)' == ''">C:\KSP_SubterraTest</KSPTestDir>
-    <KSPManaged>$(KSPRefDir)\KSP_x64_Data\Managed</KSPManaged>
-    <HarmonyDll>$(KSPRefDir)\GameData\000_Harmony\0Harmony.dll</HarmonyDll>
+    <!-- KSPBuildDir is the install whose DLLs the plugin is compiled against (default: KSPRefDir). Subterra runs on KSP 1.12.5
+         and on Retooled (Lucas): built against 1.12.5's Unity 2019 API, the oldest, one DLL serves both (Retooled relinks
+         it); what differs is found at run time (PhysicsBake). -->
+    <KSPBuildDir Condition="'$(KSPBuildDir)' == ''">$(KSPRefDir)</KSPBuildDir>
+    <KSPManaged>$(KSPBuildDir)\KSP_x64_Data\Managed</KSPManaged>
+    <HarmonyDll>$(KSPBuildDir)\GameData\000_Harmony\0Harmony.dll</HarmonyDll>
     <TargetFramework>net472</TargetFramework>
     <LangVersion>9.0</LangVersion>
     <Nullable>disable</Nullable>

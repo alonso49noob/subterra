@@ -15,6 +15,8 @@
     <Reference Include="UnityEngine.AnimationModule"><HintPath>$(KSPManaged)\UnityEngine.AnimationModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(KSPManaged)\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.ImageConversionModule"><HintPath>$(KSPManaged)\UnityEngine.ImageConversionModule.dll</HintPath><Private>false</Private></Reference>
+    <!-- Retooled (Unity 6) only: NativeArray moved there. KSP 1.12.5 (Unity 2019) has no such file. -->
+    <Reference Include="UnityEngine.ManagedKernelModule" Condition="Exists('$(KSPManaged)\UnityEngine.ManagedKernelModule.dll')"><HintPath>$(KSPManaged)\UnityEngine.ManagedKernelModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="0Harmony"><HintPath>$(HarmonyDll)</HintPath><Private>false</Private></Reference>
   </ItemGroup>
   <ItemGroup>

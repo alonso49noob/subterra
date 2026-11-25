@@ -234,7 +234,7 @@ namespace Subterra
                     }
 
                     double kPa = WaterPhysics.PressureKPa(sample.Value.Depth, density, g, vessel.staticPressurekPa + over);
-                    if (kPa > part.maxPressure)
+                    if (Settings.Current.WaterCrush && kPa > part.maxPressure)
                     {
                         ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Water_Crushed", part.partInfo.title, (kPa / 101.325).ToString("F0")), 5f);
                         Log.Info($"{part.partInfo.title} on {vessel.GetDisplayName()} crushed at {sample.Value.Depth:F0} m of water ({kPa:F0} kPa > {part.maxPressure:F0})");

@@ -69,6 +69,30 @@ namespace Subterra
             return indices;
         }
 
+        /// <summary>
+        /// Takes hole <paramref name="index"/> away and gives its quads back their ground (a dug hole of a game that was loaded
+        /// over or reverted: it stayed cut, a hole in the ground with nothing under it). Indices of the other holes stay.
+        /// </summary>
+        public void RemoveHole(int index)
+        {
+            if (index < 0 || index >= holes.Count || holes[index].Removed)
+            {
+                return;
+            }
+
+            Hole hole = holes[index];
+            hole.Removed = true;
+            if (sphere != null && sphere.quads != null)
+            {
+                foreach (PQ root in sphere.quads)
+                {
+                    QueueNear(root, hole);
+                }
+            }
+
+            hole.Quads.Clear();
+        }
+
         /// <summary>Cuts again the quads near hole <paramref name="index"/>: its shape changed (a tunnel mouth grew).</summary>
         public void Refresh(int index)
         {
@@ -212,7 +236,7 @@ namespace Subterra
         /// <summary>True while a cut quad of that hole is on screen (the terrain is open there).</summary>
         public bool IsOpen(int hole)
         {
-            if (hole < 0 || hole >= holes.Count)
+            if (hole < 0 || hole >= holes.Count || holes[hole].Removed)
             {
                 return false;
             }
@@ -364,6 +388,11 @@ namespace Subterra
             bool any = false;
             foreach (Hole hole in holes)
             {
+                if (hole.Removed)
+                {
+                    continue;
+                }
+
                 double limit = quadRadius + hole.Radius + reach;
                 if ((hole.Centre - quadCentre).sqrMagnitude > limit * limit)
                 {
@@ -385,7 +414,8 @@ namespace Subterra
             {
                 if (near.Count == 0)
                 {
-                    DropPatch(quad);
+                    // No hole here (any more): the ground as KSP built it, collider too.
+                    Restore(quad);
                 }
 
                 if (cut.ContainsKey(quad))
@@ -558,6 +588,11 @@ namespace Subterra
             {
                 mesh.triangles = origin.Triangles;
                 ParallaxBridge.Refresh(quad);
+                if (quad.meshCollider != null && quad.meshCollider.sharedMesh != null)
+                {
+                    quad.meshCollider.sharedMesh = null;
+                    quad.meshCollider.sharedMesh = mesh;
+                }
             }
         }
 
@@ -839,6 +874,9 @@ namespace Subterra
             // The hole's shape in body coordinates (negative inside), for a clipped hole that is not round; Radius bounds it.
             public Func<Vector3d, float> Field;
             public HashSet<PQ> Quads;
+
+            // Taken away (a dug hole of a game that was left): its quads are given back their ground.
+            public bool Removed;
         }
     }
 }

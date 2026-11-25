@@ -42,9 +42,9 @@ SUBTERRA_BODY
 	{
 EOF
 layer Soil 0 3 0.1 1.6 25 "0.50,0.48,0.44"
-layer Limestone 3 2500 0.4 2.6 25 "0.66,0.64,0.58" "Highlands, Mountains"
+layer Limestone 3 2500 0.4 2.6 25 "0.66,0.64,0.58" "Highlands, Mountains" "Water:0.03"
 layer Sediments 3 1500 0.35 2.3 25 "0.56,0.52,0.46" "Grasslands, Shores, Tundra" "Water:0.02"
-layer Sandstone 3 1500 0.35 2.3 25 "0.62,0.54,0.44" "Deserts, Badlands"
+layer Sandstone 3 1500 0.35 2.3 25 "0.62,0.54,0.44" "Deserts, Badlands" "Water:0.01"
 layer Granite 1500 8000 0.75 2.7 25 "0.52,0.50,0.50"
 layer DeepCrust 8000 35000 0.85 2.9 22 "0.46,0.44,0.44"
 layer Mantle 35000 300000 0.92 3.4 15 "0.46,0.36,0.30"

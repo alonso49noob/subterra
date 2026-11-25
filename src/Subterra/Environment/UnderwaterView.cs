@@ -37,9 +37,12 @@ namespace Subterra
             Camera camera = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
             WaterSample? sample = null;
             if (camera != null && Settings.Current.WaterPhysics && FlightGlobals.currentMainBody != null
-                && Underground.Locate(FlightGlobals.currentMainBody, camera.transform.position, out TubeNetwork net, out var local) && net.Waters.Count > 0)
+                && Underground.Locate(FlightGlobals.currentMainBody, camera.transform.position, out TubeNetwork net, out var local))
             {
-                sample = net.WaterAt(local, margin: 1f, above: 0f);
+                // In a cave's or a dug hole's void: only its own water darkens the view. (A shaft dug into Vall's ice counted
+                // as "inside the ice over the ocean" and turned the whole view dark blue: Lucas.)
+                // A hole down to the ocean: below the ice, its water is the ocean's.
+                sample = net.Waters.Count > 0 ? net.WaterAt(local, margin: 1f, above: 0f) : Underground.OceanAt(FlightGlobals.currentMainBody, camera.transform.position);
             }
             else if (camera != null && Settings.Current.WaterPhysics && FlightGlobals.currentMainBody != null)
             {
@@ -67,7 +70,9 @@ namespace Subterra
             Vec3d at = Frames.ToBody(body, world);
             Core.Geo.BodyFrame.ToLatLon(at, out double lat, out double lon);
             double r = at.Length;
-            if (r < runtime.Ocean.CeilingRadius(lat) || r > KspSampler.SurfaceRadius(body, lat, lon) - 2)
+            if (r < runtime.Ocean.CeilingRadius(lat) || r > KspSampler.SurfaceRadius(body, lat, lon) - 2
+                // By a dug shaft or a cave (the camera pushed into its wall): the hole is what is seen, not solid ice.
+                || runtime.Catalog.FindNear(at, 15f) != null)
             {
                 return null;
             }
