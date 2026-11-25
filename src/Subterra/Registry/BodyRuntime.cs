@@ -14,6 +14,7 @@ namespace Subterra
             Catalog = new NetworkCatalog(spec, body.Radius);
             Strata = new Strata(spec.Strata);
             Geotherm = new Geotherm(spec.Geotherm, Strata);
+            Ocean = spec.Ocean != null ? new Subterra.Core.Water.OceanShell(spec.Ocean, body.Radius) : null;
         }
 
         public BodySpec Spec { get; }
@@ -37,5 +38,7 @@ namespace Subterra
         /// lazy detection reads the targets of one network at a time through it.
         /// </summary>
         public NetworkTargetSource NetworkTargets { get; internal set; }
+        /// <summary>The ocean under the ice; null if the body has none (sub-project 4).</summary>
+        public Subterra.Core.Water.OceanShell Ocean { get; }
     }
 }

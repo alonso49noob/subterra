@@ -28,10 +28,13 @@ SUBTERRA_BODY
 EOF
 }
 
-field() { # name style biomes per10k width length roof spacing branch chamber hidden seed
+field() { # name style biomes per10k width length roof spacing branch chamber hidden seed [waterChance [waterColour]]
   printf '\tTUBE_FIELD\n\t{\n\t\tname = %s\n' "$1"
   [ "$2" != lava ] && printf '\t\tstyle = %s\n' "$2"
-  printf '\t\tbiomes = %s\n\t\tnetworksPer10k = %s\n\t\twidth = %s\n\t\tlength = %s\n\t\troofDepth = %s\n\t\tskylightSpacing = %s\n\t\tbranchChance = %s\n\t\tchamberChance = %s\n\t\thiddenChance = %s\n\t\tseed = %s\n\t}\n' "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}" "${12}"
+  printf '\t\tbiomes = %s\n\t\tnetworksPer10k = %s\n\t\twidth = %s\n\t\tlength = %s\n\t\troofDepth = %s\n\t\tskylightSpacing = %s\n\t\tbranchChance = %s\n\t\tchamberChance = %s\n\t\thiddenChance = %s\n\t\tseed = %s\n' "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}" "${12}"
+  [ -n "${13:-}" ] && printf '\t\twaterChance = %s\n' "${13}"
+  [ -n "${14:-}" ] && printf '\t\twaterColour = %s\n' "${14}"
+  printf '\t}\n'
 }
 
 # --- Eve: explodium aquifers, salt domes, karst; deep caves crush under Eve's pressure ---------------------------
@@ -49,7 +52,7 @@ printf '\t}\n'
 # Explodium Aquifer: a karst passage half full of explodium, with a pump-ready chamber.
 site_head EveAquifer
 node "${AQUIFER[0]}" "${AQUIFER[1]}" 25 40 30 skylight 15
-node "$(lerp ${AQUIFER[0]} ${AQUIFER[2]} 0.5)" "$(lerp ${AQUIFER[1]} ${AQUIFER[3]} 0.5)" 60 120 50 chamber "" 15 "0.30,0.14,0.34"
+node $(along ${AQUIFER[@]} 0.5) 60 120 50 chamber "" 15 "0.30,0.14,0.34"
 node "${AQUIFER[2]}" "${AQUIFER[3]}" 80 40 30 end
 edge 0 1 0.5 0.1; edge 1 2 0.5 0.1
 printf '\t}\n'
@@ -57,9 +60,11 @@ printf '\t}\n'
 site_head EveSaltDome
 node "${DOME[0]}" "${DOME[1]}" 80 200 120 geode
 printf '\t}\n'
-field EveKarst karst "Lowlands, Midlands, Highlands, Foothills" 1.2 "8, 60" "1000, 6000" "20, 150" "1500, 5000" 0.5 0.2 0.75 91
+# Explodium pools in a third of the rooms of Eve's karst. [Claude, revisar]
+field EveKarst karst "Lowlands, Midlands, Highlands, Foothills" 1.2 "8, 60" "1000, 6000" "20, 150" "1500, 5000" 0.5 0.2 0.75 91 0.35 "0.30,0.14,0.34"
 common_scatters
 scatter Stalactites "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 1 "0.5, 2.5" 1 false 0.03 0.4 2
+scatter Stalagmites "Subterra/Props/Stalagmite01" floor "TubeGallery, TubeChamber, TubeBranch" 0.6 "0.4, 3" 0 true 0.03 0.45 2 0.05
 scatter SaltCrystals "Subterra/Props/GeodeCrystal01" floor "Geode" 4 "0.6, 3" 0.9 false 0.02 -1 2 0.1
 rule Explodium "" Evaporites 3 ""
 echo "}"
@@ -79,8 +84,8 @@ printf '\t}\n'
 site_head LaytheIslandTube
 for i in 0 1 2 3 4 5 6; do
   t=$(awk -v i=$i 'BEGIN { printf "%.3f", i / 6 }')
-  if [ $((i % 2)) -eq 0 ]; then node "$(lerp ${ISLAND[0]} ${ISLAND[2]} $t)" "$(lerp ${ISLAND[1]} ${ISLAND[3]} $t)" 15 25 15 skylight 8
-  else node "$(lerp ${ISLAND[0]} ${ISLAND[2]} $t)" "$(lerp ${ISLAND[1]} ${ISLAND[3]} $t)" 20 30 18; fi
+  if [ $((i % 2)) -eq 0 ]; then node $(along ${ISLAND[@]} $t) 15 25 15 skylight 8
+  else node $(along ${ISLAND[@]} $t) 20 30 18; fi
 done
 for i in 0 1 2 3 4 5; do edge $i $((i + 1)) 0.4 0.06; done
 printf '\t}\n'
@@ -88,6 +93,7 @@ field LaytheIslands lava "Dunes, Shores, Crescent Bay, Crater Island, Peaks" 2 "
 common_scatters
 scatter Lavacicles "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 0.5 "0.5, 1.5" 1 false
 glow GlowFungi "Subterra/Props/Fungus01" floor "TubeGallery, TubeChamber, TubeBranch" 0.2 "0.4, 1.8" "0.4,0.7,1.0" 18 0 false 0.04 0.55
+glow GlowMoss "Subterra/Props/GlowMat01" wall "TubeGallery, TubeChamber, TubeBranch" 0.08 "2, 7" "0.2,0.4,0.65" 0 0 false 0.03 0.45
 echo "}"
 } > "$out"; echo "wrote $out"
 
@@ -102,7 +108,7 @@ layer RockyMantle 3000 100000 0.8 2.8 1.5 "0.46,0.44,0.42"
 printf '\t}\n'
 site_head DresCanyonCaves
 node "${CANYON[0]}" "${CANYON[1]}" 30 80 35 skylight 20
-node "$(lerp ${CANYON[0]} ${CANYON[2]} 0.5)" "$(lerp ${CANYON[1]} ${CANYON[3]} 0.5)" 60 200 70 chamber
+node $(along ${CANYON[@]} 0.5) 60 200 70 chamber
 node "${CANYON[2]}" "${CANYON[3]}" 50 80 35 end
 edge 0 1 0.4 0.08; edge 1 2 0.4 0.08
 printf '\t}\n'
@@ -125,7 +131,7 @@ node "$(awk -v a=${GILLY[0]} 'BEGIN { printf "%.4f", a + 0.8 }')" "$(awk -v a=${
 node "$(awk -v a=${GILLY[0]} 'BEGIN { printf "%.4f", a + 1.6 }')" "$(awk -v a=${GILLY[1]} 'BEGIN { printf "%.4f", a + 2.0 }')" 15 30 20 skylight 12
 edge 0 1 0.5 0.12; edge 1 2 0.5 0.12
 printf '\t}\n'
-field GillyGaps karst "Lowlands, Midlands, Highlands" 30 "8, 40" "400, 1500" "10, 60" "500, 1200" 0.5 0.3 0.5 94
+field GillyGaps rubble "Lowlands, Midlands, Highlands" 30 "8, 40" "400, 1500" "10, 60" "500, 1200" 0.5 0.3 0.5 94
 scatter BreakdownBoulders "Subterra/Props/Boulder01, Subterra/Props/Boulder02, Subterra/Props/Boulder03" floor "TubeGallery, TubeChamber, TubeBranch" 2 "0.3, 5" 0.6 true 0.035 0.5 2.5 0.3
 echo "}"
 } > "$out"; echo "wrote $out"
@@ -141,14 +147,16 @@ printf '\t}\n'
 # Bop's Cavern: a vast cavern under a valley, entered by a shaft; the Kraken nod is its sealed far end (dig to it).
 site_head BopCavern
 node "${BOP[0]}" "${BOP[1]}" 40 60 40 skylight 20
-node "$(lerp ${BOP[0]} ${BOP[2]} 0.5)" "$(lerp ${BOP[1]} ${BOP[3]} 0.5)" 300 500 220 chamber
+node $(along ${BOP[@]} 0.5) 300 500 220 chamber
 node "${BOP[2]}" "${BOP[3]}" 400 120 60 end
 edge 0 1 0.3 0.06; edge 1 2 0.4 0.06
 printf '\t}\n'
 site_head BopKrakenChamber
-node "$(lerp ${BOP[0]} ${BOP[2]} 0.9)" "$(lerp ${BOP[1]} ${BOP[3]} 0.9)" 650 150 90 geode
+node $(along ${BOP[@]} 0.9) 650 150 90 geode
 printf '\t}\n'
 field BopCaverns lava "Valley, Slopes, Peaks, Ridges, Poles" 1 "40, 300" "800, 5000" "40, 300" "1500, 4000" 0.4 0.3 0.7 95
+# Bop is a rubble pile (a captured comet): rooms between its blocks all through it. [Claude, revisar]
+field BopRubble rubble "Valley, Slopes, Peaks, Ridges, Poles" 3 "15, 60" "800, 3000" "20, 200" "1500, 4000" 0.4 0.3 0.4 99
 scatter IceCrystals "Subterra/Props/IceCluster01" floor "TubeGallery, TubeChamber, TubeBranch" 0.8 "0.4, 2" 0.8 false 0.02 0.35 1.5 0.15
 # The Kraken chamber: ribcages arching over the floor (drive under them) and loose bones.
 scatter KrakenRibs "Subterra/Props/KrakenRibs01" floor "Geode" 0.015 "6, 14" 0.3 true 0.02 -1 1 0.15
@@ -158,8 +166,8 @@ echo "}"
 } > "$out"; echo "wrote $out"
 
 # --- Vall, Eeloo, Pol: small ice caves (their oceans and lakes come in sub-project 4) -----------------------------
-icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed
-  local body=$1 prefix=$2 temp=$3 comment=$4 name=$5 la0=$6 lo0=$7 la1=$8 lo1=$9 biomes=${10} seed=${11}
+icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed [fieldStyle [conduitsPer10k [ocean]]]
+  local body=$1 prefix=$2 temp=$3 comment=$4 name=$5 la0=$6 lo0=$7 la1=$8 lo1=$9 biomes=${10} seed=${11} style=${12:-lava} conduits=${13:-} ocean=${14:-}
   out=GameData/Subterra/Bodies/$body/$body.cfg; mkdir -p "$(dirname "$out")"
   {
   head_body $body $prefix $temp "$comment"
@@ -173,14 +181,31 @@ icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed
   node $la1 $lo1 45 40 25 end
   edge 0 1 0.5 0.06; edge 1 2 0.5 0.06
   printf '\t}\n'
-  field ${body}Ice lava "$biomes" 3 "10, 80" "500, 4000" "10, 80" "1000, 3000" 0.5 0.15 0.6 $seed
+  field ${body}Ice $style "$biomes" 3 "10, 80" "500, 4000" "10, 80" "1000, 3000" 0.5 0.15 0.6 $seed
+  # Cryovolcanic conduits: frozen pipes spiralling down hundreds of metres from a skylight. [Claude, revisar]
+  [ -n "$conduits" ] && field ${body}Conduits conduit "$biomes" $conduits "15, 40" "500, 1500" "15, 40" "1000, 3000" 0.3 0.3 0.3 $((seed + 50))
   scatter IceCrystals "Subterra/Props/IceCluster01" floor "TubeGallery, TubeChamber, TubeBranch, FrozenVault" 1 "0.4, 1.8" 0.8 false 0.02 0.3 1.5 0.15
   scatter IceDrips "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 0.6 "0.5, 1.5" 1 false
   scatter SkylightRubble "Subterra/Props/RubbleCone01, Subterra/Props/Boulder03" skylightRubble "" 2 "0.5, 3.5" 0.5 true 0.02 0.3 2.5 0.25
   rule Water "" WaterIce 2 ""
+  # The ocean under the ice (sub-project 4): "ceilingPole ceilingEquator thickness" in metres. [Claude, revisar]
+  if [ -n "$ocean" ]; then
+    read pole eq thick <<<"$ocean"
+    printf '	OCEAN
+	{
+		ceilingPole = %s
+		ceilingEquator = %s
+		thickness = %s
+		density = 1030
+		temperature = 272
+		colour = 0.05, 0.12, 0.20
+	}
+' $pole $eq $thick
+  fi
   echo "}"
   } > "$out"; echo "wrote $out"
 }
-icy Vall VL 90 "ice caves of Vall (its subsurface ocean, lakes and cryovolcanoes come in sub-project 4)" VallIceCaves -1.0381 85.3411 -0.9300 85.4492 "Lowlands, Midlands, Highlands, Northeast Basin, Northwest Basin, Southern Basin, Southern Valleys" 96
-icy Eeloo EE 60 "ice caves of Eeloo (its subsurface ocean comes in sub-project 4)" EelooIceCaves -17.9440 149.8971 -18.0983 149.7347 "Lowlands, Midlands, Highlands, Ice Canyons, Northern Glaciers, Southern Glaciers, Mu Glacier" 97
-icy Pol PO 110 "ice caves of Pol" PolIceCaves -4.4722 -136.0378 -4.4718 -135.2541 "Lowlands, Midlands, Highlands" 98
+icy Vall VL 90 "ice caves of Vall (its subsurface ocean, lakes and cryovolcanoes come in sub-project 4)" VallIceCaves -1.0381 85.3411 -0.9300 85.4492 "Lowlands, Midlands, Highlands, Northeast Basin, Northwest Basin, Southern Basin, Southern Valleys" 96 lava 1 "1000 10000 30000"
+icy Eeloo EE 60 "ice caves of Eeloo (its subsurface ocean comes in sub-project 4)" EelooIceCaves -17.9440 149.8971 -18.0983 149.7347 "Lowlands, Midlands, Highlands, Ice Canyons, Northern Glaciers, Southern Glaciers, Mu Glacier" 97 lava 1 "1000 8000 20000"
+# Pol, small and lumpy: its procedural caves are voids between blocks under its ice. [Claude, revisar]
+icy Pol PO 110 "ice caves of Pol" PolIceCaves -4.4722 -136.0378 -4.4718 -135.2541 "Lowlands, Midlands, Highlands" 98 rubble "" "1000 3000 5000"

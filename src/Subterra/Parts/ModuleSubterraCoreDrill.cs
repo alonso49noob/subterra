@@ -18,7 +18,7 @@ namespace Subterra
     /// sample per layer (science subject: body + layer) and reports caves the hole breaks into.
     /// The hole has no geometry; it is lost if the vessel moves away. Drills only while the vessel is loaded.
     /// </summary>
-    public sealed class ModuleSubterraCoreDrill : PartModule, IScienceDataContainer, IAnimatedModule
+    public sealed partial class ModuleSubterraCoreDrill : PartModule, IScienceDataContainer, IAnimatedModule
     {
         // IAnimatedModule: the part's ModuleAnimationGroup plays its "drilling" animation while ModuleIsActive,
         // and blocks the work while the drill is retracted.
@@ -40,7 +40,9 @@ namespace Subterra
 
         [KSPField] public float baseRate = 0.5f;
         [KSPField] public float powerUse = 1.5f;
-        [KSPField] public float maxDepth = 2000f;
+        /// <summary>Deepest the drill bores (m); 0 = no limit but the rock's heat (and the body's centre). Lucas: the 2000 m cap
+        /// is gone.</summary>
+        [KSPField] public float maxDepth = 0f;
         [KSPField] public float maxRockTemp = 900f;
         [KSPField] public float transmitValue = 0.5f;
 
@@ -58,6 +60,12 @@ namespace Subterra
 
         [KSPField(guiActive = true, guiName = "#Subterra_Drill_Depth", guiFormat = "F1", guiUnits = " m")]
         public float uiDepth;
+
+        /// <summary>Explosive (kg) the hole would take if loaded now (refreshed once a second; caves along it not counted).</summary>
+        [KSPField(guiActive = true, guiName = "#Subterra_Drill_NeedKg", guiFormat = "F0", guiUnits = " kg")]
+        public float uiNeedKg;
+
+        private float nextNeed;
 
         [KSPField(guiActive = true, guiName = "#Subterra_Drill_Layer")]
         public string uiLayer = "-";
@@ -145,8 +153,26 @@ namespace Subterra
             ReviewData();
         }
 
-        /// <summary>Radius (m) of the shaft a loaded hole opens.</summary>
+        /// <summary>Radius (m) of the shaft a loaded hole opens (the part's default; the player sets <see cref="holeDiameter"/>).</summary>
         [KSPField] public float blastRadius = 3f;
+
+        /// <summary>
+        /// Diameter (m) of the shaft (or blasted tunnel), set in the editor or in flight to fit the craft that will go down
+        /// it (Lucas). The explosive grows with its square. 0 until first set: the part's <see cref="blastRadius"/>.
+        /// </summary>
+        [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = "#Subterra_Drill_Diameter", guiUnits = " m", guiFormat = "F1")]
+        [UI_FloatRange(minValue = 2f, maxValue = 40f, stepIncrement = 0.5f)]
+        public float holeDiameter;
+
+        private void ApplyDiameter()
+        {
+            if (holeDiameter <= 0)
+            {
+                holeDiameter = blastRadius * 2;
+            }
+
+            blastRadius = holeDiameter * 0.5f;
+        }
 
         /// <summary>Seconds between "detonate" and the blast.</summary>
         [KSPField] public float fuseSeconds = 10f;
@@ -161,6 +187,12 @@ namespace Subterra
         [KSPEvent(guiActive = true, guiName = "#Subterra_Drill_Load")]
         public void LoadCharges()
         {
+            if (sideways)
+            {
+                LoadRound();
+                return;
+            }
+
             if (!BodyRegistry.Instance.TryGet(vessel.mainBody, out BodyRuntime runtime) || depth <= 0)
             {
                 ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_NoLayer"), 4f);
@@ -183,14 +215,18 @@ namespace Subterra
                 return;
             }
 
-            double have = vessel.parts.Sum(p => p.Resources.Cast<PartResource>().Where(r => r.resourceName == "Explosive").Sum(r => r.amount));
-            if (have < design.TotalKg)
+            if (!FreeBlasting)
             {
-                ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_NeedExplosive", design.TotalKg.ToString("F0"), have.ToString("F0")), 6f);
-                return;
+                double have = vessel.parts.Sum(p => p.Resources.Cast<PartResource>().Where(r => r.resourceName == "Explosive").Sum(r => r.amount));
+                if (have < design.TotalKg)
+                {
+                    ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_NeedExplosive", design.TotalKg.ToString("F0"), have.ToString("F0")), 6f);
+                    return;
+                }
+
+                part.RequestResource("Explosive", design.TotalKg);
             }
 
-            part.RequestResource("Explosive", design.TotalKg);
             ExcavationService.ArmedBlast blast = ExcavationService.Arm(runtime, holeLat, holeLon, design);
             armedBlastId = blast.Id;
             BlastRings.Show(blast);
@@ -205,6 +241,12 @@ namespace Subterra
         [KSPEvent(guiActive = true, guiName = "#Subterra_Drill_Detonate")]
         public void Detonate()
         {
+            if (roundArmed)
+            {
+                DetonateRound();
+                return;
+            }
+
             ExcavationService.ArmedBlast blast = ExcavationService.FindBlast(armedBlastId);
             if (blast == null || !BodyRegistry.Instance.TryGet(FlightGlobals.GetBodyByName(blast.Body), out BodyRuntime runtime))
             {
@@ -244,10 +286,35 @@ namespace Subterra
             var spans = new List<(double top, double bottom)>();
             Vec3d dir = BodyFrame.Direction(holeLat, holeLon);
             double surface = KspSampler.SurfaceRadius(body, holeLat, holeLon);
+            // Only the networks whose box the hole passes through (a hole tens of km deep, now there is no depth limit,
+            // checked against every network every half metre froze the game).
+            var near = new List<TubeNetwork>();
+            foreach (TubeNetwork net in runtime.Catalog.All)
+            {
+                Vec3 a = net.ToLocal(dir * (surface - from)), b = net.ToLocal(dir * (surface - to));
+                Aabb box = net.Bounds;
+                if (Math.Min(a.X, b.X) <= box.Max.X && Math.Max(a.X, b.X) >= box.Min.X
+                    && Math.Min(a.Y, b.Y) <= box.Max.Y && Math.Max(a.Y, b.Y) >= box.Min.Y
+                    && Math.Min(a.Z, b.Z) <= box.Max.Z && Math.Max(a.Z, b.Z) >= box.Min.Z)
+                {
+                    near.Add(net);
+                }
+            }
+
             double? start = null;
             for (double d = from; d <= to + 0.5; d += 0.5)
             {
-                bool inside = runtime.Catalog.FindContaining(dir * (surface - d)) != null;
+                Vec3d at = dir * (surface - d);
+                bool inside = false;
+                foreach (TubeNetwork net in near)
+                {
+                    Vec3 local = net.ToLocal(at);
+                    if (net.Bounds.Contains(local) && net.IsInside(local))
+                    {
+                        inside = true;
+                        break;
+                    }
+                }
                 if (inside && start == null)
                 {
                     start = d;
@@ -269,6 +336,8 @@ namespace Subterra
 
         public override void OnStart(StartState state)
         {
+            ApplyDiameter();
+            Fields[nameof(holeDiameter)].OnValueModified += _ => ApplyDiameter();
             UpdateEvents();
             if (HighLogic.LoadedSceneIsFlight && !string.IsNullOrEmpty(armedBlastId) && ExcavationService.FindBlast(armedBlastId) is ExcavationService.ArmedBlast armed)
             {
@@ -293,8 +362,25 @@ namespace Subterra
             }
         }
 
-        public override string GetInfo() =>
-            Localizer.Format("#Subterra_Drill_Info", maxDepth.ToString("F0"), powerUse.ToString("F1"), maxRockTemp.ToString("F0"));
+        public override string GetInfo() => maxDepth > 0
+            ? Localizer.Format("#Subterra_Drill_Info", maxDepth.ToString("F0"), powerUse.ToString("F1"), maxRockTemp.ToString("F0"))
+            : Localizer.Format("#Subterra_Drill_InfoNoLimit", powerUse.ToString("F1"), maxRockTemp.ToString("F0"));
+
+        /// <summary>
+        /// KSP's "infinite propellant" cheat: blast holes need no explosive and the drill has no depth limit (Lucas: to
+        /// test the mantle and the core without millions of kilograms of explosive).
+        /// </summary>
+        internal static bool FreeBlasting => CheatOptions.InfinitePropellant;
+
+        // Deepest this drill may bore here: its own limit (none by default, none with the cheat), never past the centre.
+        private double MaxDepthHere(CelestialBody body)
+        {
+            double centre = body.Radius - 1;
+            return maxDepth > 0 && !FreeBlasting ? Math.Min(maxDepth, centre) : centre;
+        }
+
+        // The rock temperature the tool stands; KSP's "ignore max temperature" cheat lifts it (0 = no limit).
+        private double RockTempLimit => CheatOptions.IgnoreMaxTemperature ? 0 : maxRockTemp;
 
         private void FixedUpdate()
         {
@@ -327,6 +413,11 @@ namespace Subterra
             Vector3d world = part.transform.position;
             double lat = body.GetLatitude(world), lon = body.GetLongitude(world);
             string biome = KspSampler.Biome(body, lat, lon);
+            UpdateNeed(runtime, biome);
+            if (DrillSideways(dt, runtime, body))
+            {
+                return;
+            }
 
             // A new hole where the vessel stands (first time, or after it moved away from the old one).
             if (depth < 0 || holeBody != body.bodyName || Distance(body, lat, lon, holeLat, holeLon) > HoleTolerance)
@@ -344,7 +435,7 @@ namespace Subterra
 
             if (!drilling || !vessel.Landed || retracted)
             {
-                Show(Borehole.Advance(depth, 0, baseRate, maxRockTemp, maxDepth, runtime.Strata, runtime.Geotherm, biome),
+                Show(Borehole.Advance(depth, 0, baseRate, RockTempLimit, MaxDepthHere(body), runtime.Strata, runtime.Geotherm, biome),
                     drilling ? "#Subterra_Drill_NotLanded" : "#Subterra_Drill_Idle");
                 return;
             }
@@ -353,12 +444,12 @@ namespace Subterra
             double got = need > 0 ? part.RequestResource("ElectricCharge", need) : 0;
             if (got < need * 0.99)
             {
-                Show(Borehole.Advance(depth, 0, baseRate, maxRockTemp, maxDepth, runtime.Strata, runtime.Geotherm, biome), "#Subterra_Drill_NoPower");
+                Show(Borehole.Advance(depth, 0, baseRate, RockTempLimit, MaxDepthHere(body), runtime.Strata, runtime.Geotherm, biome), "#Subterra_Drill_NoPower");
                 return;
             }
 
             double before = depth;
-            Borehole.Progress p = Borehole.Advance(depth, dt * Settings.Current.DigSpeed, baseRate, maxRockTemp, maxDepth, runtime.Strata, runtime.Geotherm, biome);
+            Borehole.Progress p = Borehole.Advance(depth, dt * Settings.Current.DigSpeed, baseRate, RockTempLimit, MaxDepthHere(body), runtime.Strata, runtime.Geotherm, biome);
             depth = p.Depth;
             CheckCaves(runtime, body, lat, lon, before, depth);
             CheckGas(body, lat, lon, p.Layer);
@@ -366,7 +457,7 @@ namespace Subterra
             {
                 drilling = false;
                 UpdateEvents();
-                string why = depth >= maxDepth - 0.01 ? "#Subterra_Drill_MaxDepth" : "#Subterra_Drill_TooHard";
+                string why = depth >= MaxDepthHere(body) - 0.01 ? "#Subterra_Drill_MaxDepth" : "#Subterra_Drill_TooHard";
                 ScreenMessages.PostScreenMessage(Localizer.Format(why), 5f);
                 Show(p, why);
                 return;
@@ -435,6 +526,26 @@ namespace Subterra
             }
         }
 
+        // The explosive the hole as drilled would take (vertical: its decks; sideways: the round), once a second.
+        private void UpdateNeed(BodyRuntime runtime, string biome)
+        {
+            if (Time.time < nextNeed)
+            {
+                return;
+            }
+
+            nextNeed = Time.time + 1f;
+            if (sideways)
+            {
+                uiNeedKg = (float)(BlastDesign.PowderFactor(Layer) * Math.PI * blastRadius * blastRadius * roundLength);
+                return;
+            }
+
+            UndergroundState state = UndergroundTracker.For(vessel);
+            double top = state.Inside ? state.Depth : 0;
+            uiNeedKg = depth > top ? (float)BlastDesign.Plan(top, depth, blastRadius, runtime.Strata, biome, null).TotalKg : 0;
+        }
+
         private void Show(Borehole.Progress p, string status)
         {
             Layer = p.Layer;
@@ -449,7 +560,7 @@ namespace Subterra
         {
             Events[nameof(StartDrilling)].active = !drilling;
             Events[nameof(StopDrilling)].active = drilling;
-            Events[nameof(Detonate)].active = !string.IsNullOrEmpty(armedBlastId);
+            Events[nameof(Detonate)].active = !string.IsNullOrEmpty(armedBlastId) || roundArmed;
         }
 
         private static double Distance(CelestialBody body, double lat0, double lon0, double lat1, double lon1)

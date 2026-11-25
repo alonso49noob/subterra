@@ -21,6 +21,7 @@ namespace Subterra.DevTools
             StepRegistry.Register("addResource", AddResource);
             StepRegistry.Register("setField", SetField);
             StepRegistry.Register("teleportIntoTunnel", TeleportIntoTunnel);
+            StepRegistry.Register("aimLaser", AimLaser);
             StepRegistry.RegisterAssertion("resourceAtLeast", ResourceAtLeast);
             StepRegistry.RegisterAssertion("partExists", PartExists);
             StepRegistry.RegisterAssertion("objectExists", ObjectExists);
@@ -62,6 +63,9 @@ namespace Subterra.DevTools
                 Vector3 dir = Quaternion.AngleAxis(-pitch, Vector3.Cross(level, up)) * level;
                 Vector3 local = root.transform.InverseTransformDirection(dir);
                 values.AddValue("digAxis", Invariant($"{local.x}, {local.y}, {local.z}"));
+                // The laser is aimed by elevation (degrees up from the horizontal) instead.
+                values.AddValue("elevation", Invariant($"{Mathf.Asin(Mathf.Clamp(Vector3.Dot(dir, up), -1f, 1f)) * Mathf.Rad2Deg}"));
+                values.AddValue("heading", "0");
             }
 
             module.Load(values);
@@ -181,8 +185,8 @@ namespace Subterra.DevTools
         private static IEnumerator TeleportIntoTunnel(ConfigNode node, TestContext ctx)
         {
             Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
-            var borer = (ModuleSubterraTunnelBorer)Find(ctx, nameof(ModuleSubterraTunnelBorer));
-            ExcavationSpec tunnel = borer.Tunnel ?? throw new InvalidOperationException("the borer has no tunnel yet");
+            var borer = (ModuleSubterraLaser)Find(ctx, nameof(ModuleSubterraLaser));
+            ExcavationSpec tunnel = borer.Tunnel ?? throw new InvalidOperationException("the laser has no tunnel yet");
             double along = node.ArgDouble("along", 0.6), up = node.ArgDouble("up", 1.5);
             Core.Numerics.Vec3 first = tunnel.Points[0], last = tunnel.Points[tunnel.Points.Count - 1];
             float length = (last - first).Length;
@@ -205,7 +209,7 @@ namespace Subterra.DevTools
             Vector3 vertical = (world - body.position).normalized;
 
             // Yaw about the local vertical so the borer's head points the tunnel's way, then pitch to the tunnel's slope.
-            Vector3 head = borer.part.transform.TransformDirection(borer.digAxis.normalized);
+            Vector3 head = (Vector3)borer.AimDirection();
             Vector3 headLevel = Vector3.ProjectOnPlane(head, vertical), aheadLevel = Vector3.ProjectOnPlane(ahead, vertical);
             Quaternion yaw = Quaternion.AngleAxis(Vector3.SignedAngle(headLevel, aheadLevel, vertical), vertical);
             Vector3 side = Vector3.Cross(vertical, aheadLevel).normalized;
@@ -217,6 +221,23 @@ namespace Subterra.DevTools
             TestContext.RestOrbitHere(vessel);
             yield return null;
             ctx.Pass(Invariant($"{vessel.GetDisplayName()} in {tunnel.Id} at {along:P0} of its {length:F1} m (slope {slope:F0}°), altitude {vessel.altitude:F1} m"));
+        }
+
+        // aimLaser site = DevGeode node = 0 — aims the tracked vessel's laser (heading from its nose, elevation) at that
+        // network node's middle.
+        private static IEnumerator AimLaser(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+            var laser = (ModuleSubterraLaser)Find(ctx, nameof(ModuleSubterraLaser));
+            TubeNetwork net = NetworkSteps.FindNetwork(node, vessel, out _);
+            Core.Numerics.Vec3d target = NetworkSteps.NodePosition(net, NetworkSteps.NodeIndex(net, node.Arg("node", "0")), true, 0);
+            Vector3 dir = ((Vector3)(Frames.ToWorld(vessel.mainBody, target) - laser.part.transform.position)).normalized;
+            Vector3 up = (vessel.CoM - vessel.mainBody.position).normalized;
+            Vector3 nose = Vector3.ProjectOnPlane(vessel.ReferenceTransform.up, up).normalized;
+            laser.elevation = Mathf.Asin(Mathf.Clamp(Vector3.Dot(dir, up), -1f, 1f)) * Mathf.Rad2Deg;
+            laser.heading = Vector3.SignedAngle(nose, Vector3.ProjectOnPlane(dir, up), up);
+            yield return null;
+            ctx.Pass(Invariant($"laser aimed at {net.Id}: heading {laser.heading:F0}°, elevation {laser.elevation:F0}°"));
         }
 
         // partExists name = SubterraCoreDrill — the part was loaded (its cfg and modules parse).
@@ -270,7 +291,7 @@ namespace Subterra.DevTools
         // tunnelLengthAtLeast min = 3 — the borer's tunnel is at least that long.
         private static bool TunnelLengthAtLeast(ConfigNode node, TestContext ctx)
         {
-            var borer = (ModuleSubterraTunnelBorer)Find(ctx, nameof(ModuleSubterraTunnelBorer));
+            var borer = (ModuleSubterraLaser)Find(ctx, nameof(ModuleSubterraLaser));
             ExcavationSpec tunnel = borer.Tunnel;
             double length = 0;
             if (tunnel != null)
@@ -288,7 +309,7 @@ namespace Subterra.DevTools
         // tunnelJoined to = site:DevTube — the borer's tunnel joined that network.
         private static bool TunnelJoined(ConfigNode node, TestContext ctx)
         {
-            var borer = (ModuleSubterraTunnelBorer)Find(ctx, nameof(ModuleSubterraTunnelBorer));
+            var borer = (ModuleSubterraLaser)Find(ctx, nameof(ModuleSubterraLaser));
             string expected = node.RequireArg("to");
             ctx.Detail = $"{borer.Tunnel?.Id ?? "no tunnel"} joined to {borer.Tunnel?.JoinedTo ?? "-"}";
             return borer.Tunnel?.JoinedTo == expected;

@@ -289,7 +289,8 @@ namespace Subterra.Core.Tests.Excavation
         {
             var open = BlastSafety.Radii(100, false);
             var buried = BlastSafety.Radii(100, true);
-            Assert.InRange(open.destroy, 13.5, 14.5);
+            // 100 kg of the kerbals' explosive blast like 1200 kg of a mine's: 3 × 1200^(1/3) ≈ 32 m.
+            Assert.InRange(open.destroy, 31.4, 32.4);
             Assert.True(buried.damage < open.damage * 0.4);
             Assert.True(open.destroy < open.damage);
             Assert.Equal((0.0, 0.0), BlastSafety.Radii(0, true));

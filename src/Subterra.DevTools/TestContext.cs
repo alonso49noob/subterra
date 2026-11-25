@@ -99,6 +99,9 @@ namespace Subterra.DevTools
             ApplyHold(vessel);
         }
 
+        /// <summary>Ends <see cref="Hold"/> without touching the vessel (a step about to place it somewhere else).</summary>
+        public void Forget() => heldVesselId = 0;
+
         /// <summary>Ends <see cref="Hold"/> and lets the vessel go off rails; returns it (null if nothing was held).</summary>
         public Vessel Release()
         {
@@ -122,9 +125,9 @@ namespace Subterra.DevTools
         /// Restarts the vessel's orbit at its latitude, longitude and altitude, at rest relative to the surface.
         /// A packed vessel moved by hand keeps its old orbit, and KSP puts it back there when it leaves the rails.
         /// </summary>
-        internal static void RestOrbitHere(Vessel vessel)
+        internal static void RestOrbitHere(Vessel vessel, CelestialBody body = null)
         {
-            CelestialBody body = vessel.mainBody;
+            body = body ?? vessel.mainBody;
             Vector3d position = body.GetWorldSurfacePosition(vessel.latitude, vessel.longitude, vessel.altitude) - body.position;
             Vector3d velocity = Vector3d.Cross(body.angularVelocity, position);
             vessel.orbit.UpdateFromStateVectors(position.xzy, velocity.xzy, body, Planetarium.GetUniversalTime());

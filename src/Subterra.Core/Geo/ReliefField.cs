@@ -171,13 +171,14 @@ namespace Subterra.Core.Geo
                 double x = best / halfWidth;
                 double profile = x < 0.5 ? 1 : 1 - Smooth((x - 0.5) / 0.5);
 
-                // Ends taper over one width; bridges keep the ground (a smooth ramp over a quarter width each side).
+                // Ends taper over one width; bridges keep the ground, ending in a steep face (a smooth drop over an eighth of
+                // the width each side: the tube comes out of a cliff, not across a long slope). [Claude, revisar]
                 double ends = Math.Min(Smooth(bestAlong / (2 * halfWidth)), Smooth((total - bestAlong) / (2 * halfWidth)));
                 double open = 1;
                 foreach (var (centre, half) in bridges)
                 {
                     double off = Math.Abs(bestAlong - centre) - half;
-                    open = Math.Min(open, Smooth(off / (halfWidth * 0.5)));
+                    open = Math.Min(open, Smooth(off / (halfWidth * 0.25)));
                 }
 
                 return -depth * profile * ends * open;

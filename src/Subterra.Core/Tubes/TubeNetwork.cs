@@ -37,6 +37,20 @@ namespace Subterra.Core.Tubes
             {
                 minSurfaceRadius = Math.Min(minSurfaceRadius, r);
             }
+
+            sampleCells = new Dictionary<(long, long, long), List<int>>();
+            double scale = anchor.Length / SampleCell;
+            for (int i = 0; i < surfaceDirs.Length; i++)
+            {
+                var key = CellOf(surfaceDirs[i], scale);
+                if (!sampleCells.TryGetValue(key, out List<int> list))
+                {
+                    sampleCells[key] = list = new List<int>();
+                }
+
+                list.Add(i);
+            }
+
             Aabb bounds = primitives.Count > 0 ? primitives[0].Bounds : default;
             foreach (Primitive prim in primitives)
             {
@@ -80,19 +94,58 @@ namespace Subterra.Core.Tubes
         {
             get
             {
-                var waters = new List<WaterSurface>();
+                if (waters != null)
+                {
+                    return waters;
+                }
+
+                var list = new List<WaterSurface>();
                 for (int i = 0; Site != null && i < Site.Nodes.Count && i < Nodes.Count; i++)
                 {
                     NodeSpec node = Site.Nodes[i];
                     if (node.Water > 0)
                     {
                         PathPoint p = Nodes[i];
-                        waters.Add(new WaterSurface(ToLocal(p.FloorCenter + p.Up * node.Water), p.Up.ToVec3(), (float)(1.5 * node.Width), node.WaterColour));
+                        // As deep as the room is high below the level (its floor is rough, and a reach spans other rooms).
+                        list.Add(new WaterSurface(ToLocal(p.FloorCenter + p.Up * node.Water), p.Up.ToVec3(), (float)(node.WaterReach > 0 ? node.WaterReach : 1.5 * node.Width), node.WaterColour,
+                            (float)(node.Water + node.Height)));
                     }
                 }
 
+                waters = list;
                 return waters;
             }
+        }
+
+        private IReadOnlyList<WaterSurface> waters;
+
+        /// <summary>
+        /// The water level that <paramref name="local"/> is under or just over (within <paramref name="above"/> m): one
+        /// whose reach covers it, in the cave's void or within <paramref name="margin"/> m of its rock (a part touching
+        /// a wall still counts). Null where no water is near.
+        /// </summary>
+        public Water.WaterSample? WaterAt(Vec3 local, float margin = 2f, float above = 10f)
+        {
+            IReadOnlyList<WaterSurface> levels = Waters;
+            Water.WaterSample? best = null;
+            for (int i = 0; i < levels.Count; i++)
+            {
+                WaterSurface w = levels[i];
+                Vec3 offset = local - w.Centre;
+                float height = Vec3.Dot(offset, w.Up);
+                float depth = -height;
+                if (depth < -above || depth > w.MaxDepth || (offset - w.Up * height).LengthSquared > w.Radius * w.Radius)
+                {
+                    continue;
+                }
+
+                if (best == null || depth > best.Value.Depth)
+                {
+                    best = new Water.WaterSample(depth, Water.WaterPhysics.FreshDensity, w.Up, w.Colour);
+                }
+            }
+
+            return best != null && Sdf.Distance(local) < margin ? best : null;
         }
 
         /// <summary>
@@ -154,6 +207,39 @@ namespace Subterra.Core.Tubes
         public double SurfaceRadiusNear(Vec3 local)
         {
             Vec3d dir = ToBody(local).Normalized;
+
+            // The samples in the cells around first: if one is within a cell's size it is the nearest of all.
+            double scale = Anchor.Length / SampleCell;
+            var (cx, cy, cz) = CellOf(dir, scale);
+            double near = double.MinValue;
+            double nearRadius = 0;
+            for (long x = cx - 1; x <= cx + 1; x++)
+            {
+                for (long y = cy - 1; y <= cy + 1; y++)
+                {
+                    for (long z = cz - 1; z <= cz + 1; z++)
+                    {
+                        if (sampleCells.TryGetValue((x, y, z), out List<int> list))
+                        {
+                            foreach (int i in list)
+                            {
+                                double dot = Vec3d.Dot(dir, surfaceDirs[i]);
+                                if (dot > near)
+                                {
+                                    near = dot;
+                                    nearRadius = surfaceRadii[i];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (near > double.MinValue && (1 - near) * scale * scale * 2 < 1)
+            {
+                return nearRadius;
+            }
+
             double best = double.MinValue;
             double radius = surfaceRadii.Length > 0 ? surfaceRadii[0] : Anchor.Length;
             for (int i = 0; i < surfaceDirs.Length; i++)
@@ -168,6 +254,13 @@ namespace Subterra.Core.Tubes
 
             return radius;
         }
+
+        // Terrain samples by cell (SampleCell metres on a side, by direction at the anchor's radius), for the nearest one.
+        private const double SampleCell = 16;
+        private readonly Dictionary<(long, long, long), List<int>> sampleCells;
+
+        private static (long, long, long) CellOf(Vec3d dir, double scale) =>
+            ((long)Math.Floor(dir.X * scale), (long)Math.Floor(dir.Y * scale), (long)Math.Floor(dir.Z * scale));
 
         /// <summary>Lowest terrain radius over the network's path points (a quick bound for <see cref="AboveSurface"/>).</summary>
         public double MinSurfaceRadius => minSurfaceRadius;
@@ -186,8 +279,9 @@ namespace Subterra.Core.Tubes
             Vec3 down = -UpAt(local);
             float travelled = 0;
             float inside = 0;
-            const float maxDistance = 2000f;
-            while (travelled < maxDistance)
+            // Steps of at least half a metre, and a bounded number: along a wall of a deep shaft the old 0.1 m steps took
+            // thousands of distance lookups per call (and KSP asks every frame).
+            for (int step = 0; step < FloorSearchSteps && travelled < FloorSearchDistance; step++)
             {
                 float d = Sdf.Distance(local + down * travelled);
                 if (d >= 0)
@@ -211,11 +305,17 @@ namespace Subterra.Core.Tubes
                 }
 
                 inside = travelled;
-                travelled += Math.Max(0.1f, -d * 0.9f);
+                travelled += Math.Max(0.5f, -d * 0.9f);
             }
 
             return null;
         }
+
+        /// <summary>How far down (m) <see cref="FloorBelow"/> looks for a floor; past it the floor is "far below".</summary>
+        public const float FloorSearchDistance = 2000f;
+
+        /// <summary>Most distance lookups one <see cref="FloorBelow"/> makes.</summary>
+        private const int FloorSearchSteps = 600;
 
         public ZoneInfo ZoneAt(Vec3 local)
         {

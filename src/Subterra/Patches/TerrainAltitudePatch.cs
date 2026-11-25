@@ -17,6 +17,9 @@ namespace Subterra
         public const string Id = "terrainAltitude";
         public const string GroundId = "groundPositioning";
 
+        /// <summary>How far (m) out of a cave's void a vessel still counts as in it for the terrain checks.</summary>
+        private const float NearMargin = 4f;
+
         public static void Register()
         {
             PatchManager.Register(Id, harmony => harmony.Patch(
@@ -39,14 +42,35 @@ namespace Subterra
                 UndergroundState state = module != null ? module.State : UndergroundTracker.Compute(__instance.mainBody, __instance.GetWorldPos3D(), false);
                 if (!state.Inside)
                 {
+                    // Just out of a cave's void (a wheel in the rubble, the centre in a wall's bump): still in the cave, its
+                    // ground right here; else KSP compared it with the terrain far above and destroyed it ("crashed
+                    // through terrain").
+                    if (BodyRegistry.Instance.TryGet(__instance.mainBody, out BodyRuntime near))
+                    {
+                        Core.Numerics.Vec3d at = Frames.ToBody(__instance.mainBody, __instance.GetWorldPos3D());
+                        Core.Tubes.TubeNetwork cave = near.Catalog.FindNear(at, NearMargin);
+                        if (cave != null && cave.AboveSurface(cave.ToLocal(at)) < 0)
+                        {
+                            __result = __instance.altitude - 0.5;
+                            return;
+                        }
+                    }
+
+                    // In the ocean under the ice: the ground is the sea floor.
+                    Subterra.Core.Water.WaterSample? sea = Underground.OceanAt(__instance.mainBody, __instance.GetWorldPos3D());
+                    if (sea != null && BodyRegistry.Instance.TryGet(__instance.mainBody, out BodyRuntime runtime))
+                    {
+                        __result = __instance.altitude - (runtime.Ocean.Spec.Thickness - sea.Value.Depth);
+                    }
+
                     return;
                 }
 
+                // In the void with no floor in reach (a blast shaft kilometres deep): the ground is far below. Left alone, the
+                // result was the terrain at the top of the shaft, so KSP saw everything going in "crash through terrain"
+                // and destroyed it (Lucas: dug holes killed you as soon as you went in).
                 float? floor = state.Net.FloorBelow(state.Local);
-                if (floor.HasValue)
-                {
-                    __result = __instance.altitude - floor.Value;
-                }
+                __result = __instance.altitude - (floor ?? Core.Tubes.TubeNetwork.FloorSearchDistance);
             }
             catch (Exception e)
             {
@@ -65,7 +89,7 @@ namespace Subterra
                 }
 
                 var bodyPos = Core.Geo.BodyFrame.Direction(lat, lon) * (body.Radius + alt);
-                if (runtime.Catalog.FindContaining(bodyPos) == null)
+                if (runtime.Catalog.FindContaining(bodyPos) == null && runtime.Ocean?.At(bodyPos) == null)
                 {
                     return true;
                 }
@@ -84,7 +108,7 @@ namespace Subterra
         {
             try
             {
-                if (Underground.Locate(__instance.mainBody, __instance.GetWorldPos3D(), out _, out _))
+                if (Underground.Locate(__instance.mainBody, __instance.GetWorldPos3D(), out _, out _) || Underground.OceanAt(__instance.mainBody, __instance.GetWorldPos3D()) != null)
                 {
                     __result = true;
                     return false;

@@ -68,8 +68,8 @@ printf '\t}\n'
 site_head MohoPlainsTubes
 for i in 0 1 2 3 4; do
   t=$(awk -v i=$i 'BEGIN { printf "%.3f", i / 4 }')
-  if [ $i -eq 0 ] || [ $i -eq 4 ]; then node "$(lerp ${PLAINS[0]} ${PLAINS[2]} $t)" "$(lerp ${PLAINS[1]} ${PLAINS[3]} $t)" 40 120 45 skylight 25
-  else node "$(lerp ${PLAINS[0]} ${PLAINS[2]} $t)" "$(lerp ${PLAINS[1]} ${PLAINS[3]} $t)" 60 150 55; fi
+  if [ $i -eq 0 ] || [ $i -eq 4 ]; then node $(along ${PLAINS[@]} $t) 40 120 45 skylight 25
+  else node $(along ${PLAINS[@]} $t) 60 150 55; fi
 done
 for i in 0 1 2 3; do edge $i $((i + 1)) 0.3 0.05; done
 printf '\t}\n'
@@ -100,6 +100,9 @@ EOF
 scatter BreakdownBoulders "Subterra/Props/Boulder01, Subterra/Props/Boulder02, Subterra/Props/Boulder03" floor "TubeGallery, TubeChamber, TubeBranch" 1.4 "0.3, 4.5" 0.6 true 0.035 0.62 3 0.3
 scatter SkylightRubble "Subterra/Props/RubbleCone01, Subterra/Props/Boulder03" skylightRubble "" 2.5 "0.6, 4.5" 0.5 true 0.02 0.3 2.5 0.25
 scatter Lavacicles "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 0.5 "0.5, 1.5" 1 false
+# Hot rock: cracks glowing red in the walls and floors of Moho's tubes (the rock under the day side is near 500 K and hotter at depth); they light the tube around them. [Claude, revisar]
+glow HotCracks "Subterra/Props/GlowMat01" wall "TubeGallery, TubeChamber, TubeBranch" 0.12 "1.5, 5" "1.0,0.32,0.06" 14 0 false 0.03 0.5
+glow HotFloor "Subterra/Props/GlowMat01" floor "TubeGallery, TubeChamber, TubeBranch" 0.06 "1, 4" "1.0,0.25,0.04" 0 0 false 0.03 0.55
 rule Ore TubeGallery "" 1.5 ""
 rule Ore TubeChamber "" 2.5 ""
 rule Ore "" MagmaChamberRoof 3 ""

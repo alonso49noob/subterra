@@ -27,6 +27,7 @@ namespace Subterra
             try
             {
                 Settings.Load();
+                Core.Tubes.NetworkCompiler.Ramps = Settings.Current.Ramps;
                 LoadBodies();
             }
             catch (Exception e)
@@ -65,10 +66,13 @@ namespace Subterra
         {
             PqsHolePatch.Register();
             TerrainAltitudePatch.Register();
+            CaveSeaPatch.Register();
             CameraPatch.Register();
             ThermalPatches.Register();
             SciencePatches.Register();
             ResourcePatch.Register();
+            ScattererPatch.Register();
+            SetPositionPatch.Register();
         }
 
         private static void LoadBodies()
@@ -151,11 +155,22 @@ namespace Subterra
             Log.Info($"Loaded body {spec.Body}: {runtime.Catalog.Named.Count} sites, {spec.Fields.Count} fields");
         }
 
+        private sealed class LiveHeights : Core.Geo.IHeightSampler
+        {
+            private readonly CelestialBody body;
+
+            public LiveHeights(CelestialBody body) => this.body = body;
+
+            public double SurfaceRadius(double latDeg, double lonDeg) => KspSampler.SurfaceRadius(body, latDeg, lonDeg);
+        }
+
         // Heights are read straight from the PQS on the main thread: named sites are few and small.
         internal static TubeNetwork CompileNamed(SiteSpec site, CelestialBody body, Core.Geo.ReliefField relief = null)
         {
             try
             {
+                // A named site grows into a network around its own nodes first (its new nodes need terrain samples too).
+                Core.Procedural.FieldGenerator.Elaborate(site, body.Radius, new LiveHeights(body));
                 var samples = new PrecomputedSamples();
                 foreach (var (lat, lon) in NetworkCompiler.RequiredSamples(site, body.Radius))
                 {

@@ -12,6 +12,24 @@ namespace Subterra.Core.Model
         /// where passages meet, now and then a doline (a room open to the sky).
         /// </summary>
         Karst,
+
+        /// <summary>
+        /// Tectonic fissures: tall, narrow slots opened along faults (a few straight directions), crossing one another,
+        /// rooms where they cross; their tops reach close to the ground, where some open as long thin skylights.
+        /// </summary>
+        Fissure,
+
+        /// <summary>
+        /// Voids in a rubble pile (small moons and comets): small rooms between huge blocks at all depths, linked by
+        /// short crooked crawls, many loops, no main passage.
+        /// </summary>
+        Rubble,
+
+        /// <summary>
+        /// Cryovolcanic conduits (icy moons): frozen, hollow pipes winding down from a skylight in a tight spiral to hundreds
+        /// of metres, ledges on the way, a big room at the bottom.
+        /// </summary>
+        Conduit,
     }
 
     /// <summary>Rules for procedural tube networks spread over some biomes of a body.</summary>
@@ -40,6 +58,24 @@ namespace Subterra.Core.Model
         public double HiddenChance { get; set; }
 
         public FieldStyle Style { get; set; } = FieldStyle.Lava;
+
+        /// <summary>Height of the rooms over the usual (1); more than 1 for vaults (Tylo's cathedrals).</summary>
+        public double RoomHeight { get; set; } = 1;
+
+        /// <summary>0–1: share of rooms (chambers) holding still water, a third of their height deep (lakes, pools).</summary>
+        public double WaterChance { get; set; }
+
+        /// <summary>Colour of that water (r, g, b; null = clear).</summary>
+        public float[] WaterColour { get; set; }
+
+        /// <summary>
+        /// 0–1: share of networks that are giant vaults (about three times as wide, twice and a half as tall). Lucas:
+        /// most caves of a decent size, a few huge. [Claude, revisar]
+        /// </summary>
+        public double GiantChance { get; set; } = 0.08;
+
+        /// <summary>0–1: share of networks that are narrow crawls (4–8 m: compact craft or a kerbal on foot). [Claude, revisar]</summary>
+        public double NarrowChance { get; set; } = 0.12;
 
         public ulong Seed { get; set; } = 1;
     }

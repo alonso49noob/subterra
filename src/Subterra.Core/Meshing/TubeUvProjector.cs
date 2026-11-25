@@ -23,7 +23,8 @@ namespace Subterra.Core.Meshing
             {
                 int nearest = net.Sdf.NearestPrimitive(m.Vertices[i]);
                 piece[i] = nearest;
-                if (nearest >= 0 && net.Primitives[nearest] is TubeSegment tube)
+                // Not on a dead end's rounded end, nor in a fissure: box UVs there, as on a chamber.
+                if (nearest >= 0 && net.Primitives[nearest] is TubeSegment tube && !tube.Tall && !tube.PastEnd(m.Vertices[i]))
                 {
                     wall[i] = tube.WallUv(m.Vertices[i]);
                 }

@@ -393,3 +393,191 @@ hundió; a veces nace en un cráter-fuente. Pedido para cuando los tubos de lava
   del usuario instalado, sin copiarlas al mod, si la licencia no permite redistribuir).
 - Pruebas: el perfil `full` (ya incluye Parallax) para todos los escenarios visuales, más un perfil con Scatterer,
   EVE y TUFX.
+
+## Misión secundaria: núcleo de los asteroides (AsteroidalDetail) — pedido de Lucas, 2026-10-23, para la semana siguiente
+
+- Compatibilidad con AsteroidalDetail: perforar (taladro de núcleo, Topo y voladuras) hasta el núcleo de los asteroides.
+- **Capas diferenciadas SOLO en los asteroides más grandes** (Lucas): casi todos los asteroides reales son
+  uniformes (montones de escombros o roca sin diferenciar); solo los que tuvieron gravedad y calor suficientes
+  (como Vesta) se separaron en corteza, manto y núcleo de metal. Los pequeños: una sola capa, uniforme.
+  [Claude, revisar el umbral de tamaño]
+- Capas propias de un asteroide (escombros, roca, metal en los de tipo M), muestras de núcleo y ciencia por capa.
+- Pendiente de diseño: cómo se representan las cuevas y túneles en un cuerpo que no es un PQS (los asteroides son
+  piezas/vessels en KSP).
+
+## Rediseño del taladro tunelador — pedido de Lucas, 2026-10-23, para la semana siguiente
+
+- Eliminar por completo el taladro tunelador (SubterraTunnelBorer, ModuleSubterraTunnelBorer).
+- En su lugar: un instrumento que **evapora la roca en la dirección que uno quiera** (no solo hacia adelante y en
+  rampa). Reutiliza la excavación persistente (ExcavationService) que ya usa el Topo.
+- Respuestas de Lucas (2026-10-23):
+  - **Láser.** Se apunta con una interfaz que se abre y cierra (toggle): rumbo y elevación del rayo.
+  - **Coste:** electricidad. Una versión mejorada usa **xenón**, más potente. Plausible: los láseres de excímero de
+    xenón (XeCl, XeF) existen y se usan para ablación de material; el xenón es el medio láser (se gasta poco a poco).
+    [Claude, revisar]
+  - **Naves guardadas:** convertir solas las que usan el taladro viejo al láser nuevo (mismo nodo de montaje).
+  - Pendiente: alcance, radio del túnel y si es continuo o por disparos (decidir con una propuesta).
+
+
+## Unidades geológicas y mapas geológicos — pedido de Lucas, 2026-10-23, para la semana siguiente
+
+Pedido:
+- Un sistema de **unidades geológicas** para la superficie y para las profundidades (como los mapas del USGS de la
+  Luna y Marte: mares, tierras altas, eyecta de cráteres, flujos volcánicos, depósitos polares…).
+- Permite hacer **mapas geológicos** de cada cuerpo.
+- Cada unidad da **ciencia distinta**, y extraer una muestra permite **calcular su edad** (datación): más vieja = más
+  ciencia.
+- Distintos **porcentajes de mineral (Ore)** según la unidad.
+
+Ideas para el diseño [Claude, revisar]:
+- Las unidades de superficie se derivan de los biomas, la altura, la pendiente y los rasgos que ya existen (cráteres,
+  rimas, volcanes, coladas); las profundas son las capas del STRATA, partidas por región (provincias).
+- Cada unidad: nombre, tipo de roca, edad (millones de años), multiplicador de ciencia por edad, abundancia de Ore
+  (y de otros recursos de CRP), color para el mapa.
+- Datación: un experimento nuevo (o el testigo del taladro analizado en un laboratorio) que revela la edad; la
+  ciencia crece con la edad.
+- Mapa: una capa propia en el mapa de KSP, y con SCANsat una capa de SCANsat (coordinar con alonso, parte 6, que hace
+  el radar compatible con SCANsat).
+- Ore: hoy el mineral viene del ResourcePatch por capa; pasaría a depender de la unidad.
+- Pendiente con Lucas: ¿las unidades se descubren al muestrear (mapa que se va llenando) o se ven desde el principio?
+
+## Parte 7 — decisiones de Lucas (2026-11-21)
+
+- Los **impactos (cráteres) ya los hizo AsteroidalDetail**: se quitan de la parte 7 (queda la destrucción con explosivos).
+- La parte 7 la hace la IA sola, **solo después de pulir las partes 1 a 4**.
+
+## Sistemas cavernosos en los asteroides grandes (clases I, J, K de AsteroidalDetail) — pedido de Lucas, 2026-11-21
+
+Pedido: cuevas en los asteroides más grandes, como lo que se teoriza para Psyche. En AsteroidalDetail las clases
+I, J y K son las de decenas de km (Psyche: clase K, 31 km de radio, tipo M; Pallas: K, 51 km).
+
+Base real (para el diseño) [Claude, revisar]:
+- **Psyche (tipo M, metálico):** su densidad (~4 g/cm³, la del hierro es ~7,8) indica mucha porosidad o mezcla con
+  roca. Se teoriza **ferrovolcanismo**: hierro fundido que subió por un manto rocoso y dejó conductos y diques de
+  metal, como tubos de lava pero de hierro.
+- **Tipos C y S grandes:** muy porosos; los más grandes, en parte diferenciados (ver la regla de capas: solo los
+  grandes tienen capas).
+
+Propuesta:
+- Solo clases I, J y K. Estilo de red según el tipo espectral:
+  - M (Psyche): **tubos ferrovolcánicos** (paredes metálicas, brillo, recurso metal) y huecos de porosidad.
+  - C/S/otros: **huecos entre bloques** (el estilo "rubble" de Gilly y Bop) y fracturas de impacto.
+- Ciencia por tipo y capa; metal como recurso en los tipos M.
+- Técnico (lo difícil): los asteroides de AsteroidalDetail son naves (partes), no terreno PQS. El motor de cuevas
+  necesita un marco que se mueve y gira con el asteroide, colisiones sobre él, y abrir bocas en su malla (no hay
+  recorte de terreno PQS). Hace falta un puente con AsteroidalDetail (es mod de Lucas, D:\AsteroidalDetail):
+  diseñarlo junto con la regla de capas de los asteroides grandes.
+
+## Pedidos de Lucas, 2026-11-21 (tanda grande)
+
+- **Moho:** cuevas muy profundas con otras entradas raras además del Mohole. Propuesta [Claude, revisar]: pozos de
+  colapso en las llanuras, "hollows" (huecos de sublimación como los de Mercurio) que dan a cavidades, grietas de los
+  escarpes lobulados (fallas de empuje) que bajan km, pozos en picos centrales de cráteres; redes de varios km de
+  profundidad, cada vez más calientes.
+- **Temperatura en geodas y cuevas que afecte a la nave:** hoy las piezas toman la temperatura de la roca (gradiente
+  geotérmico). Falta: zonas calientes de verdad (geodas tipo Naica, Moho profundo, cuevas volcánicas) y frías (hielo),
+  intercambio de calor más fuerte con la roca y el aire, y avisos. Piezas nuevas de refrigeración compactas
+  (propuesta: disipador de cambio de fase que se gasta y se recarga, refrigerador termoeléctrico eléctrico, radiador
+  de superficie pegado al casco).
+- **Gilly interconectado globalmente:** una red que atraviesa todo el cuerpo y une entradas de todo el globo
+  (generada con la semilla de Gilly, igual en todas las partidas).
+- **Tylo:** diversidad exclusiva de cuevas, de muchos tamaños y características (mezcla de estilos, más bóvedas
+  gigantes y pasajes estrechos que en ningún otro cuerpo).
+- **Generar más por procedimiento:** las redes ya son procedurales y fijas (semilla = cuerpo + campo + celda +
+  semilla del cfg). A mano solo están los sitios con nombre. Propuesta: generadores de sitios especiales por cuerpo
+  (deterministas) en vez de diseñarlos a mano; dejar pocos hitos hechos a mano.
+- **Océanos subsuperficiales variados:** fuentes hidrotermales, picos (montes submarinos), dorsales y otras
+  formas en el fondo y el techo, para que no sean monótonos.
+- **Presión en el fondo:** sumar la carga del hielo o la roca de encima (hoy solo se cuenta el agua bajo el techo).
+
+## Slate (OPM): rastros de un océano antiguo — pedido de Lucas, 2026-11-21
+
+Su lore dice que tuvo atmósfera y la perdió por un cataclismo: debe tener océano subsuperficial o al menos indicios
+de que lo tuvo. Propuesta [Claude, revisar]:
+- **Indicios (lo principal):** karst antiguo (cuevas disueltas por un agua que ya no está), capas de sal y yeso
+  (evaporitas) donde se secó el mar, fondos marinos fósiles con sedimentos en franjas y vetas de minerales, chimeneas
+  hidrotermales petrificadas. Ciencia por todo ello; sirve para fechar el cataclismo (unidades geológicas, datación).
+- **Agua residual:** bolsas profundas de salmuera que sobrevivieron (acuífero fósil), sin océano global.
+- **El cataclismo:** fracturas profundas de impacto, roca fundida enterrada, cavernas abiertas por el choque.
+- **Cuevas muy profundas y muy variadas** (Lucas, 2026-11-21): al perder el océano, el agua que se filtró disolvió y
+  excavó sistemas de varios km de profundidad. Mezcla de estilos (karst, tubos, fisuras de impacto, cavernas de
+  colapso), muchos tamaños (más bóvedas gigantes y pasajes estrechos que la media), niveles unidos por pozos.
+- **Las cuevas más hondas del sistema, más que Tylo, hasta el manto** (Lucas): Slate está muerto, su interior frío y
+  sólido; la roca fría resiste más y los huecos aguantan más hondo. Realismo: la presión cierra los huecos a unos
+  10–20 km con la gravedad de Slate. Propuesta [Claude, revisar]: la mayoría hasta la base de la corteza; unas pocas,
+  solo en Slate, entran en un manto frío y rígido como excepción de lore. Técnica: subirle a Slate la resistencia de
+  la roca (el límite de huecos) por cuerpo.
+
+## Tal (OPM): luna de metal — pedido de Lucas, 2026-11-21
+
+Tal (22 km, sub-satélite de Wal) está hecha de metal. Propuesta [Claude, revisar]: el núcleo desnudo de un cuerpo
+que se rompió (una de las teorías sobre Psyche).
+- Grietas de contracción: el metal se encogió al enfriarse y dejó fisuras y huecos largos.
+- **Cavernas de cristales de metal** (seña única): las placas de hierro-níquel de los meteoritos metálicos
+  (patrón de Widmanstätten) en tamaño gigante, como una geoda de metal.
+- Recurso metálico, ciencia propia y una anomalía magnética detectable desde órbita (radar de alonso, parte 6).
+- Sin ferrovolcanismo (eso es para Zore y los asteroides metálicos grandes): Tal es demasiado pequeña.
+- **Entrada:** OPM ya tiene un agujero como easter egg en el hemisferio norte de Tal (dato de Lucas). Usarlo como la
+  entrada natural a las cavernas (como el Mohole en Moho): medir en el juego su posición y profundidad, y empezar la
+  red desde su fondo.
+
+## Cuevas por tipo espectral de AsteroidalDetail — pedido de Lucas, 2026-11-21
+
+Tipos de AD_SpectralTypes.cfg (unas 50 clases), agrupados. Sistemas completos solo en clases I–K; cavidades sueltas en
+las medianas; nada en las pequeñas (uniformes). [Claude, revisar]
+- **S, Sa, Sk, Sl, Sq, Sr, Sv, Q, O** (pétreos, condritas ordinarias): huecos entre bloques (montón de escombros) y
+  fracturas de impacto; los grandes, más compactos y con menos huecos.
+- **V** (corteza basáltica, como Vesta): tubos de lava antiguos en la corteza y fosas de impacto con cuevas (Vant).
+- **A** (casi olivino puro, manto de un cuerpo roto): grietas profundas y **cavernas de cristales verdes de olivino**
+  (peridoto).
+- **R** (olivino y piroxeno): fracturas profundas, cristales de ambos.
+- **K** (condrita carbonácea CV/CO): roca porosa con huecos pequeños y cámaras de colapso.
+- **L** (inclusiones ricas en calcio y aluminio, quizá la roca más antigua del sistema): cavernas con vetas blancas de
+  inclusiones, "cápsula del tiempo", ciencia extra.
+- **C, Cb, Cg, Ch, Cgh, B, G** (carbonáceos hidratados, alterados por agua): **cuevas de disolución** de un agua interior
+  antigua, pasajes revestidos de arcilla; **G y Cgh: cuevas con cristales de sal**; **B** (como Bennu): montón de
+  escombros con magnetita.
+- **F** (orgánicos horneados en seco): poroso, cavernas de colapso, orgánicos.
+- **D, P, T, Z** (material del sistema exterior, hielo y orgánicos): bolsas de hielo y cavidades de sublimación (como
+  los cometas); **Z** (rojísimo, colores del cinturón de Kuiper): cuevas de hielo teñido por tolinos.
+- **E, Xe** (enstatita, formada casi sin oxígeno): **cuevas de roca blanca brillante** que refleja las luces, con vetas
+  de metal nativo.
+- **X, Xc, Xk, Xn** (mezclas): según su grupo más cercano.
+- **M** (núcleo metálico desnudo): tubos ferrovolcánicos en los grandes y cavernas de cristales de metal (como Psyche).
+- **Ld, Gy, Mn, Kr, Po, Dr, El, Gr, Pu, Bl** (tipos propios de AD): revisar su descripción al diseñar.
+Requisito: el puente con AsteroidalDetail (los asteroides son naves, no terreno PQS).
+
+## Sin criobot: tres piezas para que el jugador arme su propia sonda — decisión de Lucas, 2026-11-21
+
+Lucas no quiere una pieza "criobot" hecha. En su lugar, tres piezas sueltas para fomentar la creatividad (el jugador
+arma su criobot, su hydrobot o lo que se le ocurra):
+
+1. **Núcleo de sonda diminuto** (~0,3 m): control, poca batería, antena de corto alcance; cabe en el pozo estrecho que
+   abre el taladro. [Claude, revisar: relé por cable/boyas para comunicar desde bajo el hielo o la roca]
+2. **Taladro tipo IceMole** (la sonda alemana que baja por el hielo con una cabeza de tornillo calentada y se puede
+   dirigir): pieza de punta que perfora hacia donde apunta, derrite el hielo y muele la roca (más lento en roca: el techo
+   de Tylo es roca), consume electricidad y calienta. Abre un pozo estrecho del diámetro de la pieza por donde baja la
+   sonda; en hielo el pozo se vuelve a cerrar (se congela) detrás. [Claude, revisar: velocidad y si perfora con el
+   juego en aceleración de tiempo, porque los techos tienen 1–10 km]
+3. **Motor que consume agua:** dentro del agua toma la del entorno como masa de reacción (hidrojet: propelente
+   ilimitado en un océano o una cueva inundada); fuera del agua gasta Water de un tanque, como propulsor de vapor de
+   poco empuje. Sirve para nadar por los océanos bajo el hielo y para volver a subir.
+
+Reemplaza en el plan de la parte 4 a "cryobot (derrite un pozo real hasta el océano)" y "hydrobot" como piezas propias.
+
+## Océanos subsuperficiales: lo que aceptó y añadió Lucas — 2026-11-21
+
+Lucas aceptó las propuestas de rasgos por océano (Vall: lagos colgados en la corteza, criovolcanes, terreno caótico,
+fuentes hidrotermales; Eeloo: hielo finísimo en el polo sur con canales a los géiseres, bruma de sílice; Pol: aguanieve,
+salmuera, carámbanos; Tylo: techo de roca, fondo de hielo de alta presión) y añadió:
+
+- **Torres de hielo** colgando bajo el techo de los océanos subsuperficiales (como las "brinicles" de salmuera bajo el
+  hielo marino de la Tierra, o estalactitas gigantes de hielo). [Claude, revisar: en Tylo, con techo de roca, que sean de
+  roca o de sal]
+- **Pol: pilares que unen el techo con el fondo** (su océano tiene solo 5 km: columnas de hielo de techo a fondo, un
+  bosque de pilares).
+- **Pol y el azufre** (su aspecto sulfuroso): agua amarilla por azufre disuelto, cristales de azufre en el hielo y en los
+  pilares, fuentes de azufre en el fondo, ciencia propia. [Claude, revisar: Pol huele a Ío; azufre como recurso]
+- **Montañas submarinas con cuevas** en los océanos de estos cuerpos, explorables por las sondas que arme el jugador
+  (núcleo diminuto + taladro tipo IceMole + motor de agua): tubos y grietas dentro de los montes, de tamaño para sondas
+  pequeñas.

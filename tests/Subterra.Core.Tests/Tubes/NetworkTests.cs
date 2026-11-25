@@ -87,6 +87,48 @@ namespace Subterra.Core.Tests.Tubes
             Assert.True(Net.Sdf.Distance(off) > 0);
         }
 
+        [Fact]
+        public void RampClimbsFromTheTubeToTheGround()
+        {
+            SiteSpec site = MakeSite("Ramped", 0, 120);
+            site.Nodes[0].Ramp = true;
+            TubeNetwork net = Compile(site);
+            Assert.Equal(2, net.Skylights.Count);
+            Skylight mouth = net.Skylights[1];
+            Assert.True(mouth.Smooth && !mouth.Natural);
+
+            var (lat, lon) = NetworkCompiler.RampTop(site, site.Nodes[0], R);
+            Assert.InRange(System.Math.Abs(lon - Lon0) * 1000 / Deg(1000), 0, 1);
+            // The run climbs 72 m at 18°: about 220 m out plus half the tube's width, across the tube (north or south).
+            double out_ = System.Math.Abs(lat) * 1000 / Deg(1000);
+            Assert.InRange(out_, 250, 300);
+
+            // Open at the top, a passage all the way down, rock beside it.
+            // Its floor ends 3 m over the ground, so the passage runs out into the open.
+            Assert.True(net.Sdf.Distance(At(net, lat, lon, R + 5)) < 0, "ramp opens at the ground");
+            for (double t = 0.15; t < 0.9; t += 0.15)
+            {
+                double la = lat * t, depth = 70 - 73 * t - 3;
+                Assert.True(net.IsInside(At(net, la, Lon0, R - depth)), $"inside the ramp at {t:0.00}");
+            }
+
+            Assert.True(net.Sdf.Distance(At(net, lat * 0.5, Lon0 + Deg(60), R - 37)) > 0, "rock beside the ramp");
+        }
+
+        [Fact]
+        public void PortalsKnowTheSlopeTheyComeOutOf()
+        {
+            // A cliff 20 m east of the portal: the ground drops 40 m there.
+            var cliff = new FlatSampler((lat, lon) => lon > Lon0 + Deg(20) ? R - 40 : R, (lat, lon) => "Lowlands");
+            var site = new SiteSpec { Name = "Portal", IsNamed = true };
+            site.Nodes.Add(Node(0, Lon0, depth: 30, width: 60, height: 40, feature: NodeFeature.Portal));
+            site.Nodes.Add(Node(0, Lon0 - Deg(800), depth: 30, width: 60, height: 40));
+            site.Edges.Add(new EdgeSpec { From = 0, To = 1, Sinuosity = 0 });
+            TubeNetwork net = NetworkCompiler.Compile(site, "Mun", R, cliff, new List<string>());
+            Assert.Equal(R, net.SurfaceRadiusNear(At(net, 0, Lon0 + Deg(16), R - 50)), 3);
+            Assert.Equal(R - 40, net.SurfaceRadiusNear(At(net, 0, Lon0 + Deg(24), R - 50)), 3);
+        }
+
         [Fact] public void FloorBelowTwoMeters() => Assert.InRange(Net.FloorBelow(FloorPointAbove(2)).Value, 1.5f, 2.5f);
 
         [Fact] public void NotInsideReturnsNull() => Assert.Null(Net.FloorBelow(RockPoint()));
@@ -111,7 +153,9 @@ namespace Subterra.Core.Tests.Tubes
         public void SkylightGeometry()
         {
             Skylight s = Assert.Single(Net.Skylights);
-            Assert.Equal(30, s.Radius);
+            // The opening reaches past the 30 m shaft: its rim is lobed, out to 1.3 radii.
+            Assert.Equal(39, s.Radius, 3);
+            Assert.True(s.Smooth && s.Natural);
             Assert.True(Vec3.Distance(At(Net, 0, Lon0, R), s.SurfaceCenter) < 0.01f);
         }
 

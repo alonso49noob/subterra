@@ -44,6 +44,50 @@ namespace Subterra.DevTools
                 }
             }
 
+            // What the terrain quads are drawn with (a mod such as Parallax replaces the PQS material on them).
+            var seen = new System.Collections.Generic.HashSet<Material>();
+            foreach (PQ quad in UnityEngine.Object.FindObjectsOfType<PQ>())
+            {
+                MeshRenderer renderer = quad.GetComponent<MeshRenderer>();
+                Material m = renderer != null ? renderer.sharedMaterial : null;
+                if (m == null || !seen.Add(m) || seen.Count > 4)
+                {
+                    continue;
+                }
+
+                report.AppendLine($"quad material: {m.name}, shader {m.shader.name}");
+                foreach (string prop in m.GetTexturePropertyNames())
+                {
+                    Texture t = m.GetTexture(prop);
+                    report.AppendLine(t == null ? $"  {prop}: -" : $"  {prop}: {t.name} {t.width}x{t.height}");
+                }
+            }
+
+            // Parallax's types, if it is loaded (to reuse its textures for cave rock without shipping them).
+            foreach (System.Reflection.Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (assembly.GetName().Name.IndexOf("Parallax", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    continue;
+                }
+
+                report.AppendLine($"assembly {assembly.GetName().Name}");
+                try
+                {
+                    foreach (Type type in assembly.GetTypes())
+                    {
+                        if (type.IsPublic)
+                        {
+                            report.AppendLine($"  {type.FullName}");
+                        }
+                    }
+                }
+                catch (System.Reflection.ReflectionTypeLoadException)
+                {
+                    report.AppendLine("  (types not loadable)");
+                }
+            }
+
             File.WriteAllText(Path.Combine(ctx.ResultsDir, "materials.txt"), report.ToString());
             ctx.Pass("materials.txt");
             yield break;

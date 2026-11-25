@@ -43,6 +43,32 @@ namespace Subterra.Core.Tests.Sdf
         }
 
         [Fact]
+        public void CenoteShaftIsBellShapedWithALobedRimAndQuietUnderTheGround()
+        {
+            var sh = new Shaft(new Vec3(0, 0, 0), new Vec3(0, 1, 0), 10, 50) { Flare = 1.8f, Lobes = 0.22f, LobeSeed = 1.3f, Ground = 20 };
+
+            // Wider at the bottom than under the rim: open 15 m out near the bottom, rock there under the rim.
+            Assert.True(sh.Distance(new Vec3(15, 2, 0)) < 0);
+            Assert.True(sh.Distance(new Vec3(15, 45, 0)) > 0);
+
+            // The rim wanders in and out of the 10 m circle.
+            float min = float.MaxValue, max = float.MinValue;
+            for (int k = 0; k < 72; k++)
+            {
+                double a = k * Math.PI / 36;
+                float d = sh.Distance(new Vec3((float)(10 * Math.Cos(a)), 45, (float)(10 * Math.Sin(a))));
+                min = Math.Min(min, d);
+                max = Math.Max(max, d);
+            }
+
+            Assert.True(min < -1 && max > 1, $"rim from {min} to {max}");
+
+            // No wall noise at the top (the ground is cut along the smooth shape there), full noise lower down.
+            Assert.Equal(0, sh.NoiseMask(new Vec3(10, 45, 0)));
+            Assert.Equal(1, sh.NoiseMask(new Vec3(10, 5, 0)));
+        }
+
+        [Fact]
         public void ChamberIsDomeOnFlatFloor()
         {
             var c = new Chamber(new Vec3(0, 0, 0), new Vec3(0, 1, 0), 100, 40);

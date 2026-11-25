@@ -29,5 +29,8 @@ namespace Subterra.Core.Model
         public List<EnrichmentSpec> Enrichment { get; set; } = new List<EnrichmentSpec>();
 
         public List<ReliefSpec> Reliefs { get; set; } = new List<ReliefSpec>();
+
+        /// <summary>The ocean under the ice, or null (sub-project 4).</summary>
+        public OceanSpec Ocean { get; set; }
     }
 }

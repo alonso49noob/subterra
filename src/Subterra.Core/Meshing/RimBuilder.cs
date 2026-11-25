@@ -29,6 +29,19 @@ namespace Subterra.Core.Meshing
         /// </summary>
         public static MeshData Wall(float radius, int segments, float[] heights)
         {
+            var radii = new float[Math.Max(0, segments)];
+            for (int s = 0; s < radii.Length; s++)
+            {
+                radii[s] = radius;
+            }
+
+            return Wall(radii, heights);
+        }
+
+        /// <summary>The same along an irregular edge: one radius (and one height) per segment, evenly spaced in angle.</summary>
+        public static MeshData Wall(float[] radii, float[] heights)
+        {
+            int segments = radii.Length;
             if (segments < 3 || heights.Length != segments)
             {
                 throw new ArgumentException("needs segments ≥ 3 and one height per segment");
@@ -40,11 +53,11 @@ namespace Subterra.Core.Meshing
                 for (int s = 0; s < segments; s++)
                 {
                     double angle = 2 * Math.PI * s / segments;
-                    float x = (float)Math.Cos(angle) * radius, z = (float)Math.Sin(angle) * radius;
+                    float x = (float)Math.Cos(angle) * radii[s], z = (float)Math.Sin(angle) * radii[s];
                     float y = heights[s] - (ring == 0 ? WallTopDrop : InnerWall);
                     mesh.Vertices.Add(new Vec3(x, y, z));
                     mesh.Normals.Add(new Vec3(-x, 0, -z).Normalized);
-                    mesh.Uvs.Add(new Vec2((float)(angle * radius) / 4f, y / 4f));
+                    mesh.Uvs.Add(new Vec2((float)(angle * radii[s]) / 4f, y / 4f));
                 }
             }
 

@@ -122,7 +122,22 @@ namespace Subterra.Core.Sdf
             return new Vec2(across, AlongStart + along);
         }
 
+        /// <summary>
+        /// True past either end of the segment by more than a fifth of its width: on the rounded end of a dead-end tube,
+        /// where the wall coordinates all converge on the axis (the texture fanned out in streaks there).
+        /// </summary>
+        public bool PastEnd(Vec3 p)
+        {
+            float along = Vec3.Dot(p - a, axis);
+            float margin = 0.2f * Math.Max(widthA, widthB);
+            return along < -margin || along > length + margin;
+        }
+
         /// <summary>Half the crest-to-crest perimeter (m): two wall points this far apart across are on either side of the seam.</summary>
+        /// <summary>A section much taller than wide (a fissure): its walls take box UVs, since there the coordinates
+        /// around the section jump about with every bump as deep as the section is wide.</summary>
+        public bool Tall => Math.Max(heightA, heightB) > 2 * Math.Min(widthA, widthB);
+
         public float HalfPerimeter(Vec3 p) => (Math.Max(widthA, widthB) * 0.5f) * 1.6f + Math.Max(heightA, heightB) * 0.8f;
 
         // No noise on the floor (solidified lava is flat), full noise from a fifth of the height up.

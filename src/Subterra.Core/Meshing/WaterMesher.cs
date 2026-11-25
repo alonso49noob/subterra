@@ -26,7 +26,8 @@ namespace Subterra.Core.Meshing
             Vec3 helper = Math.Abs(up.Y) < 0.9f ? new Vec3(0, 1, 0) : new Vec3(1, 0, 0);
             Vec3 e1 = Vec3.Cross(up, helper).Normalized;
             Vec3 e2 = Vec3.Cross(e1, up);
-            float cell = Math.Max(0.75f, Math.Min(4f, water.Radius / 100f));
+            // About 200 cells across, 0.75–8 m each: fine at a pool's edge, few enough over a lake kilometres wide.
+            float cell = Math.Max(0.75f, Math.Min(8f, water.Radius / 100f));
             int n = (int)Math.Ceiling(2 * water.Radius / cell);
             var points = new Vec3[(n + 1) * (n + 1)];
             var values = new float[points.Length];
@@ -45,13 +46,19 @@ namespace Subterra.Core.Meshing
 
             var poly = new List<(Vec3 p, float v)>(4);
             var clipped = new List<Vec3>(4);
+            var shared = new int[points.Length];
+            for (int k = 0; k < shared.Length; k++)
+            {
+                shared[k] = -1;
+            }
+
             for (int j = 0; j < n; j++)
             {
                 for (int i = 0; i < n; i++)
                 {
                     int a = j * (n + 1) + i, b = a + 1, c = a + n + 1, d = c + 1;
-                    Triangle(mesh, points, values, a, c, b, poly, clipped);
-                    Triangle(mesh, points, values, b, c, d, poly, clipped);
+                    Triangle(mesh, points, values, a, c, b, poly, clipped, shared);
+                    Triangle(mesh, points, values, b, c, d, poly, clipped, shared);
                 }
             }
 
@@ -68,11 +75,28 @@ namespace Subterra.Core.Meshing
 
         // The part of triangle (i0, i1, i2) where the field is negative, fanned into triangles (winding kept).
         private static void Triangle(MeshData mesh, Vec3[] points, float[] values, int i0, int i1, int i2,
-            List<(Vec3 p, float v)> poly, List<Vec3> clipped)
+            List<(Vec3 p, float v)> poly, List<Vec3> clipped, int[] shared)
         {
             float v0 = values[i0], v1 = values[i1], v2 = values[i2];
             if (v0 >= 0 && v1 >= 0 && v2 >= 0)
             {
+                return;
+            }
+
+            // Wholly in the water (most of a lake): grid vertices shared between triangles.
+            if (v0 < 0 && v1 < 0 && v2 < 0)
+            {
+                foreach (int g in new[] { i0, i1, i2 })
+                {
+                    if (shared[g] < 0)
+                    {
+                        shared[g] = mesh.Vertices.Count;
+                        mesh.Vertices.Add(points[g]);
+                    }
+
+                    mesh.Triangles.Add(shared[g]);
+                }
+
                 return;
             }
 

@@ -128,6 +128,60 @@ namespace Subterra
             Log.Info($"Blast {blast.Id} opened shaft {spec.Id} ({blast.Radius:F1} m, {blast.HoleTop:F0}-{blast.HoleBottom:F0} m){(reached != null ? " into " + reached.Id : "")}");
         }
 
+        /// <summary>
+        /// Fires a horizontal round: a tunnel of <paramref name="radius"/> opens from <paramref name="floor"/> (body
+        /// coordinates, its floor at the face) <paramref name="length"/> m along <paramref name="dir"/>; vessels near the
+        /// face take the blast.
+        /// </summary>
+        public static ExcavationSpec BlastRound(BodyRuntime runtime, Vec3d floor, Vec3d dir, double length, float radius, double kg)
+        {
+            ExcavationSpec spec = Start(runtime, floor, radius);
+            for (double d = 1; d < length + 0.5; d += 1)
+            {
+                Dig(runtime, spec, floor + dir * Math.Min(d, length));
+            }
+
+            Vector3d world = Frames.ToWorld(runtime.Body, floor + dir * (length * 0.5));
+            Damage(world, kg, confined: true);
+            try
+            {
+                FXMonger.ExplodeWithDebris(world, Math.Min(1, kg / 500), null);
+            }
+            catch (Exception e)
+            {
+                Log.Warn($"Blast effect failed: {e.Message}");
+            }
+
+            Log.Info($"Round fired: tunnel {spec.Id}, {length:F1} m, radius {radius:F1} m, {kg:F0} kg");
+            return spec;
+        }
+
+        /// <summary>
+        /// A closed pocket (an upright cylinder of <paramref name="radius"/>, <paramref name="height"/> tall) centred on
+        /// <paramref name="centre"/> (body coordinates): room carved for a vessel put deep in the rock by the cheat menu
+        /// (Lucas). Joins a cave it touches, like any dug hole.
+        /// </summary>
+        public static ExcavationSpec Pocket(BodyRuntime runtime, Vec3d centre, float radius, float height)
+        {
+            Subscribe();
+            CelestialBody body = runtime.Body;
+            Vec3d up = centre.Normalized;
+            Vec3d bottom = centre - up * (height * 0.5);
+            var spec = new ExcavationSpec($"XP-{body.bodyName}-{nextNumber++}", body.bodyName, bottom, radius) { Shape = ExcavationShape.Shaft };
+            spec.Points.Add(Vec3.Zero);
+            spec.Points.Add(spec.ToLocal(centre + up * (height * 0.5)));
+            Specs.Add(spec);
+            TubeNetwork reached = Reached(runtime, spec, 0);
+            if (reached != null)
+            {
+                spec.JoinedTo = reached.Id;
+            }
+
+            Build(runtime, spec, 0);
+            Log.Info($"Pocket {spec.Id} carved: radius {radius:F1} m, {height:F1} m tall, {centre.Length - body.Radius:F0} m altitude{(reached != null ? ", into " + reached.Id : "")}");
+            return spec;
+        }
+
         /// <summary>Loaded vessels within the danger radius of a charge at <paramref name="world"/>.</summary>
         public static List<Vessel> VesselsInDanger(Vector3d world, double kg, bool confined)
         {
@@ -360,6 +414,7 @@ namespace Subterra
             }
 
             CelestialBody body = runtime.Body;
+            RaiseShaftTop(body, spec);
             Samples(body, spec, out List<Vec3d> dirs, out List<double> radii);
             List<Skylight> openings = Openings(body, spec);
             TubeNetwork alone = TubeNetwork.ForExcavation(spec, dirs, radii, openings);
@@ -470,6 +525,29 @@ namespace Subterra
         /// <summary>Longest trench (m) a nearly level tunnel opens before its mouth is capped.</summary>
         private const double MaxTrench = 30;
 
+        /// <summary>How far (m) a blast shaft rises past the ground, like a natural skylight's shaft.</summary>
+        private const double ShaftOvershoot = 10;
+
+        // A blast shaft ended right at the ground, so its top cap lay at the ground's level: where the network's terrain
+        // samples (every 2 m) were a little above it, the cap survived the clipping of the mesh above the ground and closed
+        // the mouth with an invisible floor (parts broke on it going down; Lucas's "invisible wall"). Its top is raised past
+        // the ground (also for shafts saved before), as natural skylight shafts are: the part above the ground is clipped.
+        private static void RaiseShaftTop(CelestialBody body, ExcavationSpec spec)
+        {
+            if (spec.Shape != ExcavationShape.Shaft || spec.Points.Count < 2)
+            {
+                return;
+            }
+
+            Vec3d top = spec.ToBody(spec.Points[spec.Points.Count - 1]);
+            BodyFrame.ToLatLon(top.Normalized, out double lat, out double lon);
+            double surface = KspSampler.SurfaceRadius(body, lat, lon);
+            if (top.Length < surface + ShaftOvershoot - 1 && top.Length > surface - spec.Radius - 1)
+            {
+                spec.Points[spec.Points.Count - 1] = spec.ToLocal(top.Normalized * (surface + ShaftOvershoot));
+            }
+        }
+
         private static List<Skylight> Openings(CelestialBody body, ExcavationSpec spec)
         {
             var list = new List<Skylight>();
@@ -477,7 +555,9 @@ namespace Subterra
             Vec3d start = spec.ToBody(spec.Shape == ExcavationShape.Shaft ? spec.Points[spec.Points.Count - 1] : spec.Points[0]);
             BodyFrame.ToLatLon(start.Normalized, out double lat, out double lon);
             double surface = KspSampler.SurfaceRadius(body, lat, lon);
-            if (Math.Abs(start.Length - surface) <= spec.Radius + 1)
+            // A blast shaft's top is raised past the ground (RaiseShaftTop): it opens wherever it reaches the ground.
+            bool opens = spec.Shape == ExcavationShape.Shaft ? start.Length >= surface - spec.Radius - 1 : Math.Abs(start.Length - surface) <= spec.Radius + 1;
+            if (opens)
             {
                 // A sloping tunnel opens a trench, not a round hole: the ground is open along its axis until the
                 // roof (one diameter over the floor) is under the terrain. The first piece's direction is

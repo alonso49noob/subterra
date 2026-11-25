@@ -61,6 +61,7 @@ Parts (reusing stock models, no new assets needed)
   [DONE] SB-1 "Barrena" core drill: drills down through the rock layers; speed depends on hardness and rock
          temperature; needs electricity; stops when the rock is too hard or too hot.
   [DONE] SB-T "Topo" tunnel borer: digs drivable tunnels (5 m wide) in the direction its arm points.
+         (2026-11: replaced by the SB-L mining lasers, see below; saved crafts keep the part.)
   [DONE] SB-P "Fuente" well pump: pumps what the current layer yields (water from polar ice on the Mun, more on
          other bodies later).
   [DONE] Drilling and digging animations; dust effects.
@@ -88,6 +89,16 @@ Explosives
   [DONE] Blast damage to vessels nearby (destroy / damage radii, Hopkinson-Cranz scaling, confined charges).
   [DONE] Warning with the list of vessels in danger before detonation; fuse countdown.
   [DONE] Danger rings drawn on the ground while a hole is armed (red: destroyed, yellow: damaged).
+  [DONE] No depth limit for the core drill (only the rock's heat); hole diameter set in the editor or in flight (2-40 m).
+  [DONE] KSP cheats: infinite propellant = blasting needs no explosive and no depth limit; ignore max temperature =
+         drills hot rock (to test the mantle and the core).
+  [DONE] SB-W "Plomada" winch: lowers the craft down a shaft on a cable (or hauls it up), centred on the shaft's
+         axis, stopping over the floor.
+
+Lasers (2026-11, replace the tunnel borer)
+  [DONE] SB-L1 "Ablador" (electricity) and SB-L2 "Excimero" (xenon, 3x faster, wider, longer reach): vaporise the
+         rock where they are aimed (heading and elevation from an aim window), leaving a persistent tunnel; any
+         direction, bore radius set by the player.
 
 Other
   [DONE] Optional integration with Stockalike Mining Extension (no assets copied).
@@ -119,6 +130,8 @@ Engine additions
          Lidenbrock forest of mushrooms); the nearest light the cave around them (6 lights at most). [Claude, revisar]
   [DONE] Still water in caves (visual; swimming comes in part 4): pools in the Kerbin cenotes, the Lidenbrock
          Sea under the Verne route, explodium in Eve's aquifer. [Claude, revisar]
+  [DONE] Ramps for rovers: about half the skylights of lava networks (and the first skylight of each named site)
+         have a sloping passage (18°, 14 m wide) from the ground down to the tube beside them. [Claude, revisar]
   [PLANNED] Theia remnants deep in Kerbin's mantle.
 
 Bodies (every stock body has named sites + procedural fields; 15 in all)
@@ -128,7 +141,7 @@ Bodies (every stock body has named sites + procedural fields; 15 in all)
          and polar ice networks.
   [DONE] Minmus: flats gallery, ice caves, central geode.
   [DONE] Duna: pit chain (catena), volcano flank tubes, polar ice caves, canyon caves.
-  [DONE] Ike: tidal trench. Gilly: a tunnel right through, gaps in the rubble.
+  [DONE] Ike: tidal trench, fault fissures in the highlands (40-150 m tall slots). Gilly: a tunnel right through, gaps in the rubble.
   [DONE] Eve: aquifer, salt dome, karst. Moho: the Mohole, plains tubes, a thermal refuge.
   [DONE] Dres: canyon caves. Laythe: island lava tubes. Bop: huge caverns, the Kraken chamber.
   [DONE] Tylo: a great cave system and highland caves. Vall, Pol, Eeloo: small ice caves.
@@ -142,13 +155,28 @@ After part 3 (Lucas's request)
 
 
 -------------------------------------------------------------------------------
-PART 4 - Subsurface oceans and subglacial lakes                       [PLANNED]
+PART 4 - Subsurface oceans and subglacial lakes                   [IN PROGRESS]
 -------------------------------------------------------------------------------
-  [PLANNED] Oceans 10-50 km thick under 1-10 km of ice (thinner at the poles): Vall, Tylo, Eeloo, Pol...
+  Design: docs/superpowers/specs/2026-10-23-subterra-oceans-design.md; plan: plans/2026-10-23-subterra-oceans.md.
+  [DONE] Cave water is real water: parts are lifted (a suited kerbal floats), slowed by drag, and crushed past
+         their maxPressure (waterPhysics in Settings.cfg).
+  [DONE] Under the water: the view takes the water's colour, darker with depth.
+  [DONE] Oceans under the ice: Vall (ice 1-10 km, 30 km of water), Eeloo (1-8 km, 20 km), Pol (1-3 km, 5 km);
+         thinner ice at the poles. [Claude, revisar]
+  [DONE] Ice ceiling seen and touched from below (a patch around the vessel); KSP does not count a vessel in the
+         ocean as crashed through the terrain.
+  [DONE] Kerbals swim in cave water and in the oceans (KSP's swimming state; a ragdoll floats).
+  [DONE] Pressure counts the ice or rock over an ocean as well as the water.
+  [DONE] Probe parts instead of a ready-made cryobot (Lucas): SB-C "Semilla" micro probe core (deep-pressure rated,
+         radioisotope generator), SB-M "Topo" melting drill (bores the way it points, pulls its probe), SB-H
+         "Geiser" water engine (its intake keeps it full in water). [needs play-testing]
+  [DONE] Tylo's ocean under its cave system (3-8 km of rock, 50 km of water).
+  [DONE] KSP's sea not drawn while the camera is under the land below sea level (it showed in dug shafts);
+         Scatterer's underwater view kept out of caves.
+  [PLANNED] Sea floor features (vents, seamounts with caves, ice towers; Pol's pillars and sulfur).
   [PLANNED] Europa-like lakes, cryovolcanoes and conduits on Vall; lakes connected to the ocean.
   [PLANNED] Subglacial lakes (Kerbin's poles like Lake Vostok, Laythe, Duna).
-  [PLANNED] Cryobot / hydrobot probes, own buoyancy, ice ceiling and sea floor.
-  [PLANNED] Pressure increasing with depth.
+  [PLANNED] Water science, water resource, radar targets (with alonso, part 6).
 
 
 -------------------------------------------------------------------------------
@@ -171,8 +199,9 @@ PART 7 - Other planet packs, contracts, impacts                        [PLANNED]
 -------------------------------------------------------------------------------
   [PLANNED] Configs for Outer Planets Mod (OPM) and Minor Planets Expansion (MPE) (e.g. Vant as a Vesta analogue).
   [PLANNED] Contracts (Contract Configurator) and achievements.
-  [PLANNED] Craters from impacts (asteroids, crashed ships; works with AsteroidalDetail) and destruction with
-            explosives, using the same persistent rock edits as tunnels.
+  [DONE, by AsteroidalDetail] Craters from impacts (asteroids, crashed ships): not built here.
+  [PLANNED] Destruction with explosives (craters), using the same persistent rock edits as tunnels. Last, after the
+            other parts. [Claude, revisar]
 
 
 -------------------------------------------------------------------------------
@@ -180,6 +209,8 @@ Known issues
 -------------------------------------------------------------------------------
   - Some large lava tubes show thin rock slabs floating under the ceiling (noise artefact).
   - Lava drips can look too big near the camera.
-  - A rover that falls down a skylight shaft (60-170 m) breaks: lower it, or land next to the rubble cone.
+  - A rover that falls down a skylight shaft (60-170 m) breaks: lower it, land next to the rubble cone, or drive
+    down a ramp (the trench beside many skylights).
+  - With Parallax, its rocks can float over a hole cut after they were placed (they move when the area reloads).
   - Ice caves look very bright under strong light.
   - Rarely, discovering a cave costs one slow frame (~16 ms).

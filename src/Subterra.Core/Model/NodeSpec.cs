@@ -35,6 +35,12 @@ namespace Subterra.Core.Model
 
         public double SkylightRadius { get; set; }
 
+        /// <summary>A skylight shaped like a cenote: lobed rim, bell-shaped (overhanging) walls, the ground cut along it.</summary>
+        public bool Cenote { get; set; }
+
+        /// <summary>A skylight with a ramp beside it: a sloping passage from the ground down to the cave (a way in for a rover).</summary>
+        public bool Ramp { get; set; }
+
         /// <summary>
         /// Roof altitude over the body's datum (m), instead of a depth under the local terrain (NaN: unset). For deep
         /// networks under a feature whose terrain changes a lot (the Mohole): the tube keeps its level whatever is above.
@@ -44,6 +50,9 @@ namespace Subterra.Core.Model
         /// <summary>Still water filling the cave at the node up to this height over its floor (m; 0 = dry): a cenote, an
         /// underground lake. Visual (swimming comes with part 4); it spreads through the cave within 1.5 widths.</summary>
         public double Water { get; set; }
+
+        /// <summary>How far that water spreads from the node (m; 0 = 1.5 widths): one level over a whole lake of rooms.</summary>
+        public double WaterReach { get; set; }
 
         /// <summary>Colour of that water (r, g, b; null = clear dark green-blue).</summary>
         public float[] WaterColour { get; set; }

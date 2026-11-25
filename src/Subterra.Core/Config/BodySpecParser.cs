@@ -96,6 +96,12 @@ namespace Subterra.Core.Config
                 }
             }
 
+            CfgNode ocean = node.GetNode("OCEAN");
+            if (ocean != null)
+            {
+                spec.Ocean = ParseOcean(ocean, r.Sub("OCEAN"));
+            }
+
             foreach (CfgNode enrichment in node.GetNodes("ENRICHMENT"))
             {
                 EnrichmentSpec parsed = ParseEnrichment(enrichment, r);
@@ -138,6 +144,24 @@ namespace Subterra.Core.Config
             }
 
             return items;
+        }
+
+        private static OceanSpec ParseOcean(CfgNode node, Reader r)
+        {
+            var ocean = new OceanSpec();
+            ocean.CeilingPole = Clamp(r.Double(node, "ceilingPole", ocean.CeilingPole), 50, 100000, r, "ceilingPole");
+            ocean.CeilingEquator = Clamp(r.Double(node, "ceilingEquator", ocean.CeilingEquator), 50, 100000, r, "ceilingEquator");
+            ocean.Thickness = Clamp(r.Double(node, "thickness", ocean.Thickness), 100, 200000, r, "thickness");
+            ocean.Density = Clamp(r.Double(node, "density", ocean.Density), 500, 2000, r, "density");
+            ocean.Temperature = Clamp(r.Double(node, "temperature", ocean.Temperature), 100, 400, r, "temperature");
+            ocean.CeilingRock = r.Bool(node, "ceilingRock", false);
+            string colour = node.GetValue("colour");
+            if (!string.IsNullOrEmpty(colour))
+            {
+                ocean.Colour = r.Colour(colour, "colour");
+            }
+
+            return ocean;
         }
 
         private static GeothermSpec ParseGeotherm(CfgNode node, Reader r)
@@ -235,6 +259,7 @@ namespace Subterra.Core.Config
                 DisplayName = node.GetValue("displayName")?.Trim(),
                 IsNamed = true,
                 UnderRelief = r.Bool(node, "underRelief", false),
+                Network = r.Bool(node, "network", true),
             };
 
             int index = 0;
@@ -307,7 +332,10 @@ namespace Subterra.Core.Config
                 Altitude = node.GetValue("altitude") == null ? double.NaN : r.Double(node, "altitude", double.NaN),
             };
 
+            n.Cenote = r.Bool(node, "cenote", false);
+            n.Ramp = r.Bool(node, "ramp", false);
             n.Water = Math.Max(0, r.Double(node, "water", 0));
+            n.WaterReach = Math.Max(0, r.Double(node, "waterReach", 0));
             string waterColour = node.GetValue("waterColour");
             if (waterColour != null)
             {
@@ -363,6 +391,14 @@ namespace Subterra.Core.Config
             field.BranchChance = Clamp(r.Double(node, "branchChance", field.BranchChance), 0, 1, r, "branchChance");
             field.ChamberChance = Clamp(r.Double(node, "chamberChance", field.ChamberChance), 0, 1, r, "chamberChance");
             field.HiddenChance = Clamp(r.Double(node, "hiddenChance", field.HiddenChance), 0, 1, r, "hiddenChance");
+            field.WaterChance = Clamp(r.Double(node, "waterChance", 0), 0, 1, r, "waterChance");
+            field.RoomHeight = Clamp(r.Double(node, "roomHeight", 1), 0.5, 4, r, "roomHeight");
+            field.GiantChance = Clamp(r.Double(node, "giantChance", field.GiantChance), 0, 1, r, "giantChance");
+            field.NarrowChance = Clamp(r.Double(node, "narrowChance", field.NarrowChance), 0, 1 - field.GiantChance, r, "narrowChance");
+            if (node.GetValue("waterColour") is string fieldWater)
+            {
+                field.WaterColour = r.Colour(fieldWater, "waterColour");
+            }
             field.Seed = r.ULong(node, "seed", field.Seed);
             field.Style = r.Enum(node, "style", FieldStyle.Lava);
             if (field.Biomes.Count == 0)

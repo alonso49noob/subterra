@@ -24,8 +24,10 @@ namespace Subterra.DevTools
             StepRegistry.Register("teleport", Teleport);
             StepRegistry.Register("release", Release);
             StepRegistry.Register("wait", Wait);
+            StepRegistry.Register("cameraInfo", CameraInfo);
             StepRegistry.Register("waitUntil", WaitUntil);
             StepRegistry.Register("eva", Eva);
+            StepRegistry.Register("evaRecover", EvaRecover);
             StepRegistry.Register("setPosition", SetPosition);
             StepRegistry.Register("snapshot", Snapshot);
             StepRegistry.Register("quicksave", QuickSave);
@@ -141,6 +143,17 @@ namespace Subterra.DevTools
             }
 
             bool hold = node.ArgBool("hold", false);
+
+            // Leaving a cave for another body: first up into the sky of this one. Moved straight from under the ground,
+            // KSP saw it "crash through the terrain" for a frame and broke parts off.
+            ctx.Forget();
+            if (body != vessel.mainBody && vessel.mainBody != null && Subterra.Underground.Locate(vessel.mainBody, vessel.GetWorldPos3D(), out _, out _))
+            {
+                FlightGlobals.fetch.SetVesselPosition(FlightGlobals.GetBodyIndex(vessel.mainBody), vessel.latitude, vessel.longitude, 2000, Vector3.zero, asl: false, easeToSurface: false);
+                yield return null;
+                yield return null;
+            }
+
             FlightGlobals.fetch.SetVesselPosition(
                 FlightGlobals.GetBodyIndex(body), lat, lon, alt, Vector3.zero, asl: relative == "sea", easeToSurface: false);
 
@@ -173,6 +186,38 @@ namespace Subterra.DevTools
         private static IEnumerator Wait(ConfigNode node, TestContext ctx)
         {
             yield return new WaitForSeconds((float)node.ArgDouble("seconds", 1));
+        }
+
+        // cameraInfo — every enabled camera: its depth, near and far planes, and whether it draws layer 15 (caves, terrain).
+        private static IEnumerator CameraInfo(ConfigNode node, TestContext ctx)
+        {
+            var parts = new System.Collections.Generic.List<string>();
+            foreach (Camera c in Camera.allCameras)
+            {
+                parts.Add(System.FormattableString.Invariant($"{c.name} depth {c.depth} near {c.nearClipPlane:F2} far {c.farClipPlane:F0} layer15 {((c.cullingMask & (1 << 15)) != 0)} layer0 {((c.cullingMask & 1) != 0)} enabled {c.enabled} target {(c.targetTexture != null ? c.targetTexture.name : "screen")}"));
+            }
+
+            // The body's ocean: whether OceanHider is hiding it, and its quads' renderers (diagnostics for the sea seen from
+            // under the land).
+            CelestialBody body = FlightGlobals.currentMainBody;
+            parts.Add($"ocean hidden {OceanHider.CameraUnderSeaLevelInRock}");
+            if (body != null && body.pqsController != null)
+            {
+                foreach (PQS child in body.pqsController.ChildSpheres)
+                {
+                    int quads = 0, on = 0;
+                    foreach (MeshRenderer r in child.GetComponentsInChildren<MeshRenderer>(true))
+                    {
+                        quads++;
+                        on += r.enabled && r.gameObject.activeInHierarchy ? 1 : 0;
+                    }
+
+                    parts.Add($"child sphere {child.name} (active {child.gameObject.activeInHierarchy}, ocean mod {child.GetComponentInChildren<PQSMod_OceanFX>(true) != null}): {on}/{quads} renderers on, material {child.surfaceMaterial?.shader?.name ?? "-"}");
+                }
+            }
+
+            ctx.Pass(string.Join("; ", parts));
+            yield break;
         }
 
         // waitUntil what = <assertion> timeout = 30 (+ the assertion's values) — checks every frame;
@@ -213,6 +258,26 @@ namespace Subterra.DevTools
 
                 yield return null;
             }
+        }
+
+        // evaRecover — a ragdolled kerbal (the tracked vessel) gets up, as KSP does when the player moves him (an active
+        // kerbal only recovers on input); then waits up to 5 s for him to leave the ragdoll and recover states.
+        private static IEnumerator EvaRecover(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = ctx.TrackedVessel ?? RequireActiveVessel();
+            KerbalEVA eva = vessel.FindPartModuleImplementing<KerbalEVA>() ?? throw new InvalidOperationException("not a kerbal on EVA");
+            if (eva.fsm.CurrentState == eva.st_ragdoll)
+            {
+                eva.fsm.RunEvent(eva.On_recover_start);
+            }
+
+            float until = Time.time + 5f;
+            while (Time.time < until && (eva.fsm.CurrentState == eva.st_ragdoll || eva.fsm.CurrentState == eva.st_recover))
+            {
+                yield return null;
+            }
+
+            ctx.Pass($"{vessel.GetDisplayName()}: state {eva.fsm.currentStateName}, {vessel.situation}");
         }
 
         // eva kerbal = <optional name> — the first crew member next to an airlock (or the named

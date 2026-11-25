@@ -75,7 +75,7 @@ namespace Subterra
             if (!Materials.TryGetValue(key, out Material material) || material == null)
             {
                 var colour = new Color(spec.Glow[0], spec.Glow[1], spec.Glow[2]);
-                bool patch = model.IndexOf("GlowPatch", System.StringComparison.OrdinalIgnoreCase) >= 0;
+                bool patch = model.IndexOf("GlowPatch", System.StringComparison.OrdinalIgnoreCase) >= 0 || model.IndexOf("GlowMat", System.StringComparison.OrdinalIgnoreCase) >= 0;
                 material = patch ? GlowPatchMaterial() : GlowBodyMaterial(colour);
                 material.name = "Subterra glow " + spec.Name;
                 Materials[key] = material;
