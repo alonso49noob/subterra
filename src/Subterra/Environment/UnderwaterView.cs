@@ -148,14 +148,7 @@ namespace Subterra
             if (skyHidden == null)
             {
                 skyHidden = new List<Camera>();
-                foreach (Camera sky in Camera.allCameras)
-                {
-                    if (sky != camera && sky.enabled && (sky.name == "GalaxyCamera" || sky.name == "Camera ScaledSpace"))
-                    {
-                        sky.enabled = false;
-                        skyHidden.Add(sky);
-                    }
-                }
+                SkyCameras.Hide(this, camera);
 
                 mainCamera = camera;
                 clearFlags = camera.clearFlags;
@@ -255,13 +248,7 @@ namespace Subterra
 
             if (skyHidden != null)
             {
-                foreach (Camera sky in skyHidden)
-                {
-                    if (sky != null)
-                    {
-                        sky.enabled = true;
-                    }
-                }
+                SkyCameras.Show(this);
 
                 if (mainCamera != null)
                 {
