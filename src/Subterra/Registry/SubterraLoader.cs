@@ -74,6 +74,7 @@ namespace Subterra
             ScattererPatch.Register();
             SetPositionPatch.Register();
             InteriorGravityPatch.Register();
+            UndergroundAirPatch.Register();
         }
 
         private static void LoadBodies()

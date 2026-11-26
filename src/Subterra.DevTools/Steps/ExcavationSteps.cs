@@ -27,6 +27,7 @@ namespace Subterra.DevTools
             StepRegistry.RegisterAssertion("partHasModule", PartHasModule);
             StepRegistry.RegisterAssertion("objectExists", ObjectExists);
             StepRegistry.RegisterAssertion("objectGone", ObjectGone);
+            StepRegistry.RegisterAssertion("chunkMaterials", ChunkMaterials);
             StepRegistry.RegisterAssertion("componentExists", ComponentExists);
             StepRegistry.RegisterAssertion("drillDepthAtLeast", DrillDepthAtLeast);
             StepRegistry.RegisterAssertion("drillLayer", DrillLayer);
@@ -147,6 +148,42 @@ namespace Subterra.DevTools
             int count = UnityEngine.Object.FindObjectsOfType<Transform>().Count(t => t.name.StartsWith(prefix, StringComparison.Ordinal));
             ctx.Detail = $"{count} object(s) named {prefix}*";
             return count;
+        }
+
+        // chunkMaterials within = 80 min = 2 contains = Megaregolith split = 1 — the cave chunks within that distance of the
+        // tracked vessel use at least `min` different rock materials, one of them named with `contains`, and at least
+        // `split` chunks carry more than one (they cross a rock layer).
+        private static bool ChunkMaterials(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
+            float within = (float)node.ArgDouble("within", 80);
+            Vector3 at = vessel.transform.position;
+            var names = new SortedSet<string>(StringComparer.Ordinal);
+            int chunks = 0, split = 0;
+            foreach (MeshRenderer renderer in UnityEngine.Object.FindObjectsOfType<MeshRenderer>())
+            {
+                if (!renderer.name.StartsWith("SubterraChunk ", StringComparison.Ordinal) || renderer.bounds.SqrDistance(at) > within * within)
+                {
+                    continue;
+                }
+
+                chunks++;
+                Material[] materials = renderer.sharedMaterials;
+                if (materials.Length > 1)
+                {
+                    split++;
+                }
+
+                foreach (Material m in materials)
+                {
+                    names.Add(m == null ? "(none)" : m.name + " [" + (m.HasProperty("_MainTex") && m.GetTexture("_MainTex") != null ? m.GetTexture("_MainTex").name : "-") + "]");
+                }
+            }
+
+            string contains = node.GetValue("contains");
+            ctx.Detail = $"{chunks} chunk(s), {split} split by layer; materials: {string.Join("; ", names)}";
+            return names.Count >= node.ArgDouble("min", 1) && split >= node.ArgDouble("split", 0)
+                && (string.IsNullOrEmpty(contains) || names.Any(n => n.IndexOf(contains, StringComparison.OrdinalIgnoreCase) >= 0));
         }
 
         // componentExists type = ProfileWindow — a live component of that type (simple name).

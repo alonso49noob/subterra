@@ -71,6 +71,15 @@ namespace Subterra
         public bool Visible { get; private set; }
 
         /// <summary>Creates the GameObject and render mesh (main thread).</summary>
+        public void Create(Mesh mesh, Material[] materials, Transform parent)
+        {
+            Create(mesh, materials[0], parent);
+            if (materials.Length > 1)
+            {
+                Renderer.sharedMaterials = materials;
+            }
+        }
+
         public void Create(Mesh mesh, Material material, Transform parent)
         {
             Mesh = mesh;

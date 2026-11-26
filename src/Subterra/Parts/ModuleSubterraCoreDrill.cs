@@ -447,7 +447,7 @@ namespace Subterra
 
             if (!drilling || !vessel.Landed || retracted)
             {
-                Show(Borehole.Advance(depth, 0, baseRate, RockTempLimit, MaxDepthHere(body), runtime.Strata, runtime.Geotherm, biome),
+                Show(Borehole.Advance(depth, 0, baseRate, RockTempLimit, MaxDepthHere(body), runtime.Strata, runtime.Geotherm, biome, LayersHere(runtime, body, biome)),
                     drilling ? "#Subterra_Drill_NotLanded" : "#Subterra_Drill_Idle");
                 return;
             }
@@ -456,12 +456,12 @@ namespace Subterra
             double got = need > 0 ? part.RequestResource("ElectricCharge", need) : 0;
             if (got < need * 0.99)
             {
-                Show(Borehole.Advance(depth, 0, baseRate, RockTempLimit, MaxDepthHere(body), runtime.Strata, runtime.Geotherm, biome), "#Subterra_Drill_NoPower");
+                Show(Borehole.Advance(depth, 0, baseRate, RockTempLimit, MaxDepthHere(body), runtime.Strata, runtime.Geotherm, biome, LayersHere(runtime, body, biome)), "#Subterra_Drill_NoPower");
                 return;
             }
 
             double before = depth;
-            Borehole.Progress p = Borehole.Advance(depth, dt * Settings.Current.DigSpeed, baseRate, RockTempLimit, MaxDepthHere(body), runtime.Strata, runtime.Geotherm, biome);
+            Borehole.Progress p = Borehole.Advance(depth, dt * Settings.Current.DigSpeed, baseRate, RockTempLimit, MaxDepthHere(body), runtime.Strata, runtime.Geotherm, biome, LayersHere(runtime, body, biome));
             depth = p.Depth;
             CheckCaves(runtime, body, lat, lon, before, depth);
             CheckGas(body, lat, lon, p.Layer);
@@ -477,6 +477,32 @@ namespace Subterra
 
             working = true;
             Show(p, "#Subterra_Drill_Drilling");
+        }
+
+        private string oceanKey;
+        private double oceanTop, oceanBottom;
+
+        /// <summary>
+        /// The layers down this hole with the body's ocean under its ice or rock put in as a layer (Lucas): null without an ocean.
+        /// Its depths here are looked up once per hole.
+        /// </summary>
+        internal Func<double, LayerSpec> LayersHere(BodyRuntime runtime, CelestialBody body, string biome)
+        {
+            if (runtime.Ocean == null)
+            {
+                return null;
+            }
+
+            string key = body.bodyName + "/" + holeLat.ToString("F5") + "/" + holeLon.ToString("F5");
+            if (key != oceanKey)
+            {
+                oceanKey = key;
+                (oceanTop, oceanBottom) = Core.Water.OceanLayer.Depths(runtime.Ocean, holeLat, KspSampler.SurfaceRadius(body, holeLat, holeLon));
+            }
+
+            LayerSpec ocean = Core.Water.OceanLayer.For(runtime.Ocean.Spec);
+            double top = oceanTop, bottom = oceanBottom;
+            return d => Core.Water.OceanLayer.LayerAt(runtime.Strata, biome, d, ocean, top, bottom);
         }
 
         // Entering a layer with gas may strike a pocket (fixed per place): a burst of heat and a kick on the part, and gas
@@ -523,7 +549,10 @@ namespace Subterra
         {
             Vec3d dir = BodyFrame.Direction(lat, lon);
             double surface = KspSampler.SurfaceRadius(body, lat, lon);
-            for (double d = Math.Floor(from / 2) * 2 + 2; d <= to; d += 2)
+            // Every 2 m drilled, at most a couple of thousand checks a frame (a drill sped up by the cheats goes kilometres
+            // a frame).
+            double step = Math.Max(2, (to - from) / 2000);
+            for (double d = Math.Floor(from / 2) * 2 + 2; d <= to; d += step)
             {
                 TubeNetwork net = runtime.Catalog.FindContaining(dir * (surface - d));
                 if (net == null || reachedCaves.Contains("|" + net.Id + "|"))

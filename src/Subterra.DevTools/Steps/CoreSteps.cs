@@ -33,6 +33,7 @@ namespace Subterra.DevTools
             StepRegistry.Register("quicksave", QuickSave);
             StepRegistry.Register("quickload", QuickLoad);
             StepRegistry.Register("warp", Warp);
+            StepRegistry.Register("traceVessel", TraceVessel);
             StepRegistry.Register("switchTo", SwitchTo);
             StepRegistry.Register("camera", CameraDistance);
             StepRegistry.Register("screenshot", Screenshot);
@@ -118,6 +119,29 @@ namespace Subterra.DevTools
             }
 
             ctx.Pass($"{vessel.GetDisplayName()} at {site}: {vessel.parts.Count} parts, {crewCount} crew");
+        }
+
+        // traceVessel seconds = 8 every = 0.1 — logs the tracked vessel every `every` seconds (real time) for `seconds`:
+        // altitude, situation, packed, landed, speed, the gravity it integrates and its underground state (diagnosis).
+        private static IEnumerator TraceVessel(ConfigNode node, TestContext ctx)
+        {
+            double seconds = node.ArgDouble("seconds", 8), every = node.ArgDouble("every", 0.1);
+            float end = Time.realtimeSinceStartup + (float)seconds;
+            int lines = 0;
+            while (Time.realtimeSinceStartup < end)
+            {
+                Vessel v = ctx.TrackedVessel;
+                if (v != null)
+                {
+                    Subterra.UndergroundState state = Subterra.UndergroundTracker.For(v);
+                    Debug.Log(Invariant($"[Subterra.DevTools] trace t={Time.realtimeSinceStartup:F2} alt={v.altitude:F1} sit={v.situation} packed={v.packed} landed={v.Landed} srf={v.srfSpeed:F2} vert={v.verticalSpeed:F2} g={(v.precalc != null ? v.precalc.integrationAccel.magnitude : 0):F2} inside={state.Inside} depth={state.Depth:F1} buried={Subterra.Underground.BuriedDepth(v):F1} rails={v.orbitDriver?.updateMode}"));
+                    lines++;
+                }
+
+                yield return new WaitForSecondsRealtime((float)every);
+            }
+
+            ctx.Pass($"traced {lines} samples");
         }
 
         // teleport body = Mun lat = 0 lon = 0 alt = 3 relative = terrain|sea hold = false — moves the

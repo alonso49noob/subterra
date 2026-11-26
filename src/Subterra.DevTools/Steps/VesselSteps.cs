@@ -97,8 +97,9 @@ namespace Subterra.DevTools
         {
             CheatOptions.InfiniteElectricity = node.ArgBool("electricity", CheatOptions.InfiniteElectricity);
             CheatOptions.InfinitePropellant = node.ArgBool("propellant", CheatOptions.InfinitePropellant);
+            CheatOptions.IgnoreMaxTemperature = node.ArgBool("heat", CheatOptions.IgnoreMaxTemperature);
             yield return null;
-            ctx.Pass($"cheats: electricity {CheatOptions.InfiniteElectricity}, propellant {CheatOptions.InfinitePropellant}");
+            ctx.Pass($"cheats: electricity {CheatOptions.InfiniteElectricity}, propellant {CheatOptions.InfinitePropellant}, ignore max temperature {CheatOptions.IgnoreMaxTemperature}");
         }
 
         // brakes on = true — sets the brakes action group of the tracked vessel (a parked rover must not roll).

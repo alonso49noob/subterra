@@ -55,6 +55,20 @@ namespace Subterra.DevTools
                 yield break;
             }
 
+            // keepFocus = true: the map as the player opens it, the camera left on whatever KSP focuses (the vessel).
+            if (node.ArgBool("keepFocus", false))
+            {
+                if (HighLogic.LoadedScene == GameScenes.FLIGHT && !MapView.MapIsEnabled)
+                {
+                    MapView.EnterMapView();
+                }
+
+                yield return new WaitForSeconds(3f);
+                MapObject focus = PlanetariumCamera.fetch != null ? PlanetariumCamera.fetch.target : null;
+                ctx.Pass($"map view on, focus {(focus != null ? focus.GetName() : "none")}, distance {(PlanetariumCamera.fetch != null ? PlanetariumCamera.fetch.Distance : 0):F1}");
+                yield break;
+            }
+
             CelestialBody body = FlightGlobals.GetBodyByName(node.RequireArg("body")) ?? throw new ArgumentException("unknown body");
             if (HighLogic.LoadedScene == GameScenes.FLIGHT && !MapView.MapIsEnabled)
             {

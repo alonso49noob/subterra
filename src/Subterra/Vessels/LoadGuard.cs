@@ -20,6 +20,15 @@ namespace Subterra
 
         public void Update(Vessel vessel, UndergroundState state)
         {
+            // A landed craft on rails underground stays put: KSP leaves its orbit driver flying its Kepler orbit when it put it
+            // on rails before it counted as landed, and that orbit's gravity is a point mass's (a craft set 100 km down left
+            // its pocket at 14 m/s² before it was let go).
+            if (vessel.packed && vessel.LandedOrSplashed && vessel.orbitDriver != null
+                && vessel.orbitDriver.updateMode == OrbitDriver.UpdateMode.UPDATE && (state.Inside || Underground.BuriedDepth(vessel) > 3))
+            {
+                vessel.orbitDriver.SetOrbitMode(OrbitDriver.UpdateMode.IDLE);
+            }
+
             if (!state.Inside)
             {
                 Release(vessel);

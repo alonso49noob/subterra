@@ -28,6 +28,12 @@ namespace Subterra.Core.Meshing
                 {
                     wall[i] = tube.WallUv(m.Vertices[i]);
                 }
+                else if (nearest >= 0 && net.Primitives[nearest] is Shaft shaft)
+                {
+                    // Shafts (dug or natural) wrap their texture round the wall: box UVs swirled and stretched across
+                    // a big shaft's wall wherever its facing changed axis (Lucas).
+                    wall[i] = shaft.WallUv(m.Vertices[i]);
+                }
             }
 
             var result = new MeshData();
@@ -42,7 +48,7 @@ namespace Subterra.Core.Meshing
                 }
 
                 int a = tris[i], b = tris[i + 1], c = tris[i + 2];
-                int mode = TubeMapped(net, wall, piece, a, b, c) ? 3 : BoxAxis(m, a, b, c);
+                int mode = TubeMapped(m, net, wall, piece, a, b, c) ? 3 : BoxAxis(m, a, b, c);
                 foreach (int source in new[] { a, b, c })
                 {
                     long key = (long)source * 4 + mode;
@@ -67,7 +73,7 @@ namespace Subterra.Core.Meshing
         }
 
         // All three corners on tubes of the same chain and close together in wall coordinates (not across the crest seam).
-        private static bool TubeMapped(TubeNetwork net, Vec2?[] wall, int[] piece, int a, int b, int c)
+        private static bool TubeMapped(MeshData m, TubeNetwork net, Vec2?[] wall, int[] piece, int a, int b, int c)
         {
             if (wall[a] == null || wall[b] == null || wall[c] == null)
             {
@@ -75,6 +81,31 @@ namespace Subterra.Core.Meshing
             }
 
             Primitive pa = net.Primitives[piece[a]], pb = net.Primitives[piece[b]], pc = net.Primitives[piece[c]];
+            if (pa is Shaft shaft)
+            {
+                // One shaft, not across its seam, and a wall (not a floor facing along the axis).
+                if (piece[b] != piece[a] || piece[c] != piece[a])
+                {
+                    return false;
+                }
+
+                Vec3 n = Vec3.Cross(m.Vertices[b] - m.Vertices[a], m.Vertices[c] - m.Vertices[a]);
+                float nl = n.Length;
+                if (nl <= 0 || Math.Abs(Vec3.Dot(n, shaft.Up)) > 0.7f * nl)
+                {
+                    return false;
+                }
+
+                float seam = shaft.Radius * (float)Math.PI * 0.5f;
+                Vec2 sa = wall[a].Value, sb = wall[b].Value, sc = wall[c].Value;
+                return Math.Abs(sa.X - sb.X) < seam && Math.Abs(sa.X - sc.X) < seam && Math.Abs(sb.X - sc.X) < seam;
+            }
+
+            if (!(pa is TubeSegment) || !(pb is TubeSegment) || !(pc is TubeSegment))
+            {
+                return false;
+            }
+
             if (pa.Group != pb.Group || pa.Group != pc.Group)
             {
                 return false;

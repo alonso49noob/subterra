@@ -2,6 +2,66 @@
 
 ## Unreleased
 
+- Hydrostatic pressure on the barometers (Lucas): a barometer under water, in KSP's sea or in Subterra's water,
+  reads the pressure on its own part, the water over it included. The pressure KSP keeps on each part follows suit: in
+  Subterra's water, the water's; in a dry cave under the sea level, the air alone (KSP counted its sea over it). A Set
+  Position under the sea level off the coast no longer carves a pocket in the sea.
+- Fixed (Lucas's play): the game hung firing a blast hole 120 km deep (40 m wide, on Tylo). Each 2 m of the shaft was
+  checked against every cave within 60 km (Tylo's great caves), and the terrain was asked its height 60 000 times over
+  the same spot. Now only the stretch of the shaft inside each cave's box is checked, and the terrain is sampled every
+  2 m of ground covered (a vertical shaft: twice). A drill sped up by the cheats checks for caves a few thousand times a
+  frame at most.
+- The ocean under the ice or rock is a layer of the column (Lucas): "Subsurface ocean", from its ceiling to its floor
+  where the hole is (deeper at the equator), in the hole profile and the drill's readout; a core sample there is its own
+  science, the well pump draws water from it, and the drill goes through water fast.
+- Fixed (Lucas's play): a barometer in Vall's ocean read "IN VACUUM!" (Vall has no air). In Subterra's water (a flooded
+  cave, an ocean under ice or rock) it now reads the water's pressure: the air over it, the ice or rock overhead, the
+  water above. Buoyancy and that pressure now use the gravity inside the body, not the point mass's.
+- Fixed (Lucas's play): the map view from a craft underground was a mess. It opened on the craft, inside the planet
+  (not drawn from inside), and KSP drew the "orbit" of a craft neither landed nor splashed: a trajectory through the
+  body. Opened underground, the map now looks at the body from outside, and that trajectory is hidden.
+- The oceans under the ice have a floor: a patch round the craft near it, with a collider (a sinking craft lands on it),
+  rolling hills, the rock of that depth, open where a cave or shaft goes through. Pockets carved under the floor no
+  longer float in the dark water (Lucas). Under water the camera sees a few hundred metres at most: the edges of the
+  ceiling and floor patches do not show as floating islands.
+- Fixed (Lucas's play): craft set deep with Set Position fell through the pocket carved for them, or shot up through
+  its roof. The pocket was sized from KSP's vessel size and centred on the root part (a tall rocket hung out under its
+  floor); now it fits every part as the craft stands, centred on it. And a craft buried below sea level outside any
+  void took KSP's sea buoyancy (with the point-mass gravity of 500 km down): KSP's sea now only lies over the terrain.
+  And while waiting on rails after Set Position, KSP flew the craft along its Kepler orbit (a point mass's gravity:
+  14 m/s² 100 km under Kerbin, 358 m/s² 500 km down), which took it out of its pocket before it was let go: a landed
+  craft on rails underground is now held still.
+- Fixed (Lucas's play): gravity grew going down (a GRAVMAX read 11 m/s² 35 km under Kerbin). KSP inlines the gravity
+  function, so the old patch never ran; gravity now falls linearly to zero at the centre, in the physics and on the GRAVMAX.
+- Fixed (Lucas's play): below the datum the air pressure fell (the barometer read 0.17 kPa 35 km down: Kopernicus' curves
+  wrap round, the stock ones clamp). The pressure now grows going down and the air is as hot as the rock (Kerbin: about
+  17 atm 35 km down); KSP's overpressure check leaves parts underground alone. `undergroundAir` in Settings.cfg.
+- Fixed (Lucas's play): a drill tipped on the rubble at the bottom of a shaft drilled sideways, not down, so no new hole
+  could be started there. It drills sideways on its own only with its bit within 20° of level (or with the toggle); the
+  status says when.
+- Fixed (Lucas's play): 500 km under Kerbin a thermometer read 205 K and nothing passed 1000 K, above all in time
+  warp. A vessel buried outside any void (its Set Position pocket smaller than it) got space's background radiation; now
+  any vessel under the terrain gets the rock's heat and no sun. In time warp KSP never lets a vessel pass its weakest
+  part's limit; with the "ignore max temperature" cheat, underground it now reaches the rock's temperature.
+- The deep underground looks like the Earth's insides (Lucas): hot rock glows as a black body does, dull red from about
+  800 K, orange, yellow, white-hot at the core (`deepRockLook = glow`; `iridescent` gives thin-film colours instead).
+- The layers are subdivided like the Earth's: middle and lower crust, lithospheric mantle, partly molten asthenosphere,
+  transition zone, lower mantle, the core-mantle boundary, a liquid outer and a solid inner core (Kerbin, Eve, Laythe,
+  Moho, Duna, the Mun; simpler for small bodies); the icy moons have high-pressure ice, a rocky mantle and an iron core
+  under their oceans; Tylo high-pressure ice under its ocean. New rock textures: gabbro, gneiss, asthenosphere (veins of
+  melt), molten iron; granite toned down. [Claude, revisar]
+- Rock textures toned down (less contrast, dimmer tint): the first photos in game looked washed out.
+- Each rock layer looks like its own rock: below the surface layer (which keeps the body's ground texture, so cave
+  mouths match the terrain), walls get a texture of their kind of rock: vesicular basalt, anorthosite, breccia,
+  regolith, limestone and sandstone in beds, granite, ice, salt, Widmanstätten metal, olivine, mantle, iron core,
+  sediments. Tinted to each layer's colour; a layer can name its kind with `texture = granite` (else it is guessed
+  from its name). `layerTextures = false` in Settings.cfg goes back to the ground texture for all.
+- The rock changes at the layer's true depth (a chunk crossing a boundary carries both rocks), not at a chunk's edge.
+- Shaft walls (dug and natural) wrap their texture round the wall: no more swirls and stretching on big shafts.
+- Ice towers hang from the ceilings of the oceans under the ice (Vall, Eeloo, Pol; rock pendants under Tylo's rock):
+  giant icicles up to 150-400 m long, solid. Pol's ocean has pillars from its ceiling down to its floor, 5 km tall,
+  and its ice and water are yellow with sulphur. Per OCEAN: `towerChance`, `towerLength`, `pillarChance`,
+  `pillarRadius`, `ceilingTint`.
 - Fixed (Lucas's play): craft dropping into a deep dug shaft were still killed ("crashed through terrain") right under
   the mouth: KSP's check is skipped in and near voids.
 - Fixed: a shaft dug through Vall's ice into its ocean showed rock walls all through the water; walls stop at the

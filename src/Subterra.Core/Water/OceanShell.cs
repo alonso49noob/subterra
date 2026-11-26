@@ -19,6 +19,9 @@ namespace Subterra.Core.Water
 
         public OceanSpec Spec => spec;
 
+        /// <summary>The body's datum radius (m).</summary>
+        public double BodyRadius => radius;
+
         /// <summary>
         /// Depth (m) of the ice's underside under the datum at <paramref name="latDeg"/>: thinnest at the poles (tidal
         /// heating is strongest there), thickest at the equator, smoothly between.
@@ -31,6 +34,9 @@ namespace Subterra.Core.Water
 
         /// <summary>Radius of the ceiling at <paramref name="latDeg"/>.</summary>
         public double CeilingRadius(double latDeg) => radius - CeilingDepth(latDeg);
+
+        /// <summary>Radius of the sea floor (smooth: its hills only rise from it) at <paramref name="latDeg"/>.</summary>
+        public double FloorRadius(double latDeg) => CeilingRadius(latDeg) - spec.Thickness;
 
         /// <summary>Densities (kg/m³) of an ice ceiling and of a rock one (Tylo).</summary>
         public const double IceDensity = 920, RockDensity = 2700;

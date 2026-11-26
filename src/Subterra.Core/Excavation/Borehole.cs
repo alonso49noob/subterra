@@ -43,13 +43,15 @@ namespace Subterra.Core.Excavation
         /// Drills for <paramref name="seconds"/> from <paramref name="depth"/>, crossing layer boundaries on the
         /// way (each part of the step at its layer's speed), never past <paramref name="maxDepth"/>.
         /// </summary>
+        /// <param name="layerAt">The layer at a depth, where it is not simply the strata's (an ocean under ice put into the
+        /// column); null = the strata's.</param>
         public static Progress Advance(double depth, double seconds, double baseRate, double maxTemp, double maxDepth,
-            Strata strata, Geotherm geotherm, string biome)
+            Strata strata, Geotherm geotherm, string biome, Func<double, LayerSpec> layerAt = null)
         {
             double left = Math.Max(0, seconds);
             for (int guard = 0; guard < 4096; guard++)
             {
-                LayerSpec layer = strata.LayerAt(depth, biome);
+                LayerSpec layer = layerAt != null ? layerAt(depth) : strata.LayerAt(depth, biome);
                 double? temp = geotherm?.Temperature(depth, biome);
                 double rate = Rate(layer, temp, baseRate, maxTemp);
                 if (depth >= maxDepth || rate <= 0)
@@ -79,7 +81,7 @@ namespace Subterra.Core.Excavation
                 }
             }
 
-            LayerSpec last = strata.LayerAt(depth, biome);
+            LayerSpec last = layerAt != null ? layerAt(depth) : strata.LayerAt(depth, biome);
             double? lastTemp = geotherm?.Temperature(depth, biome);
             return new Progress(depth, last, lastTemp, Rate(last, lastTemp, baseRate, maxTemp), false);
         }

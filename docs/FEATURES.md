@@ -171,6 +171,8 @@ PART 4 - Subsurface oceans and subglacial lakes                   [IN PROGRESS]
          radioisotope generator), SB-M "Topo" melting drill (bores the way it points, pulls its probe), SB-H
          "Geiser" water engine (its intake keeps it full in water). [needs play-testing]
   [DONE] Tylo's ocean under its cave system (3-8 km of rock, 50 km of water).
+  [DONE] Ice towers under the ocean ceilings (rock pendants under Tylo); Pol's ceiling-to-floor pillars and sulphur-
+         yellow ice and water. (Built and unit-tested; in-game scenario ocean-features not run yet.)
   [DONE] KSP's sea not drawn while the camera is under the land below sea level (it showed in dug shafts);
          Scatterer's underwater view kept out of caves.
   [PLANNED] Sea floor features (vents, seamounts with caves, ice towers; Pol's pillars and sulfur).

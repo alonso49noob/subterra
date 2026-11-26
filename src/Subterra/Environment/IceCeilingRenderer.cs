@@ -14,7 +14,7 @@ namespace Subterra
     public sealed class IceCeilingRenderer : MonoBehaviour
     {
         /// <summary>Half the patch's side (m), its cells (m), and how deep under the ice it is shown.</summary>
-        private const float HalfSize = 300f, Cell = 8f, ShowDepth = 1500f;
+        private const float HalfSize = 400f, Cell = 8f, ShowDepth = 1500f;
 
         /// <summary>Move this far (m) from the patch's centre and a new one is made around the vessel.</summary>
         private const float Rebuild = 120f;
@@ -54,7 +54,9 @@ namespace Subterra
 
             Vec3d at = Frames.ToBody(body, vessel.CoMD);
             WaterSample? sea = runtime.Ocean.At(at - at.Normalized * 30);
-            if (sea == null || sea.Value.Depth > ShowDepth)
+            // Pol's pillars reach the floor: there the patch (which carries them) is shown at any depth.
+            double showDepth = runtime.Ocean.Spec.PillarChance > 0 ? runtime.Ocean.Spec.Thickness + 50 : ShowDepth;
+            if (sea == null || sea.Value.Depth > showDepth)
             {
                 Drop();
                 return;
@@ -101,7 +103,7 @@ namespace Subterra
             var renderer = patch.AddComponent<MeshRenderer>();
             // Ice over most oceans; Tylo's lies under rock (its cave rock).
             bool rock = BodyRegistry.Instance.TryGet(body, out BodyRuntime runtime) && runtime.Ocean != null && runtime.Ocean.Spec.CeilingRock;
-            renderer.sharedMaterial = rock ? MaterialFactory.ForSurface(body) : MaterialFactory.Create("Ice_d", "Ice_n", new Color(0.62f, 0.72f, 0.80f));
+            renderer.sharedMaterial = rock ? MaterialFactory.ForSurface(body) : IceMaterial(runtime?.Ocean?.Spec.CeilingTint);
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             patch.AddComponent<MeshCollider>().sharedMesh = mesh;
             patchBody = body;
@@ -109,6 +111,22 @@ namespace Subterra
             patch.transform.position = Frames.ToWorld(body, centre);
             patch.transform.rotation = body.pqsController.transform.rotation;
             Shown = true;
+        }
+
+        private Material ice;
+        private float[] iceTint;
+
+        // The ice of the ceiling (and of its towers and pillars), tinted per body (Pol's is sulphur-yellow); one material
+        // kept, not one per patch.
+        private Material IceMaterial(float[] tint)
+        {
+            if (ice == null || !ReferenceEquals(tint, iceTint))
+            {
+                iceTint = tint;
+                ice = MaterialFactory.Create("Ice_d", "Ice_n", tint == null ? new Color(0.62f, 0.72f, 0.80f) : new Color(tint[0], tint[1], tint[2]));
+            }
+
+            return ice;
         }
 
         private void Drop()

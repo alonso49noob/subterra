@@ -50,8 +50,21 @@ namespace Subterra
         /// around it when it lands in solid rock.</summary>
         public bool CarveOnSetPosition = true;
 
-        /// <summary>Parts are crushed past their maxPressure in deep water (Lucas: off, it was a pain to test and held players back).</summary>
+        /// <summary>Parts are crushed past their maxPressure in deep water, and by KSP's own overpressure check underground (Lucas:
+        /// off, it was a pain to test and held players back).</summary>
         public bool WaterCrush;
+
+        /// <summary>Layers below the surface one get the texture of their kind of rock (basalt, granite, ice...) instead of the
+        /// body's own ground texture. [Claude, revisar]</summary>
+        public bool LayerTextures = true;
+
+        /// <summary>Below the datum the air's pressure grows going down and it takes the rock's temperature (KSP's curves clamp or
+        /// wrap round there).</summary>
+        public bool UndergroundAir = true;
+
+        /// <summary>How the deep, hot rock looks: "glow" (it glows as hot rock does, dull red to white-hot: Lucas), "iridescent"
+        /// (thin-film colours) or "none". [Claude, revisar]</summary>
+        public string DeepRockLook = "glow";
         public int MaxTunnelSegments = 5000;
         public float VoidStrengthMPa = 150;
 
@@ -83,6 +96,13 @@ namespace Subterra
                 settings.Ramps = ReadBool(n, "ramps", settings.Ramps);
                 settings.CarveOnSetPosition = ReadBool(n, "carveOnSetPosition", settings.CarveOnSetPosition);
                 settings.WaterCrush = ReadBool(n, "waterCrush", settings.WaterCrush);
+                settings.LayerTextures = ReadBool(n, "layerTextures", settings.LayerTextures);
+                settings.UndergroundAir = ReadBool(n, "undergroundAir", settings.UndergroundAir);
+                string look = n.GetValue("deepRockLook")?.Trim().ToLowerInvariant();
+                if (look == "glow" || look == "iridescent" || look == "none")
+                {
+                    settings.DeepRockLook = look;
+                }
                 settings.MaxTunnelSegments = (int)Math.Max(0, Read(n, "maxTunnelSegments", settings.MaxTunnelSegments));
                 settings.VoidStrengthMPa = (float)Math.Max(1, Read(n, "voidStrengthMPa", settings.VoidStrengthMPa));
                 settings.RadarOverlay = ReadBool(n, "radarOverlay", settings.RadarOverlay);

@@ -70,14 +70,18 @@ namespace Subterra
             Vec3d at = Frames.ToBody(body, world);
             Core.Geo.BodyFrame.ToLatLon(at, out double lat, out double lon);
             double r = at.Length;
-            if (r < runtime.Ocean.CeilingRadius(lat) || r > KspSampler.SurfaceRadius(body, lat, lon) - 2
+            // Under the ocean's floor, in the rock (Lucas: the camera pulled back from a craft in Vall's ocean showed only the
+            // sky, through a planet that cannot be drawn from inside): dark rock.
+            bool underFloor = r < runtime.Ocean.FloorRadius(lat) - 2;
+            if ((!underFloor && (r < runtime.Ocean.CeilingRadius(lat) || r > KspSampler.SurfaceRadius(body, lat, lon) - 2))
                 // By a dug shaft or a cave (the camera pushed into its wall): the hole is what is seen, not solid ice.
                 || runtime.Catalog.FindNear(at, 15f) != null)
             {
                 return null;
             }
 
-            return new WaterSample(DarkDepth * 2, runtime.Ocean.Spec.Density, at.Normalized.ToVec3(), new[] { 0.10f, 0.14f, 0.18f });
+            return new WaterSample(DarkDepth * 2, runtime.Ocean.Spec.Density, at.Normalized.ToVec3(),
+                underFloor ? new[] { 0.09f, 0.08f, 0.07f } : new[] { 0.10f, 0.14f, 0.18f });
         }
 
         private void Enter(Camera camera, WaterSample sample)
@@ -160,8 +164,24 @@ namespace Subterra
 
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = tint * 0.5f;
+
+            // Water hides what is far: the camera sees no farther than a few hundred metres (less the deeper and darker), so
+            // the edges of the ceiling and floor patches do not show as islands floating in the dark (Lucas).
+            if (!farSaved)
+            {
+                farSaved = true;
+                farClip = camera.farClipPlane;
+            }
+
+            camera.farClipPlane = Mathf.Lerp(MaxSight, MinSight, deep);
             Under = true;
         }
+
+        /// <summary>Farthest the camera sees under water (m), in clear shallow water and at its darkest.</summary>
+        private const float MaxSight = 250f, MinSight = 120f;
+
+        private bool farSaved;
+        private float farClip;
 
         private List<Camera> skyHidden;
         private Camera mainCamera;
@@ -190,10 +210,15 @@ namespace Subterra
                 {
                     mainCamera.clearFlags = clearFlags;
                     mainCamera.backgroundColor = background;
+                    if (farSaved)
+                    {
+                        mainCamera.farClipPlane = farClip;
+                    }
                 }
 
                 skyHidden = null;
                 mainCamera = null;
+                farSaved = false;
             }
 
             if (fogSaved)

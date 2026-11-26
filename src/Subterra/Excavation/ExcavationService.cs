@@ -408,8 +408,16 @@ namespace Subterra
                     continue;
                 }
 
-                // Every 2 m along the piece (a blast shaft can cross a cave anywhere along it).
-                for (int i = 0; i < samples; i++)
+                // Every 2 m along the part of the piece inside the network's box (a blast shaft can cross a cave anywhere
+                // along it). The whole piece was sampled against every network near: a 120 km shaft fired on Tylo, among
+                // its great caves, hung the game (Lucas).
+                if (!Clip(net, a, b, spec.Radius + 2, out double t0, out double t1))
+                {
+                    continue;
+                }
+
+                int first = Math.Max(0, (int)Math.Floor(t0 * (samples - 1))), last = Math.Min(samples - 1, (int)Math.Ceiling(t1 * (samples - 1)));
+                for (int i = first; i <= last; i++)
                 {
                     Vec3d point = a + (b - a) * ((double)i / (samples - 1));
                     Vec3 lift = spec.Shape == ExcavationShape.Tunnel ? net.UpAt(net.ToLocal(point)) * spec.Radius : Vec3.Zero;
@@ -421,6 +429,41 @@ namespace Subterra
             }
 
             return null;
+        }
+
+        // The part of the segment a-b (body frame) inside the network's box grown by `margin`, as fractions t0..t1 of the
+        // segment (slab method in the network's frame); false if it misses the box.
+        private static bool Clip(TubeNetwork net, Vec3d a, Vec3d b, double margin, out double t0, out double t1)
+        {
+            t0 = 0;
+            t1 = 1;
+            Vec3 la = net.ToLocal(a), lb = net.ToLocal(b);
+            Aabb box = net.Bounds;
+            double[] from = { la.X, la.Y, la.Z }, to = { lb.X, lb.Y, lb.Z };
+            double[] min = { box.Min.X - margin, box.Min.Y - margin, box.Min.Z - margin }, max = { box.Max.X + margin, box.Max.Y + margin, box.Max.Z + margin };
+            for (int k = 0; k < 3; k++)
+            {
+                double d = to[k] - from[k];
+                if (Math.Abs(d) < 1e-9)
+                {
+                    if (from[k] < min[k] || from[k] > max[k])
+                    {
+                        return false;
+                    }
+
+                    continue;
+                }
+
+                double ta = (min[k] - from[k]) / d, tb = (max[k] - from[k]) / d;
+                t0 = Math.Max(t0, Math.Min(ta, tb));
+                t1 = Math.Min(t1, Math.Max(ta, tb));
+                if (t0 > t1)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         // (Re)builds the network the tunnel lives in after piece `changed` (-1: nothing to remesh yet).
@@ -516,6 +559,9 @@ namespace Subterra
             ChunkStreamer.Instance?.NetworkChanged(joined, box);
         }
 
+        /// <summary>Most terrain samples along one piece (a 200 m round or a laser tunnel stays far under it).</summary>
+        private const int MaxSamplesPerPiece = 2000;
+
         private static void Samples(CelestialBody body, ExcavationSpec spec, out List<Vec3d> dirs, out List<double> radii)
         {
             // Every 2 m along the tunnel, not only at its points (a straight tunnel has two): the mesh is clipped
@@ -530,12 +576,16 @@ namespace Subterra
                 radiusList.Add(KspSampler.SurfaceRadius(body, lat, lon));
             }
 
+            // Every 2 m of ground covered, not of length: a vertical shaft 120 km deep asked the terrain for its height
+            // 60 000 times over the same spot, and the game hung when Lucas fired one on Tylo.
             for (int i = 0; i < spec.Points.Count; i++)
             {
                 Add(spec.Points[i]);
                 if (i + 1 < spec.Points.Count)
                 {
-                    int steps = (int)((spec.Points[i + 1] - spec.Points[i]).Length / 2);
+                    Vec3d from = spec.ToBody(spec.Points[i]), to = spec.ToBody(spec.Points[i + 1]);
+                    double ground = (to.Normalized - from.Normalized).Length * Math.Max(from.Length, to.Length);
+                    int steps = (int)Math.Min(MaxSamplesPerPiece, ground / 2);
                     for (int k = 1; k < steps; k++)
                     {
                         Add(Vec3.Lerp(spec.Points[i], spec.Points[i + 1], (float)k / steps));

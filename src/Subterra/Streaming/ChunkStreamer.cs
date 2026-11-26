@@ -519,6 +519,9 @@ namespace Subterra
                 int revision = RevisionOf(net.Id);
                 IReadOnlyList<ScatterSpec> scatterSpecs = runtime.Spec.Scatters;
                 Subterra.Core.Water.OceanShell ocean = runtime.Ocean;
+                // Rock layers by true depth (the biome, a KSP lookup, is read here on the main thread).
+                Core.Environment.Strata strata = Settings.Current.LayerTextures ? runtime.Strata : null;
+                string biome = strata != null ? BiomeOf(net, key) : null;
                 WorkerPool.Shared.Enqueue(() =>
                 {
                     try
@@ -533,6 +536,11 @@ namespace Subterra
 
                         // Unity-ready arrays are built here too: the main thread only hands them over.
                         PreparedMesh visual = data.IsEmpty ? null : MeshUploader.Prepare(data);
+                        if (visual != null && strata != null)
+                        {
+                            Bands(visual, data, net, key, strata, biome);
+                        }
+
                         var scatterVisuals = new List<PreparedMesh>(scatters.Count);
                         foreach (ScatterMesh scatter in scatters)
                         {
@@ -590,7 +598,7 @@ namespace Subterra
 
                 using (SubterraClock.Measure("ChunkStreamer.Step.Mesh"))
                 {
-                    chunk.Create(MeshUploader.Upload(visual, key.ToString(), readable: false), MaterialFor(net, key), root);
+                    chunk.Create(MeshUploader.Upload(visual, key.ToString(), readable: false), MaterialsFor(net, key, visual), root);
                 }
             });
             for (int i = 0; i < scatters.Count; i++)
@@ -853,14 +861,67 @@ namespace Subterra
             return result;
         }
 
+        // One material per submesh when the chunk crosses rock layers, else its centre's layer.
+        private Material[] MaterialsFor(TubeNetwork net, ChunkKey key, PreparedMesh visual)
+        {
+            if (visual.SubMeshLayers == null)
+            {
+                return new[] { MaterialFor(net, key) };
+            }
+
+            Centre(net, key, out double depth, out double? rockTemp);
+            var materials = new Material[visual.SubMeshLayers.Length];
+            for (int i = 0; i < materials.Length; i++)
+            {
+                materials[i] = MaterialFactory.ForLayer(visual.SubMeshLayers[i], body, rockTemp, depth);
+            }
+
+            return materials;
+        }
+
+        private string BiomeOf(TubeNetwork net, ChunkKey key)
+        {
+            Core.Geo.BodyFrame.ToLatLon(net.ToBody(key.Bounds.Center), out double lat, out double lon);
+            return KspSampler.Biome(body, lat, lon);
+        }
+
+        // Worker thread: splits the visual mesh by the layer at each triangle's depth (the surface radius above the chunk's
+        // centre, which changes little across a chunk, against each triangle's distance from the body's centre).
+        private static void Bands(PreparedMesh visual, MeshData data, TubeNetwork net, ChunkKey key, Core.Environment.Strata strata, string biome)
+        {
+            double surface = net.SurfaceRadiusNear(key.Bounds.Center);
+            var bands = LayerBands.Split(data, p => surface - net.ToBody(p).Length, d => strata.LayerAt(d, biome));
+            if (bands == null)
+            {
+                return;
+            }
+
+            visual.SubMeshes = new int[bands.Count][];
+            visual.SubMeshLayers = new LayerSpec[bands.Count];
+            for (int i = 0; i < bands.Count; i++)
+            {
+                visual.SubMeshes[i] = bands[i].Triangles;
+                visual.SubMeshLayers[i] = bands[i].Layer;
+            }
+        }
+
         private Material MaterialFor(TubeNetwork net, ChunkKey key)
+        {
+            LayerSpec layer = Centre(net, key, out double depth, out double? rockTemp);
+            return MaterialFactory.ForLayer(layer, body, rockTemp, depth);
+        }
+
+        // The layer at a chunk's centre, its depth, and the rock's temperature there (hot rock glows: Lucas, going deeper
+        // and hotter).
+        private LayerSpec Centre(TubeNetwork net, ChunkKey key, out double depth, out double? rockTemp)
         {
             Vec3 centre = key.Bounds.Center;
             Vec3d bodyPos = net.ToBody(centre);
             Core.Geo.BodyFrame.ToLatLon(bodyPos, out double lat, out double lon);
-            double depth = net.SurfaceRadiusNear(centre) - bodyPos.Length;
-            LayerSpec layer = runtime.Strata.LayerAt(Math.Max(0, depth), KspSampler.Biome(body, lat, lon));
-            return MaterialFactory.ForLayer(layer, body);
+            depth = Math.Max(0, net.SurfaceRadiusNear(centre) - bodyPos.Length);
+            string biome = KspSampler.Biome(body, lat, lon);
+            rockTemp = runtime.Geotherm.Temperature(depth, biome);
+            return runtime.Strata.LayerAt(depth, biome);
         }
     }
 }

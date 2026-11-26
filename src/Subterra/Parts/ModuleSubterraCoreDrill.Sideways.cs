@@ -56,8 +56,12 @@ namespace Subterra
         [KSPField(isPersistant = true)] public double roundKg;
         [KSPField(isPersistant = true)] public bool roundArmed;
 
-        /// <summary>Sine of the steepest bit that still drills sideways (45°).</summary>
-        private const double SidewaysSine = 0.7071;
+        /// <summary>
+        /// Sine of the steepest bit that still drills sideways on its own (20° from level): a drill clearly mounted on its side.
+        /// It was 45°, and a rover tipped on the rubble at the bottom of a shaft drilled sideways instead of down (Lucas could
+        /// not start another hole from the bottom of one). The <see cref="horizontal"/> toggle drills sideways at any tilt.
+        /// </summary>
+        private const double SidewaysSine = 0.342;
 
         private Vec3d RoundFloor => new Vec3d(roundX, roundY, roundZ);
 
@@ -132,7 +136,7 @@ namespace Subterra
             uiLayer = layer == null ? "-" : string.IsNullOrEmpty(layer.DisplayName) ? layer.Name : Localizer.Format(layer.DisplayName);
             if (!drilling || retracted || roundArmed || !vessel.Landed)
             {
-                uiStatus = Localizer.Format(roundArmed ? "#Subterra_Drill_RoundLoaded" : "#Subterra_Drill_Idle");
+                uiStatus = Localizer.Format(roundArmed ? "#Subterra_Drill_RoundLoaded" : "#Subterra_Drill_IdleSideways");
                 return true;
             }
 

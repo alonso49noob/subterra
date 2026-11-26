@@ -79,11 +79,22 @@ namespace Subterra
             GUILayout.Label(Localizer.Format("#Subterra_Profile_Where", body.displayName.LocalizeRemoveGender(), biome ?? "-", depth.ToString("F1")));
 
             scroll = GUILayout.BeginScrollView(scroll, GUILayout.Height(260));
-            foreach (LayerSpan span in runtime.Strata.Spans(biome))
+            // The ocean under the ice or rock is a layer of the column here, between its ceiling and its floor (Lucas).
+            System.Collections.Generic.IReadOnlyList<LayerSpan> spans = runtime.Strata.Spans(biome);
+            Core.Model.LayerSpec oceanLayer = null;
+            if (runtime.Ocean != null)
+            {
+                oceanLayer = Core.Water.OceanLayer.For(runtime.Ocean.Spec);
+                var (top, bottom) = Core.Water.OceanLayer.Depths(runtime.Ocean, lat, KspSampler.SurfaceRadius(body, lat, lon));
+                spans = Core.Water.OceanLayer.Insert(spans, oceanLayer, top, bottom);
+            }
+
+            foreach (LayerSpan span in spans)
             {
                 bool here = depth >= span.Top && depth < span.Bottom;
                 string name = string.IsNullOrEmpty(span.Layer.DisplayName) ? span.Layer.Name : Localizer.Format(span.Layer.DisplayName);
-                double? temp = runtime.Geotherm.Temperature((span.Top + Math.Min(span.Bottom, span.Top + 1000)) * 0.5, biome);
+                double? temp = span.Layer == oceanLayer ? runtime.Ocean.Spec.Temperature
+                    : runtime.Geotherm.Temperature((span.Top + Math.Min(span.Bottom, span.Top + 1000)) * 0.5, biome);
                 var line = new StringBuilder();
                 line.Append(here ? "▶ " : "   ");
                 line.Append(name);

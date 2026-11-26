@@ -42,9 +42,13 @@ layer MareBasalt 8 1500 0.6 3.1 4 "0.36,0.35,0.34" "Lowlands, Northern Basin, Mi
 layer AnorthositeBreccia 8 1500 0.55 2.8 3 "0.62,0.61,0.58" "*"
 layer Megaregolith 1500 3000 0.65 2.9 3 "0.50,0.48,0.45"
 layer LowerCrust 3000 6000 0.75 3.0 3 "0.45,0.43,0.40"
-layer UpperMantle 6000 60000 0.85 3.3 2 "0.40,0.38,0.33"
-layer LowerMantle 60000 170000 0.9 3.4 1.5 "0.38,0.33,0.28"
-layer Core 170000 200000 0.95 5.0 0.5 "0.42,0.30,0.22"
+# Deep structure (Lucas, 2026-11-26): a cold mantle over a partly molten layer, a liquid outer and a solid inner core,
+# about 1600 K at the centre like the Moon's. [Claude, revisar]
+layer UpperMantle 6000 60000 0.85 3.3 8 "0.40,0.38,0.33"
+layer LowerMantle 60000 150000 0.9 3.4 7 "0.42,0.30,0.22"
+layer PartialMelt 150000 170000 0.85 3.5 10 "0.46,0.26,0.16"
+layer OuterCore 170000 185000 0.5 7.0 2 "0.72,0.40,0.16"
+layer InnerCore 185000 200000 0.98 8.0 1 "0.80,0.62,0.36"
 printf '\t}\n'
 
 # Serenity Skylight: a ~100 m wide, ~100 m deep pit opening onto a short wide tube (easy first target).

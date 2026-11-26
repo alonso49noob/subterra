@@ -46,9 +46,18 @@ layer Limestone 3 2500 0.4 2.6 25 "0.66,0.64,0.58" "Highlands, Mountains" "Water
 layer Sediments 3 1500 0.35 2.3 25 "0.56,0.52,0.46" "Grasslands, Shores, Tundra" "Water:0.02"
 layer Sandstone 3 1500 0.35 2.3 25 "0.62,0.54,0.44" "Deserts, Badlands" "Water:0.01"
 layer Granite 1500 8000 0.75 2.7 25 "0.52,0.50,0.50"
-layer DeepCrust 8000 35000 0.85 2.9 22 "0.46,0.44,0.44"
-layer Mantle 35000 300000 0.92 3.4 15 "0.46,0.36,0.30"
-layer Core 300000 600000 0.97 9.0 5 "0.50,0.36,0.26"
+# The deep structure like the Earth's (Lucas, 2026-11-26): crust in three, the mantle in five (rigid lithosphere, partly
+# molten asthenosphere, transition zone, lower mantle, the D'' layer over the core), a liquid outer and a solid inner core.
+# Glowing dull red from the lower crust down, white-hot at the centre (hot rock glows). [Claude, revisar]
+layer MiddleCrust 8000 20000 0.82 2.8 22 "0.48,0.46,0.45"
+layer LowerCrust 20000 35000 0.86 3.0 22 "0.36,0.35,0.34"
+layer LithosphericMantle 35000 80000 0.9 3.3 15 "0.40,0.38,0.28"
+layer Asthenosphere 80000 150000 0.88 3.4 8 "0.44,0.28,0.18"
+layer TransitionZone 150000 200000 0.92 3.8 6 "0.48,0.28,0.18"
+layer LowerMantle 200000 285000 0.94 4.8 4 "0.50,0.26,0.16"
+layer CoreMantleBoundary 285000 300000 0.95 5.4 20 "0.40,0.20,0.14"
+layer OuterCore 300000 480000 0.5 10.5 3 "0.75,0.42,0.16"
+layer InnerCore 480000 600000 0.98 12.5 1.5 "0.85,0.72,0.42"
 printf '\t}\n'
 
 # KSC Cave: a small cave a short drive west of the runway, one sinkhole entrance: the first cave a career meets.

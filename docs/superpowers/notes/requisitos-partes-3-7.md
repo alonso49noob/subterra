@@ -605,3 +605,35 @@ en un pozo van en bloques). Pedido: "hazlo cuando puedas". Propuesta [Claude, re
 - Bandas por capa en las paredes: el color y la textura según la profundidad real de cada vértice (o del píxel en el
   shader), no del centro del trozo; transición suave entre capas.
 - Encaja con las unidades geológicas (extras) y con el rediseño visual de las piezas.
+
+**Hecho (2026-11-25).** 15 tipos de roca procedurales (`RockTextures`: genérica, regolito, basalto vesicular, anortosita,
+brecha, caliza y arenisca en estratos, granito, hielo, sal, metal con Widmanstätten, olivino, manto, núcleo,
+sedimentos), 512² y sin costuras; se calculan en hilos aparte mientras carga el juego. Cada LAYER acepta
+`texture = <tipo>`; si no lo trae, se deduce del nombre (todas las capas actuales caen en un tipo con sentido). Decisiones
+[Claude, revisar]:
+- La capa de superficie (`top = 0`: regolito, suelo) mantiene la textura del terreno del cuerpo (o la de Parallax), para
+  que las bocas calcen con el suelo; las de abajo usan su tipo de roca.
+- El color final promedia el tinte de la capa (se divide por el color medio de la textura): los colores que ya tenía
+  cada cuerpo se mantienen y la textura pone el patrón.
+- El cambio de capa va por triángulo a su profundidad real (submallas solo en los trozos que cruzan un límite), sin
+  transición suave: eso pediría un shader propio.
+- Los estratos corren alrededor de la sección del túnel (horizontales en sus paredes); en salas y pozos su orientación
+  sigue a la proyección.
+- Las paredes de los pozos (excavados y naturales) llevan UV cilíndricas: sin remolinos ni estiramientos.
+- `layerTextures = false` en Settings.cfg vuelve a la textura del terreno para todas las capas.
+
+## Física bajo el datum e iridiscencia — pedidos de Lucas, 2026-11-26
+
+- "Creo que confundiste gravedad con presión": a 35 km bajo Kerbin el GRAVMAX marcaba 11 m/s² y el barómetro 0,17 kPa.
+  La gravedad subía (el parche anterior nunca corría: KSP inlinea `getGeeForceAtPosition`) y la presión caía (las curvas
+  de Kopernicus dan la vuelta con altitud negativa). Hecho: la gravedad baja en línea recta hasta 0 en el centro (en la
+  física, vía `vessel.gravityMultiplier` dentro de `CalculateGravity`, y en el GRAVMAX). La presión sube con la
+  profundidad (hidrostática con la gravedad interior y el aire a la temperatura de la roca: Kerbin ~17 atm a 35 km,
+  ~500 atm en el núcleo), y KSP ya no revienta piezas por sobrepresión bajo tierra (como pidió Lucas, sin límite de presión).
+- "No me deja hacer múltiples agujeros en el fondo de uno": el rover quedó inclinado sobre los escombros y el taladro
+  pasó solo a modo lateral (umbral de 45°). Ahora el modo lateral automático necesita la broca a menos de 20° de la
+  horizontal (o el interruptor); el estado lo indica.
+- "Que la subsuperficie vaya adquiriendo un color más iridiscente a medida que sube la profundidad y la temperatura".
+  Hecho [Claude, revisar]: colores de película fina sobre la roca y brillo y borde que cambian de tono con el ángulo. Va
+  de nada cerca de la superficie a intenso cerca del núcleo, según la temperatura de la roca (400→2000 K) o la fracción
+  de radio recorrida, lo que sea mayor. Ocho niveles; cada uno se genera la primera vez que se ve.

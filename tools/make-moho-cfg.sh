@@ -42,8 +42,13 @@ layer Regolith 0 6 0.2 1.7 25 "0.52,0.50,0.48"
 layer VolcanicBasalt 6 3000 0.65 3.2 30 "0.40,0.38,0.36" "*"
 layer MagmaChamberRoof 3000 8000 0.75 3.3 40 "0.44,0.36,0.32" "North Pole, Northern Sinkhole, Northern Sinkhole Ridge"
 layer LowerCrust 3000 30000 0.8 3.3 35 "0.42,0.38,0.35"
-layer Mantle 30000 150000 0.9 3.6 25 "0.46,0.36,0.30"
-layer Core 150000 250000 0.97 7.0 5 "0.50,0.36,0.26"
+# Deep structure (Lucas, 2026-11-26): a thin, hot mantle over a huge iron core (like Mercury's), glowing from the crust's
+# bottom down. [Claude, revisar]
+layer LithosphericMantle 30000 70000 0.9 3.4 20 "0.42,0.34,0.26"
+layer Asthenosphere 70000 135000 0.88 3.6 10 "0.48,0.28,0.18"
+layer CoreMantleBoundary 135000 150000 0.93 4.8 20 "0.42,0.22,0.14"
+layer OuterCore 150000 210000 0.5 9.5 3 "0.76,0.44,0.16"
+layer InnerCore 210000 250000 0.98 11.5 1.5 "0.86,0.74,0.44"
 printf '\t}\n'
 
 # The Mohole: a skylight through its bottom (a hair off the pole: the exact pole has no east), then a spiral of levels around the pole, 900 m out, down to 2.4 km under

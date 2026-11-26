@@ -39,5 +39,8 @@ namespace Subterra.Core.Model
 
         /// <summary>Radar attenuation in dB/m at 60 MHz; null = deduced from the density.</summary>
         public double? Attenuation { get; set; }
+
+        /// <summary>Kind of rock it looks like (its texture: basalt, granite, ice...); null = guessed from <see cref="Name"/>.</summary>
+        public string Texture { get; set; }
     }
 }

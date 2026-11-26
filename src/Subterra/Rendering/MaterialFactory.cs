@@ -24,6 +24,7 @@ namespace Subterra
         /// <summary>Builds the procedural textures now (at load) instead of at the first cave chunk.</summary>
         public static void Prewarm()
         {
+            StartRockKinds();
             ForLayer(null);
             Create("Ice_d", "Ice_n", Color.white);
         }
@@ -35,9 +36,25 @@ namespace Subterra
         /// the stock PQS uses on steep ground) tinted by the layer, so caves look like the same ground as the
         /// surface; without, or when the terrain has none, the procedural rock.
         /// </summary>
-        public static Material ForLayer(LayerSpec layer, CelestialBody body = null)
+        /// <param name="rockTemp">The rock's temperature there (K), if known: hot rock glows (Lucas: the deep underground like
+        /// the Earth's insides, dull red to white-hot), or turns iridescent with <c>deepRockLook = iridescent</c>.</param>
+        /// <param name="depth">Metres under the surface (for the iridescent look).</param>
+        public static Material ForLayer(LayerSpec layer, CelestialBody body = null, double? rockTemp = null, double depth = 0)
         {
-            string key = (body?.bodyName ?? "") + "/" + (layer?.Name ?? "");
+            bool kindTexture = layer != null && layer.Top > 0 && Settings.Current.LayerTextures;
+            string look = Settings.Current.DeepRockLook;
+            int step = 0, glow = 0;
+            if (kindTexture && rockTemp.HasValue && look == "iridescent")
+            {
+                float iridescence = Core.Meshing.RockTextures.Iridescence(rockTemp, depth, body != null ? body.Radius : 0);
+                step = Mathf.Clamp(Mathf.RoundToInt(iridescence * IridescenceSteps), 0, IridescenceSteps);
+            }
+            else if (kindTexture && rockTemp.HasValue && look == "glow" && rockTemp.Value > Core.Meshing.Incandescence.GlowStart)
+            {
+                glow = Mathf.Clamp(Mathf.RoundToInt((float)((rockTemp.Value - GlowFrom) / GlowStepKelvin)), 0, 40);
+            }
+
+            string key = (body?.bodyName ?? "") + "/" + (layer?.Name ?? "") + (step > 0 ? " iridescent " + step : "") + (glow > 0 ? " glow " + glow : "");
             if (ByLayer.TryGetValue(key, out Material material) && material != null)
             {
                 return material;
@@ -45,11 +62,50 @@ namespace Subterra
 
             float[] tint = layer?.Tint ?? new[] { 0.5f, 0.5f, 0.5f };
             var colour = new Color(tint[0], tint[1], tint[2]);
-            material = FromTerrain(body, "_steepTex", "_steepBumpMap", Capped(colour * TerrainTint))
-                ?? Create("Rock_d", "Rock_n", colour * 1.6f);
+            // Each layer its own rock (Lucas): below the surface layer, the texture of its kind of rock (basalt, granite,
+            // ice...). The surface layer keeps the body's own ground texture, so cave mouths match the terrain around them.
+            material = kindTexture
+                ? ForRockKind(Core.Meshing.RockTextures.KindFor(layer.Name, layer.Texture), colour, step)
+                : FromTerrain(body, "_steepTex", "_steepBumpMap", Capped(colour * TerrainTint)) ?? Create("Rock_d", "Rock_n", colour * 1.6f);
+            if (glow > 0)
+            {
+                Glow(material, GlowFrom + glow * GlowStepKelvin);
+            }
+
             material.name = "Subterra rock " + key;
             ByLayer[key] = material;
             return material;
+        }
+
+        /// <summary>Kelvin of the first glow step, and between steps (one material each, made when first seen).</summary>
+        private const double GlowFrom = 700, GlowStepKelvin = 150;
+
+        private static bool glowLogged;
+
+        // Hot rock lights itself: the colour of a black body at its temperature added as emission (KSP's part shaders take it in
+        // _TemperatureColor, the glow of an overheating part; without it, the rim light set to wrap the whole surface).
+        private static void Glow(Material material, double kelvin)
+        {
+            Core.Meshing.Incandescence.Colour(kelvin, out float r, out float g, out float b);
+            float intensity = Core.Meshing.Incandescence.Intensity(kelvin);
+            if (material.HasProperty("_TemperatureColor"))
+            {
+                material.SetColor("_TemperatureColor", new Color(r, g, b, intensity));
+            }
+            else if (material.HasProperty("_RimColor"))
+            {
+                material.SetColor("_RimColor", new Color(r * intensity, g * intensity, b * intensity, 1));
+                if (material.HasProperty("_RimFalloff"))
+                {
+                    material.SetFloat("_RimFalloff", 0.05f);
+                }
+            }
+
+            if (!glowLogged)
+            {
+                glowLogged = true;
+                Log.Info($"Hot rock glows through {(material.HasProperty("_TemperatureColor") ? "_TemperatureColor" : material.HasProperty("_RimColor") ? "_RimColor" : "nothing (no emission on " + material.shader?.name + ")")}");
+            }
         }
 
         /// <summary>The body's ground (its flat-terrain texture, untinted): for the rims around holes, so they blend into the terrain.</summary>
@@ -321,6 +377,200 @@ namespace Subterra
 
             ByLayer[key] = material;
             return material;
+        }
+
+        /// <summary>Pixels per side of the rock-kind textures, and metres of wall each tile covers.</summary>
+        private const int RockKindSize = 512;
+
+        private const float RockKindMetersPerTile = 8f;
+
+        private static readonly Dictionary<Core.Meshing.RockKind, System.Threading.Tasks.Task<Core.Meshing.RockTexture>> RockKindJobs =
+            new Dictionary<Core.Meshing.RockKind, System.Threading.Tasks.Task<Core.Meshing.RockTexture>>();
+
+        private static readonly Dictionary<(Core.Meshing.RockKind, int), (Texture2D Albedo, Texture2D Normal, Color Mean)> RockKindTextures =
+            new Dictionary<(Core.Meshing.RockKind, int), (Texture2D, Texture2D, Color)>();
+
+        /// <summary>Steps of iridescence from none to full (one texture and material each, made when first seen).</summary>
+        public const int IridescenceSteps = 8;
+
+        // The textures of every kind of rock are worked out on worker threads while the game loads (pure maths in Core); the
+        // first cave of a kind only uploads them.
+        private static void StartRockKinds()
+        {
+            foreach (Core.Meshing.RockKind kind in Enum.GetValues(typeof(Core.Meshing.RockKind)))
+            {
+                if (!RockKindJobs.ContainsKey(kind))
+                {
+                    RockKindJobs[kind] = System.Threading.Tasks.Task.Run(() => Core.Meshing.RockTextures.Generate(kind, RockKindSize, 0x5EB7E77AUL));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Rock of a kind tinted to a layer's colour: the colour is divided by the texture's own mean so that the wall's average
+        /// colour stays the layer's (each body's layers keep their designed colours) while the texture brings the pattern.
+        /// </summary>
+        // The textures of a kind at a step of iridescence, uploaded the first time; null if the kind's texture failed.
+        private static (Texture2D Albedo, Texture2D Normal, Color Mean)? ForRockKindTextures(Core.Meshing.RockKind kind, int step)
+        {
+            if (RockKindTextures.TryGetValue((kind, step), out var textures) && textures.Albedo != null)
+            {
+                return textures;
+            }
+
+            StartRockKinds();
+            Core.Meshing.RockTexture rock;
+            try
+            {
+                rock = RockKindJobs[kind].Result;
+            }
+            catch (Exception e)
+            {
+                Log.Warn($"Rock texture {kind} failed ({e.GetBaseException().Message}); procedural rock instead");
+                return null;
+            }
+
+            if (step > 0)
+            {
+                // Lucas: ever more iridescent going deeper and hotter. The film pattern was worked out at load; this only
+                // blends its colours in (a few hundredths of a second, once per kind and step).
+                Texture2D relief = ForRockKindTextures(kind, 0)?.Normal;
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                textures = Upload(Core.Meshing.RockTextures.Iridescent(rock, (float)step / IridescenceSteps, 0x5EB7E77AUL), kind, step, relief);
+                Log.Info($"Iridescent rock {kind} step {step}/{IridescenceSteps} made in {clock.ElapsedMilliseconds} ms");
+            }
+            else
+            {
+                textures = Upload(rock, kind, 0);
+            }
+
+            RockKindTextures[(kind, step)] = textures;
+            return textures;
+        }
+
+        private static Material ForRockKind(Core.Meshing.RockKind kind, Color layerColour, int step)
+        {
+            if (!(ForRockKindTextures(kind, step) is var found) || found == null)
+            {
+                return Create("Rock_d", "Rock_n", layerColour * 1.6f);
+            }
+
+            var textures = found.Value;
+            var material = new Material(Shader.Find("KSP/Bumped Specular"));
+            material.SetTexture("_MainTex", textures.Albedo);
+            material.SetTexture("_BumpMap", textures.Normal);
+            var scale = new Vector2(MetersPerUv / RockKindMetersPerTile, MetersPerUv / RockKindMetersPerTile);
+            material.SetTextureScale("_MainTex", scale);
+            material.SetTextureScale("_BumpMap", scale);
+            Color mean = textures.Mean;
+            material.SetColor("_Color", new Color(
+                Mathf.Min(MaxKindTint, layerColour.r / Mathf.Max(0.05f, mean.r)),
+                Mathf.Min(MaxKindTint, layerColour.g / Mathf.Max(0.05f, mean.g)),
+                Mathf.Min(MaxKindTint, layerColour.b / Mathf.Max(0.05f, mean.b)), 1));
+
+            // Ice, salt and metal catch a lamp's light; rock barely does.
+            float gloss = kind == Core.Meshing.RockKind.Ice ? 0.35f : kind == Core.Meshing.RockKind.Metal ? 0.5f : kind == Core.Meshing.RockKind.Salt ? 0.2f : 0.06f;
+            var spec = new Color(gloss, gloss, gloss);
+            if (step > 0)
+            {
+                // Iridescent rock shines, and its sheen changes colour with the angle it is seen from: the highlight takes one
+                // hue, the edges (KSP's rim light) another, both stronger the deeper and hotter.
+                float s = (float)step / IridescenceSteps;
+                float hue = Mathf.Repeat(0.55f + 0.11f * step + 0.07f * (int)kind, 1f);
+                spec = Color.Lerp(spec, Color.HSVToRGB(hue, 0.8f, 1f) * 0.3f, s);
+                gloss = Mathf.Lerp(gloss, 0.3f, s);
+                if (material.HasProperty("_RimColor"))
+                {
+                    Color rim = Color.HSVToRGB(Mathf.Repeat(hue + 0.4f, 1f), 0.9f, 1f) * (0.15f * s);
+                    material.SetColor("_RimColor", new Color(rim.r, rim.g, rim.b, 1));
+                    if (material.HasProperty("_RimFalloff"))
+                    {
+                        material.SetFloat("_RimFalloff", 4f);
+                    }
+                }
+            }
+
+            material.SetColor("_SpecColor", spec);
+            material.SetFloat("_Shininess", Mathf.Max(0.06f, gloss * 0.8f));
+            material.enableInstancing = true;
+            return material;
+        }
+
+        /// <summary>Most a channel of a rock-kind tint may be (a light layer on a dark texture would blow out: the first photos
+        /// in game showed washed-out walls at 2.5).</summary>
+        private const float MaxKindTint = 1.8f;
+
+        /// <summary>How much of the texture's own contrast is kept around its mean (the clasts and grains read too harsh under
+        /// a floodlight at full contrast).</summary>
+        private const float KindContrast = 0.7f;
+
+        private static (Texture2D, Texture2D, Color) Upload(Core.Meshing.RockTexture rock, Core.Meshing.RockKind kind, int step, Texture2D sameRelief = null)
+        {
+            double mr = 0, mg = 0, mb = 0;
+            for (int i = 0; i < rock.R.Length; i++)
+            {
+                mr += rock.R[i];
+                mg += rock.G[i];
+                mb += rock.B[i];
+            }
+
+            mr /= rock.R.Length;
+            mg /= rock.R.Length;
+            mb /= rock.R.Length;
+            int size = rock.Size;
+            string name = "Subterra rock " + kind + (step > 0 ? " iridescent " + step : "");
+            var albedo = new Texture2D(size, size, TextureFormat.RGBA32, true) { name = name, wrapMode = TextureWrapMode.Repeat, anisoLevel = 4 };
+            Texture2D normal = sameRelief ?? new Texture2D(size, size, TextureFormat.RGBA32, true, true) { name = name + " normal", wrapMode = TextureWrapMode.Repeat, anisoLevel = 4 };
+            var colours = new Color32[size * size];
+            double sr = 0, sg = 0, sb = 0;
+            for (int i = 0; i < colours.Length; i++)
+            {
+                float r = Mathf.Clamp01((float)(mr + (rock.R[i] - mr) * KindContrast));
+                float g = Mathf.Clamp01((float)(mg + (rock.G[i] - mg) * KindContrast));
+                float b = Mathf.Clamp01((float)(mb + (rock.B[i] - mb) * KindContrast));
+                colours[i] = new Color32((byte)(255 * r), (byte)(255 * g), (byte)(255 * b), 255);
+                sr += r;
+                sg += g;
+                sb += b;
+            }
+
+            albedo.SetPixels32(colours);
+            albedo.Apply(true);
+
+            if (sameRelief != null)
+            {
+                Compress(albedo, kind);
+                return (albedo, normal, new Color((float)(sr / colours.Length), (float)(sg / colours.Length), (float)(sb / colours.Length)));
+            }
+
+            // Normal maps packed as Unity expects them (x in alpha, y in green).
+            float strength = kind == Core.Meshing.RockKind.Ice || kind == Core.Meshing.RockKind.Metal ? 2f : 5f;
+            Core.Numerics.Vec3[] normals = Core.Meshing.TextureGenerator.Normals(rock.Height, size, strength);
+            for (int i = 0; i < colours.Length; i++)
+            {
+                byte x = (byte)(255 * (normals[i].X * 0.5f + 0.5f)), y = (byte)(255 * (normals[i].Y * 0.5f + 0.5f));
+                colours[i] = new Color32(y, y, y, x);
+            }
+
+            normal.SetPixels32(colours);
+            normal.Apply(true);
+            Compress(albedo, kind);
+            Compress(normal, kind);
+
+            int n = colours.Length;
+            return (albedo, normal, new Color((float)(sr / n), (float)(sg / n), (float)(sb / n)));
+        }
+
+        private static void Compress(Texture2D texture, Core.Meshing.RockKind kind)
+        {
+            try
+            {
+                texture.Compress(true);
+            }
+            catch (Exception e)
+            {
+                Log.Warn($"Rock texture {kind} left uncompressed: {e.Message}");
+            }
         }
 
         /// <summary>A Bumped Specular material from GameData/Subterra/Textures (procedural fallback).</summary>

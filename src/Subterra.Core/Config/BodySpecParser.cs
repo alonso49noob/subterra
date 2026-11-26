@@ -155,6 +155,16 @@ namespace Subterra.Core.Config
             ocean.Density = Clamp(r.Double(node, "density", ocean.Density), 500, 2000, r, "density");
             ocean.Temperature = Clamp(r.Double(node, "temperature", ocean.Temperature), 100, 400, r, "temperature");
             ocean.CeilingRock = r.Bool(node, "ceilingRock", false);
+            ocean.TowerChance = Clamp(r.Double(node, "towerChance", 0), 0, 1, r, "towerChance");
+            ocean.TowerLength = Clamp(r.Double(node, "towerLength", ocean.TowerLength), 5, 5000, r, "towerLength");
+            ocean.PillarChance = Clamp(r.Double(node, "pillarChance", 0), 0, 1, r, "pillarChance");
+            ocean.PillarRadius = Clamp(r.Double(node, "pillarRadius", ocean.PillarRadius), 5, 1000, r, "pillarRadius");
+            string ceilingTint = node.GetValue("ceilingTint");
+            if (!string.IsNullOrEmpty(ceilingTint))
+            {
+                ocean.CeilingTint = r.Colour(ceilingTint, "ceilingTint");
+            }
+
             string colour = node.GetValue("colour");
             if (!string.IsNullOrEmpty(colour))
             {
@@ -193,6 +203,7 @@ namespace Subterra.Core.Config
                 Density = r.Double(node, "density", 2.5),
                 Gradient = r.Double(node, "gradient", 0),
                 Where = SplitList(node.GetValue("where")),
+                Texture = node.GetValue("texture")?.Trim(),
             };
 
             string tint = node.GetValue("tint");

@@ -33,8 +33,10 @@ EOF
 layer Regolith 0 4 0.15 1.4 2 "0.55,0.56,0.55"
 layer MintIce 4 1200 0.35 1.0 2 "0.60,0.74,0.68" "Flats, Great Flats, Greater Flats, Lesser Flats, Poles, Lowlands" "Water:0.05"
 layer IcyBreccia 4 1200 0.5 2.0 2 "0.50,0.58,0.55" "*" "Water:0.01"
-layer Mantle 1200 40000 0.8 2.6 1.5 "0.46,0.47,0.46"
-layer Core 40000 60000 0.95 4.0 0.5 "0.42,0.40,0.36"
+# Deep structure (Lucas, 2026-11-26): an icy mantle over a rocky one, a small rocky core. [Claude, revisar]
+layer IcyMantle 1200 15000 0.6 1.6 1.5 "0.52,0.60,0.58"
+layer RockyMantle 15000 40000 0.8 2.8 2 "0.46,0.47,0.46"
+layer RockyCore 40000 60000 0.95 4.0 1 "0.48,0.40,0.32"
 printf '\t}\n'
 
 # Flats Gallery: a broad, low ice cave under the Great Flats, one skylight through the ice.

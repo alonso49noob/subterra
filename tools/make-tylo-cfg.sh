@@ -32,9 +32,13 @@ layer Regolith 0 10 0.15 1.6 3 "0.55,0.54,0.53"
 layer MareBasalt 10 3000 0.6 3.1 3 "0.40,0.39,0.38" "Lowlands, Mara, Midlands"
 layer AnorthositeBreccia 10 3000 0.55 2.8 3 "0.62,0.61,0.59" "*"
 # Rock down to the ocean's ceiling (3 km at the poles, 8 km at the equator), then the ocean (50 km), then the crust.
-layer Megaregolith 3000 58000 0.65 2.9 3 "0.48,0.47,0.45" "*" "Water:0.02"
-layer LowerCrust 58000 120000 0.75 3.0 2 "0.44,0.42,0.40"
-layer Core 120000 600000 0.95 5.0 1 "0.42,0.32,0.24"
+layer Megaregolith 3000 53000 0.65 2.9 3 "0.48,0.47,0.45" "*" "Water:0.02"
+# Deep structure (Lucas, 2026-11-26): under the ocean (3-8 km down, 50 km deep) its floor of high-pressure ice, a rocky
+# mantle, a liquid outer and a solid inner core. [Claude, revisar]
+layer HighPressureIce 53000 120000 0.6 1.3 1 "0.58,0.66,0.72"
+layer RockyMantle 120000 400000 0.88 3.4 4 "0.46,0.32,0.22"
+layer OuterCore 400000 520000 0.5 8.0 2 "0.74,0.42,0.16"
+layer InnerCore 520000 600000 0.98 10.0 1 "0.82,0.66,0.38"
 printf '\t}\n'
 
 # Tylo's Great System: a wide, deep tube under the mara with three big chambers and a few skylights, branching.
@@ -101,6 +105,9 @@ cat <<'EOF'
 		temperature = 275
 		colour = 0.04, 0.10, 0.16
 		ceilingRock = true
+		// Rock pendants hang from the rock ceiling. [Claude, revisar]
+		towerChance = 0.15
+		towerLength = 400
 	}
 EOF
 scatter BreakdownBoulders "Subterra/Props/Boulder01, Subterra/Props/Boulder02, Subterra/Props/Boulder03" floor "TubeGallery, TubeChamber, TubeBranch" 1.4 "0.3, 4.5" 0.6 true 0.035 0.62 3 0.3

@@ -59,7 +59,10 @@ namespace Subterra
 
                 Vector3d world = __instance.GetWorldPos3D();
                 Core.Numerics.Vec3d at = Frames.ToBody(__instance.mainBody, world);
-                if (runtime.Catalog.FindNear(at, KillMargin) != null || Underground.OceanAt(__instance.mainBody, world) != null)
+                // Also anywhere under the terrain: KSP destroys a craft on rails, not landed, in air over 1 kPa, and the air
+                // underground is dense (a craft set 500 km down was destroyed "on rails at 71775 kPa").
+                if (runtime.Catalog.FindNear(at, KillMargin) != null || Underground.OceanAt(__instance.mainBody, world) != null
+                    || Underground.BuriedDepth(__instance) > 0)
                 {
                     return false;
                 }

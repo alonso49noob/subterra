@@ -26,13 +26,14 @@ namespace Subterra.DevTools
             StepRegistry.RegisterAssertion("altitudeBelow", AltitudeBelow);
         }
 
-        // altitudeBelow max = 1300 — the tracked vessel's altitude (over the datum) is at most that (it went down).
+        // altitudeBelow max = 1300 min = 1200 — the tracked vessel's altitude (over the datum) is at most max (it went down)
+        // and, with min, at least min (it did not fall on through).
         private static bool AltitudeBelow(ConfigNode node, TestContext ctx)
         {
             Vessel vessel = ctx.TrackedVessel ?? throw new InvalidOperationException("no tracked vessel");
-            double max = node.ArgDouble("max", 0);
-            ctx.Detail = Invariant($"{vessel.GetDisplayName()}: altitude {vessel.altitude:F1} m (at most {max:F0}), {vessel.situation}, {vessel.srfSpeed:F1} m/s, packed {vessel.packed}");
-            return vessel.altitude <= max;
+            double max = node.ArgDouble("max", 0), min = node.ArgDouble("min", double.MinValue);
+            ctx.Detail = Invariant($"{vessel.GetDisplayName()}: altitude {vessel.altitude:F1} m (at most {max:F0}{(min > double.MinValue ? $", at least {min:F0}" : "")}), {vessel.situation}, {vessel.srfSpeed:F1} m/s, packed {vessel.packed}");
+            return vessel.altitude <= max && vessel.altitude >= min;
         }
 
         // scattererUnderwater expect = false — whether any of Scatterer's oceans has its underwater view on (Scatterer
@@ -324,8 +325,56 @@ namespace Subterra.DevTools
                 }
 
                 double lat = node.ArgDouble("lat", 0), depth = node.ArgDouble("depth", 100);
-                target = Core.Geo.BodyFrame.Direction(lat, node.ArgDouble("lon", 0)) * (runtime.Ocean.CeilingRadius(lat) - depth);
+                Vec3d dir = Core.Geo.BodyFrame.Direction(lat, node.ArgDouble("lon", 0));
                 where = Invariant($"{bodyName} ocean {depth} m under the ice");
+                // near = tower|pillar standoff = 40: beside the nearest ice tower (or Pol's pillar), that many metres off
+                // its side.
+                string near = node.Arg("near", "");
+                if (near.Length > 0)
+                {
+                    ulong seed = Hash.Of(oceanBody.bodyName + "/ice");
+                    double standoff = node.ArgDouble("standoff", 40);
+                    Vec3d axis = default;
+                    double width = 0, best = double.MaxValue;
+                    if (string.Equals(near, "pillar", StringComparison.OrdinalIgnoreCase))
+                    {
+                        foreach (var pillar in Core.Water.OceanFeatures.PillarsNear(runtime.Ocean, dir, 8000, seed))
+                        {
+                            double d = (pillar.Direction - dir).Length;
+                            if (d < best)
+                            {
+                                best = d;
+                                axis = pillar.Direction;
+                                width = pillar.Radius * 1.25;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        foreach (var tower in Core.Water.OceanFeatures.TowersNear(runtime.Ocean, dir, seed, 4))
+                        {
+                            double d = (tower.Direction - dir).Length;
+                            if (d < best)
+                            {
+                                best = d;
+                                axis = tower.Direction;
+                                width = tower.BaseRadius;
+                            }
+                        }
+                    }
+
+                    if (best == double.MaxValue)
+                    {
+                        throw new InvalidOperationException($"no {near} near {lat:F1}, {node.ArgDouble("lon", 0):F1} on {bodyName}");
+                    }
+
+                    Vec3d side = Vec3d.Cross(axis, Math.Abs(axis.Y) < 0.9 ? new Vec3d(0, 1, 0) : new Vec3d(1, 0, 0)).Normalized;
+                    dir = (axis + side * ((width + standoff) / runtime.Ocean.BodyRadius)).Normalized;
+                    Core.Geo.BodyFrame.ToLatLon(dir, out lat, out _);
+                    where += Invariant($", {width + standoff:F0} m from the axis of a {near}");
+                }
+
+                target = dir * (runtime.Ocean.CeilingRadius(lat) - depth);
                 inside = false;
             }
             else if (string.Equals(node.Arg("site"), "dug", StringComparison.OrdinalIgnoreCase))

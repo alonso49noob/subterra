@@ -46,8 +46,16 @@ head_body Eve EV 410 "caves of Eve: karst cut by explodium, an aquifer you can p
 layer Regolith 0 4 0.15 1.7 30 "0.52,0.46,0.56"
 layer Evaporites 4 1200 0.35 2.2 30 "0.62,0.56,0.64" "Lowlands, Midlands, Crater Lake, Shallows" "Explodium:0.05" "Explodium:0.25"
 layer Basalt 4 3000 0.6 3.1 30 "0.40,0.36,0.44" "*"
-layer DeepCrust 3000 40000 0.8 3.2 25 "0.40,0.36,0.42"
-layer Mantle 40000 400000 0.9 3.6 15 "0.44,0.34,0.36"
+# Deep structure (Lucas, 2026-11-26): a hot Earth-like interior under Eve's crust. [Claude, revisar]
+layer MiddleCrust 3000 20000 0.78 3.0 25 "0.42,0.38,0.42"
+layer LowerCrust 20000 40000 0.84 3.2 25 "0.34,0.32,0.36"
+layer LithosphericMantle 40000 90000 0.9 3.3 15 "0.40,0.36,0.30"
+layer Asthenosphere 90000 170000 0.88 3.4 8 "0.46,0.28,0.20"
+layer TransitionZone 170000 240000 0.92 3.8 6 "0.48,0.28,0.18"
+layer LowerMantle 240000 390000 0.94 4.8 4 "0.50,0.26,0.16"
+layer CoreMantleBoundary 390000 400000 0.95 5.4 20 "0.40,0.20,0.14"
+layer OuterCore 400000 560000 0.5 10.5 3 "0.75,0.42,0.16"
+layer InnerCore 560000 700000 0.98 12.5 1.5 "0.85,0.72,0.42"
 printf '\t}\n'
 # Explodium Aquifer: a karst passage half full of explodium, with a pump-ready chamber.
 site_head EveAquifer
@@ -77,8 +85,16 @@ out=GameData/Subterra/Bodies/Laythe/Laythe.cfg; mkdir -p "$(dirname "$out")"
 head_body Laythe LY 265 "caves of Laythe: lava tubes under its volcanic islands (sea caves and life come with the oceans, sub-project 5)"
 layer Soil 0 3 0.15 1.6 30 "0.52,0.50,0.48"
 layer IslandBasalt 3 2000 0.6 3.0 35 "0.40,0.38,0.37" "*"
-layer DeepCrust 2000 30000 0.8 3.1 30 "0.42,0.40,0.38"
-layer Mantle 30000 300000 0.9 3.5 20 "0.46,0.36,0.30"
+# Deep structure (Lucas, 2026-11-26): a tidally heated, Earth-like interior. [Claude, revisar]
+layer MiddleCrust 2000 15000 0.78 2.9 30 "0.44,0.42,0.40"
+layer LowerCrust 15000 30000 0.84 3.1 30 "0.36,0.34,0.33"
+layer LithosphericMantle 30000 60000 0.9 3.3 18 "0.40,0.36,0.28"
+layer Asthenosphere 60000 130000 0.88 3.4 8 "0.46,0.28,0.18"
+layer TransitionZone 130000 180000 0.92 3.8 6 "0.48,0.28,0.18"
+layer LowerMantle 180000 290000 0.94 4.8 4 "0.50,0.26,0.16"
+layer CoreMantleBoundary 290000 300000 0.95 5.4 20 "0.40,0.20,0.14"
+layer OuterCore 300000 420000 0.5 10.0 3 "0.75,0.42,0.16"
+layer InnerCore 420000 500000 0.98 12.0 1.5 "0.85,0.72,0.42"
 printf '\t}\n'
 # Island Tube: a long lava tube down the flank of an island, Kazumura-like, skylights along it.
 site_head LaytheIslandTube
@@ -104,7 +120,8 @@ out=GameData/Subterra/Bodies/Dres/Dres.cfg; mkdir -p "$(dirname "$out")"
 head_body Dres DR 150 "caves of Dres (a Ceres analogue): caves under its canyons, a salty icy crust"
 layer Regolith 0 5 0.15 1.5 2 "0.52,0.50,0.48"
 layer IcyCrust 5 3000 0.45 1.8 2 "0.56,0.55,0.53" "*" "Water:0.02"
-layer RockyMantle 3000 100000 0.8 2.8 1.5 "0.46,0.44,0.42"
+layer RockyMantle 3000 95000 0.8 2.8 3 "0.46,0.44,0.42"
+layer IronCore 95000 138000 0.95 5.0 2 "0.60,0.42,0.24"
 printf '\t}\n'
 site_head DresCanyonCaves
 node "${CANYON[0]}" "${CANYON[1]}" 30 80 35 skylight 20
@@ -142,7 +159,7 @@ out=GameData/Subterra/Bodies/Bop/Bop.cfg; mkdir -p "$(dirname "$out")"
 {
 head_body Bop BP 140 "the insides of Bop, likely a captured comet: huge caverns of dirty ice (with something large and old deep inside)"
 layer DirtyIce 0 20000 0.35 1.0 0.5 "0.52,0.50,0.47" "*" "Water:0.03;LqdMethane:0.008"
-layer Core 20000 65000 0.6 1.6 0.3 "0.44,0.42,0.40"
+layer RockyCore 20000 65000 0.6 1.6 0.3 "0.44,0.42,0.40"
 printf '\t}\n'
 # Bop's Cavern: a vast cavern under a valley, entered by a shaft; the Kraken nod is its sealed far end (dig to it).
 site_head BopCavern
@@ -172,8 +189,21 @@ icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed
   {
   head_body $body $prefix $temp "$comment"
   layer IceRegolith 0 5 0.2 0.95 0.5 "0.70,0.72,0.74"
-  layer WaterIce 5 8000 0.45 0.95 0.5 "0.64,0.68,0.72" "*" "Water:0.04;LqdMethane:0.005;Ammonia:0.005"
-  layer RockyCore 8000 400000 0.85 3.0 0.3 "0.44,0.42,0.40"
+  # Deep structure (Lucas, 2026-11-26): the ice shell down to the ocean (put in as a layer where it lies), high-pressure
+  # ice where the ocean ends higher (towards the poles), a rocky mantle, an iron core. "iceBottom mantleBottom radius" per
+  # body. [Claude, revisar]
+  local deep iceBottom mantleBottom bodyRadius
+  case $body in
+    Vall) deep="40000 200000 300000" ;;
+    Eeloo) deep="28000 150000 210000" ;;
+    Pol) deep="8000 30000 44000" ;;
+    *) deep="8000 200000 400000" ;;
+  esac
+  read iceBottom mantleBottom bodyRadius <<<"$deep"
+  layer WaterIce 5 $((iceBottom / 2)) 0.45 0.95 0.5 "0.64,0.68,0.72" "*" "Water:0.04;LqdMethane:0.005;Ammonia:0.005"
+  layer HighPressureIce $((iceBottom / 2)) $iceBottom 0.6 1.3 0.5 "0.58,0.66,0.72"
+  layer RockyMantle $iceBottom $mantleBottom 0.85 3.0 3 "0.46,0.36,0.26"
+  layer IronCore $mantleBottom $bodyRadius 0.95 5.0 1.5 "0.62,0.42,0.22"
   printf '\t}\n'
   site_head $name
   node $la0 $lo0 20 40 20 skylight 14
@@ -191,16 +221,17 @@ icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed
   # The ocean under the ice (sub-project 4): "ceilingPole ceilingEquator thickness" in metres. [Claude, revisar]
   if [ -n "$ocean" ]; then
     read pole eq thick <<<"$ocean"
-    printf '	OCEAN
-	{
-		ceilingPole = %s
-		ceilingEquator = %s
-		thickness = %s
-		density = 1030
-		temperature = 272
-		colour = 0.05, 0.12, 0.20
-	}
-' $pole $eq $thick
+    # What hangs and stands in each ocean (Lucas, 2026-11-21): ice towers; Pol's pillars and sulphur. [Claude, revisar]
+    colour="0.05, 0.12, 0.20"; extra=""
+    case $body in
+      Vall) extra='\t\t// Ice towers hang from the ceiling (giant icicles, like brinicles). [Claude, revisar]\n\t\ttowerChance = 0.3\n\t\ttowerLength = 300\n' ;;
+      Eeloo) extra='\t\t// Ice towers under the ceiling. [Claude, revisar]\n\t\ttowerChance = 0.2\n\t\ttowerLength = 150\n' ;;
+      Pol) colour="0.16, 0.15, 0.05"
+        extra='\t\t// Lucas: pillars join the ceiling to the floor (a 5 km ocean), ice towers hang between them, and the ice and water are\n\t\t// yellow with sulphur. [Claude, revisar]\n\t\ttowerChance = 0.3\n\t\ttowerLength = 200\n\t\tpillarChance = 0.45\n\t\tpillarRadius = 150\n\t\tceilingTint = 0.85, 0.80, 0.48\n' ;;
+    esac
+    printf '\tOCEAN\n\t{\n\t\tceilingPole = %s\n\t\tceilingEquator = %s\n\t\tthickness = %s\n\t\tdensity = 1030\n\t\ttemperature = 272\n\t\tcolour = %s\n' $pole $eq $thick "$colour"
+    printf "$extra"
+    printf '\t}\n'
   fi
   echo "}"
   } > "$out"; echo "wrote $out"

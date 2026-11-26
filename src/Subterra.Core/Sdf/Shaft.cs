@@ -28,6 +28,24 @@ namespace Subterra.Core.Sdf
             SetCoreBounds(BoxAround(bottomCenter, bottomCenter + this.up * length, radius));
         }
 
+        /// <summary>
+        /// Wall coordinates of a point (for its texture): metres around the wall (from -πr to πr; the seam is opposite
+        /// <c>e1</c>) and metres up from the bottom; null near the axis (the floor), where box UVs suit better.
+        /// </summary>
+        public Vec2? WallUv(Vec3 p)
+        {
+            Vec3 q = p - bottomCenter;
+            float h = Vec3.Dot(q, up);
+            Vec3 across = q - up * h;
+            if (across.Length < radius * 0.5f)
+            {
+                return null;
+            }
+
+            float angle = (float)Math.Atan2(Vec3.Dot(across, e2), Vec3.Dot(across, e1));
+            return new Vec2(angle * radius, h);
+        }
+
         public Vec3 BottomCenter => bottomCenter;
 
         public Vec3 Up => up;

@@ -16,6 +16,12 @@ namespace Subterra
         public Vector2[] Uvs;
         public int[] Triangles;
         public Bounds Bounds;
+
+        /// <summary>Triangles per submesh when the mesh crosses rock layers (one material each); null = one submesh.</summary>
+        public int[][] SubMeshes;
+
+        /// <summary>The layer of each of <see cref="SubMeshes"/>.</summary>
+        public Subterra.Core.Model.LayerSpec[] SubMeshLayers;
     }
 
     /// <summary>MeshData (worker thread) → Unity Mesh (main thread).</summary>
@@ -81,7 +87,19 @@ namespace Subterra
                 mesh.uv = prepared.Uvs;
             }
 
-            mesh.SetTriangles(prepared.Triangles, 0, false);
+            if (prepared.SubMeshes != null)
+            {
+                mesh.subMeshCount = prepared.SubMeshes.Length;
+                for (int i = 0; i < prepared.SubMeshes.Length; i++)
+                {
+                    mesh.SetTriangles(prepared.SubMeshes[i], i, false);
+                }
+            }
+            else
+            {
+                mesh.SetTriangles(prepared.Triangles, 0, false);
+            }
+
             mesh.bounds = prepared.Bounds;
             if (prepared.Normals == null)
             {

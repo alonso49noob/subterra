@@ -46,10 +46,15 @@ layer PolarIce 5 1500 0.35 1.1 6 "0.62,0.62,0.64" "Poles, Polar Highlands, Polar
 layer LayeredSediments 5 900 0.4 2.3 9 "0.52,0.50,0.48" "Midland Sea, Northern Basin, Southern Basin, Northern Shelf, Midland Canyon, Eastern Canyon, Western Canyon" "Water:0.02"
 layer VolcanicBasalt 5 4000 0.6 3.0 8 "0.36,0.35,0.35" "*"
 layer Megaregolith 4000 9000 0.65 2.9 8 "0.42,0.41,0.40"
-layer LowerCrust 9000 50000 0.75 3.0 8 "0.40,0.39,0.38"
-layer UpperMantle 50000 150000 0.85 3.4 5 "0.40,0.33,0.26"
-layer LowerMantle 150000 250000 0.9 3.6 3 "0.38,0.30,0.24"
-layer Core 250000 320000 0.95 6.0 1 "0.45,0.30,0.20"
+# Deep structure (Lucas, 2026-11-26): crust in two, the mantle in three over the core's boundary layer, a liquid outer and
+# a solid inner core (about 2000 K at the centre). [Claude, revisar]
+layer MiddleCrust 9000 25000 0.75 2.9 8 "0.42,0.40,0.39"
+layer LowerCrust 25000 50000 0.8 3.0 8 "0.36,0.34,0.33"
+layer UpperMantle 50000 150000 0.85 3.4 5 "0.42,0.33,0.24"
+layer LowerMantle 150000 240000 0.9 3.6 6 "0.46,0.28,0.18"
+layer CoreMantleBoundary 240000 250000 0.92 4.5 15 "0.40,0.22,0.14"
+layer OuterCore 250000 295000 0.5 7.0 3 "0.74,0.42,0.16"
+layer InnerCore 295000 320000 0.98 8.0 1 "0.82,0.66,0.38"
 printf '\t}\n'
 
 # Duna Catena: a 10 km tube under a straight row of collapse pits (like Mars's catenae).
@@ -152,8 +157,9 @@ layer VolcanicBasalt 6 2500 0.6 3.0 3 "0.38,0.37,0.36" "Lowlands, Midlands, Pola
 layer AnorthositeBreccia 6 2500 0.55 2.8 3 "0.60,0.59,0.57" "*"
 layer Megaregolith 2500 6000 0.65 2.9 3 "0.48,0.46,0.44"
 layer LowerCrust 6000 30000 0.75 3.0 2 "0.44,0.42,0.40"
-layer UpperMantle 30000 100000 0.85 3.3 1.5 "0.40,0.38,0.34"
-layer Core 100000 130000 0.95 5.0 0.5 "0.42,0.32,0.24"
+layer UpperMantle 30000 70000 0.85 3.3 4 "0.40,0.38,0.34"
+layer LowerMantle 70000 100000 0.9 3.4 5 "0.44,0.32,0.22"
+layer IronCore 100000 130000 0.95 5.0 2 "0.62,0.40,0.22"
 printf '\t}\n'
 
 # Ike Trench: a long, deep crack pulled open by tides, roofed over in parts: a straight tube with pits.

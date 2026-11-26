@@ -47,6 +47,16 @@ namespace Subterra
         /// </summary>
         public bool InWater(Part part, out double fraction) => wet.TryGetValue(part, out fraction);
 
+        // The water's pressure (kPa) on each wet part this physics frame: the air on the water, the ice or rock over an ocean,
+        // the water above.
+        private readonly System.Collections.Generic.Dictionary<Part, double> pressure = new System.Collections.Generic.Dictionary<Part, double>();
+
+        /// <summary>The water's pressure (kPa) on <paramref name="part"/> now, if it is in Subterra's water (for the barometer).</summary>
+        public bool PressureOn(Part part, out double kPa) => pressure.TryGetValue(part, out kPa);
+
+        /// <summary>Whether any part is in Subterra's water now.</summary>
+        public bool AnyWet => pressure.Count > 0;
+
         public override Activation GetActivation() => Activation.LoadedVessels | Activation.FlightScene;
 
         public static SubterraWaterModule Of(Vessel vessel) => vessel == null ? null : vessel.FindVesselModuleImplementing<SubterraWaterModule>();
@@ -72,6 +82,7 @@ namespace Subterra
             }
 
             wet.Clear();
+            pressure.Clear();
             try
             {
                 Float();
@@ -168,7 +179,8 @@ namespace Subterra
                     part.WaterContact = true;
                     part.submergedPortion = fraction;
                     double density = sample.Value.Density;
-                    double g = FlightGlobals.getGeeForceAtPosition(world).magnitude;
+                    // The gravity there (inside a body it falls towards the centre: KSP's own value is a point mass's).
+                    double g = FlightGlobals.getGeeForceAtPosition(world, body).magnitude * InteriorGravityPatch.Factor(body, world);
                     Vector3d up = Frames.DirectionToWorld(body, sample.Value.Up).normalized;
 
                     // Lift: the water the part's box displaces (kN: KSP's forces are in kilonewtons, masses in tonnes).
@@ -234,6 +246,7 @@ namespace Subterra
                     }
 
                     double kPa = WaterPhysics.PressureKPa(sample.Value.Depth, density, g, vessel.staticPressurekPa + over);
+                    pressure[part] = kPa;
                     if (Settings.Current.WaterCrush && kPa > part.maxPressure)
                     {
                         ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Water_Crushed", part.partInfo.title, (kPa / 101.325).ToString("F0")), 5f);

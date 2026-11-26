@@ -14,6 +14,9 @@ namespace Subterra
     {
         public const string Id = "caveSea";
 
+        /// <summary>Metres under the terrain from which a vessel outside every void counts as buried (not in KSP's sea).</summary>
+        private const double BuriedDepth = 3;
+
         public static void Register()
         {
             PatchManager.Register(Id, harmony => harmony.Patch(
@@ -47,8 +50,11 @@ namespace Subterra
                     return true;
                 }
 
+                // In a void, or buried in the rock (Lucas: a craft set deep under Kerbin with Set Position, its pocket smaller
+                // than it, took KSP's sea buoyancy with the point-mass gravity of 500 km down and shot up through the
+                // pocket's roof): KSP's sea only lies over the terrain.
                 SubterraVesselModule module = SubterraVesselModule.Of(vessel);
-                if (module == null || !module.State.Inside)
+                if ((module == null || !module.State.Inside) && Underground.BuriedDepth(vessel) < BuriedDepth)
                 {
                     return true;
                 }
