@@ -41,6 +41,9 @@
   and the lights of parts under the ground are now drawn per pixel.
 - Cryovolcanic plumes (Lucas: lakes under the ice of airless moons give themselves away): columns of ice over the vents of
   the lakes on Vall, Eeloo and Minmus, taller under weaker gravity, faint at night (cryovolcanoPlumes in Settings.cfg).
+- Cryovolcanoes that look like ones (Lucas): steep domes with a summit crater (as Ceres's Ahuna Mons; Minmus 700 m, Valls
+  Thera 1.1 km, Thrace 900 m, Eeloo 800 m), a brighter plume with a dense core inside its fan, and a bright fan of fresh
+  frost on the ground round each vent.
 - Subglacial lakes (Lucas): Lake Kostok under Kerbin's south pole, a brine lake under Duna's south cap, a lake under
   Laythe's north pole, Thera and Thrace perched in Vall's ice, the Geyser Lake in Eeloo, and an ocean under Minmus (shallow
   and calm, to meet the oceans near home) with the Mint Lake over it. On airless moons a cryovolcanic dome and vent mark

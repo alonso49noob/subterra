@@ -97,7 +97,7 @@ printf '\tOCEAN\n\t{\n\t\tceilingPole = 600\n\t\tceilingEquator = 1500\n\t\tthic
 site_head MinmusMintLake
 node 12 78 350 700 110 lake 12 "" "0.07,0.20,0.15"
 printf '\t}\n'
-volcano MinmusMintLakeDome 12 78 1200 120 36 24
+volcano MinmusMintLakeDome 12 78 1800 700 60 36
 echo "}"
 } > "$out"
 echo "wrote $out"

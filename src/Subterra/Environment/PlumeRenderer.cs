@@ -33,7 +33,7 @@ namespace Subterra
         private readonly List<Plume> plumes = new List<Plume>();
         private CelestialBody built;
         private float nextCheck;
-        private Material material;
+        private Material material, frostMaterial;
         private Texture2D streaks;
 
         private sealed class Plume
@@ -79,11 +79,15 @@ namespace Subterra
 
                 Vector3d world = p.Root.transform.position;
                 float day = Mathf.Clamp01((float)Vector3d.Dot((sun - world).normalized, (world - built.position).normalized) * 3f + 0.3f);
-                var renderer = p.Root.GetComponent<MeshRenderer>();
-                renderer.GetPropertyBlock(Block);
-                Block.SetColor("_TintColor", IceColour * Mathf.Lerp(0.12f, 0.55f, day));
-                Block.SetColor("_Color", IceColour * Mathf.Lerp(0.12f, 0.55f, day));
-                renderer.SetPropertyBlock(Block);
+                // Brighter than at first (Lucas saw no sign of cryovolcanism): sunlit ice grains, and a glow by night.
+                foreach (MeshRenderer renderer in p.Root.GetComponentsInChildren<MeshRenderer>())
+                {
+                    renderer.GetPropertyBlock(Block);
+                    Color c = IceColour * Mathf.Lerp(0.3f, 1f, day);
+                    Block.SetColor("_TintColor", c);
+                    Block.SetColor("_Color", c);
+                    renderer.SetPropertyBlock(Block);
+                }
             }
         }
 
@@ -127,6 +131,8 @@ namespace Subterra
                 streaks = Streaks();
                 Shader shader = Shader.Find("KSP/Particles/Alpha Blended") ?? Shader.Find("Legacy Shaders/Particles/Alpha Blended") ?? Shader.Find("Sprites/Default");
                 material = new Material(shader) { mainTexture = streaks, renderQueue = 3100 };
+                // The frost lies still (the plume's streaks drift up).
+                frostMaterial = new Material(material);
             }
 
             var root = new GameObject("SubterraPlume " + name) { layer = 0 };
@@ -140,18 +146,83 @@ namespace Subterra
             renderer.sharedMaterial = material;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = false;
+            // A dense core jetting straight up inside the fan.
+            var core = new GameObject("core") { layer = 0 };
+            core.transform.SetParent(root.transform, false);
+            core.AddComponent<MeshFilter>().sharedMesh = Cone(vent * 0.6f, height * 0.65f, 0.07f);
+            var coreRenderer = core.AddComponent<MeshRenderer>();
+            coreRenderer.sharedMaterial = material;
+            coreRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            coreRenderer.receiveShadows = false;
+            // The frost the plume snows back down: a bright fan of fresh ice on the ground round the vent.
+            var frost = new GameObject("frost") { layer = 0 };
+            frost.transform.SetParent(root.transform, false);
+            frost.AddComponent<MeshFilter>().sharedMesh = Frost(body, up, radius, root.transform, vent * 5, Mathf.Min(height * 0.4f, 1500f));
+            var frostRenderer = frost.AddComponent<MeshRenderer>();
+            frostRenderer.sharedMaterial = frostMaterial;
+            frostRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            frostRenderer.receiveShadows = false;
             return new Plume { Root = root, Up = up, Radius = radius };
+        }
+
+        // A disc laid on the ground from the crater's edge (inner) out to outer, 1.5 m over the terrain, opaque at the rim and
+        // fading out, in the plume's frame (root).
+        private static Mesh Frost(CelestialBody body, Vec3d up, double radius, Transform root, float inner, float outer)
+        {
+            const int segments = 48, rings = 14;
+            var vertices = new List<Vector3>();
+            var uvs = new List<Vector2>();
+            var colours = new List<Color>();
+            var triangles = new List<int>();
+            Vec3d e1 = Vec3d.Cross(new Vec3d(0, 1, 0), up);
+            e1 = e1.Length < 1e-6 ? new Vec3d(1, 0, 0) : e1.Normalized;
+            Vec3d e2 = Vec3d.Cross(up, e1);
+            Quaternion toRoot = Quaternion.Inverse(root.localRotation);
+            Vector3 origin = root.localPosition;
+            for (int ring = 0; ring <= rings; ring++)
+            {
+                float t = (float)ring / rings;
+                double r = inner + (outer - inner) * t * t;
+                for (int s = 0; s <= segments; s++)
+                {
+                    double a = 2 * Math.PI * s / segments;
+                    Vec3d dir = (up * radius + (e1 * Math.Cos(a) + e2 * Math.Sin(a)) * r).Normalized;
+                    BodyFrame.ToLatLon(dir, out double lat, out double lon);
+                    Vec3d p = dir * (KspSampler.SurfaceRadius(body, lat, lon) + 1.5);
+                    vertices.Add(toRoot * ((Vector3)p.ToKsp() - origin));
+                    uvs.Add(new Vector2((float)s / segments * 6, t * 3));
+                    colours.Add(new Color(1, 1, 1, Mathf.Pow(1 - t, 1.3f) * 0.9f));
+                }
+            }
+
+            int row = segments + 1;
+            for (int ring = 0; ring < rings; ring++)
+            {
+                for (int s = 0; s < segments; s++)
+                {
+                    int i = ring * row + s;
+                    triangles.AddRange(new[] { i, i + row, i + 1, i + 1, i + row, i + row + 1 });
+                }
+            }
+
+            var mesh = new Mesh { name = "SubterraFrost" };
+            mesh.SetVertices(vertices);
+            mesh.SetUVs(0, uvs);
+            mesh.SetColors(colours);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateBounds();
+            return mesh;
         }
 
         // An open cone from the vent, fanning out to Spread × height at the top; alpha highest just over the vent, fading up and
         // out; the texture repeats every few vent widths up the column.
-        private static Mesh Cone(float vent, float height)
+        private static Mesh Cone(float vent, float height, float spread = Spread)
         {
             var vertices = new List<Vector3>();
             var uvs = new List<Vector2>();
             var colours = new List<Color>();
             var triangles = new List<int>();
-            float top = Mathf.Max(vent * 2, height * Spread);
+            float top = Mathf.Max(vent * 2, height * spread);
             float repeats = Mathf.Max(1, height / (vent * 12));
             for (int ring = 0; ring <= Rings; ring++)
             {
@@ -219,7 +290,11 @@ namespace Subterra
             {
                 if (p.Root != null)
                 {
-                    Destroy(p.Root.GetComponent<MeshFilter>().sharedMesh);
+                    foreach (MeshFilter filter in p.Root.GetComponentsInChildren<MeshFilter>())
+                    {
+                        Destroy(filter.sharedMesh);
+                    }
+
                     Destroy(p.Root);
                 }
             }
@@ -234,6 +309,11 @@ namespace Subterra
             if (material != null)
             {
                 Destroy(material);
+            }
+
+            if (frostMaterial != null)
+            {
+                Destroy(frostMaterial);
             }
 
             if (streaks != null)

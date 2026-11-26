@@ -242,8 +242,8 @@ icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed
   # [Claude, revisar]
   local lakes=""
   case $body in
-    Vall) lakes="VallThera 22 64 2600 2800 380 0.05,0.13,0.20 20 3200 260;VallThrace -38 205 3100 2200 300 0.06,0.12,0.18 18 2600 220" ;;
-    Eeloo) lakes="EelooGeyserLake -78 120 650 1400 160 0.07,0.13,0.17 15 1800 150" ;;
+    Vall) lakes="VallThera 22 64 2600 2800 380 0.05,0.13,0.20 20 4000 1100;VallThrace -38 205 3100 2200 300 0.06,0.12,0.18 18 3400 900" ;;
+    Eeloo) lakes="EelooGeyserLake -78 120 650 1400 160 0.07,0.13,0.17 15 2600 800" ;;
   esac
   local entry lname llat llon ldepth lradius lheight lcolour lvent ldome ldomeh
   IFS=";" read -ra entries <<<"$lakes"
@@ -253,7 +253,8 @@ icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed
     site_head $lname
     node $llat $llon $ldepth $lradius $lheight lake "$lvent" "" "$lcolour"
     printf '\t}\n'
-    volcano ${lname}Dome $llat $llon $ldome $ldomeh $((lvent * 3)) $((lvent * 2))
+    # Steep domes with a summit crater, as Ceres's Ahuna Mons (Lucas: the cryovolcanoes should look like ones).
+    volcano ${lname}Dome $llat $llon $ldome $ldomeh $((lvent * 5)) $((lvent * 3))
   done
   field ${body}Ice $style "$biomes" 3 "10, 80" "500, 4000" "10, 80" "1000, 3000" 0.5 0.15 0.6 $seed
   # Cryovolcanic conduits: frozen pipes spiralling down hundreds of metres from a skylight. [Claude, revisar]
