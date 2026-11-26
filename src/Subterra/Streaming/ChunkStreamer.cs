@@ -890,7 +890,9 @@ namespace Subterra
         private static void Bands(PreparedMesh visual, MeshData data, TubeNetwork net, ChunkKey key, Core.Environment.Strata strata, string biome)
         {
             double surface = net.SurfaceRadiusNear(key.Bounds.Center);
-            var bands = LayerBands.Split(data, p => surface - net.ToBody(p).Length, d => strata.LayerAt(d, biome));
+            // Boundaries moved by a noise of the place and mixed bands either side (Lucas: subtler, interlocked changes of rock).
+            ulong seed = Core.Numerics.Hash.Of(net.Body ?? "");
+            var bands = LayerBands.Split(data, p => surface - net.ToBody(p).Length, d => strata.LayerAt(d, biome), p => LayerBands.Jitter(net.ToBody(p), seed));
             if (bands == null)
             {
                 return;

@@ -41,10 +41,18 @@ namespace Subterra
         /// <param name="depth">Metres under the surface (for the iridescent look).</param>
         public static Material ForLayer(LayerSpec layer, CelestialBody body = null, double? rockTemp = null, double depth = 0)
         {
+            // Where two layers meet: a mix of both rocks, unless one of them wears the body's own ground (the surface layer, or
+            // layerTextures off), which cannot be mixed: then the main one alone.
+            bool blend = layer != null && layer.IsBlend;
+            if (blend && (!Settings.Current.LayerTextures || layer.BlendUpper.Top <= 0 || layer.BlendLower.Top <= 0))
+            {
+                return ForLayer(layer.BlendShare < 0.5f ? layer.BlendUpper : layer.BlendLower, body, rockTemp, depth);
+            }
+
             bool kindTexture = layer != null && layer.Top > 0 && Settings.Current.LayerTextures;
             string look = Settings.Current.DeepRockLook;
             int step = 0, glow = 0;
-            if (kindTexture && rockTemp.HasValue && look == "iridescent")
+            if (kindTexture && rockTemp.HasValue && look == "iridescent" && !blend)
             {
                 float iridescence = Core.Meshing.RockTextures.Iridescence(rockTemp, depth, body != null ? body.Radius : 0);
                 step = Mathf.Clamp(Mathf.RoundToInt(iridescence * IridescenceSteps), 0, IridescenceSteps);
@@ -64,9 +72,15 @@ namespace Subterra
             var colour = new Color(tint[0], tint[1], tint[2]);
             // Each layer its own rock (Lucas): below the surface layer, the texture of its kind of rock (basalt, granite,
             // ice...). The surface layer keeps the body's own ground texture, so cave mouths match the terrain around them.
-            material = kindTexture
+            material = blend ? ForRockBlend(body, layer) : null;
+            if (blend && material == null)
+            {
+                return ForLayer(layer.BlendShare < 0.5f ? layer.BlendUpper : layer.BlendLower, body, rockTemp, depth);
+            }
+
+            material = material ?? (kindTexture
                 ? ForRockKind(Core.Meshing.RockTextures.KindFor(layer.Name, layer.Texture), colour, step)
-                : FromTerrain(body, "_steepTex", "_steepBumpMap", Capped(colour * TerrainTint)) ?? Create("Rock_d", "Rock_n", colour * 1.6f);
+                : FromTerrain(body, "_steepTex", "_steepBumpMap", Capped(colour * TerrainTint)) ?? Create("Rock_d", "Rock_n", colour * 1.6f));
             if (glow > 0)
             {
                 Glow(material, GlowFrom + glow * GlowStepKelvin);
@@ -397,6 +411,12 @@ namespace Subterra
         // first cave of a kind only uploads them.
         private static void StartRockKinds()
         {
+            if (blendMasks == null)
+            {
+                blendMasks = System.Threading.Tasks.Task.Run(() => Core.Meshing.RockTextures.BlendMasks(RockKindSize, 0x5EB7E77AUL,
+                    Core.Meshing.LayerBands.MinorShare, 1 - Core.Meshing.LayerBands.MinorShare));
+            }
+
             foreach (Core.Meshing.RockKind kind in Enum.GetValues(typeof(Core.Meshing.RockKind)))
             {
                 if (!RockKindJobs.ContainsKey(kind))
@@ -446,6 +466,70 @@ namespace Subterra
 
             RockKindTextures[(kind, step)] = textures;
             return textures;
+        }
+
+        // The masks of the two mixed bands between layers (see LayerBands), worked out while the game loads.
+        private static System.Threading.Tasks.Task<float[][]> blendMasks;
+
+        private static readonly Dictionary<string, (Texture2D Albedo, Texture2D Normal, float Scale)> BlendTextures =
+            new Dictionary<string, (Texture2D, Texture2D, float)>();
+
+        private static float[] BlendMask(float share)
+        {
+            if (blendMasks == null)
+            {
+                blendMasks = System.Threading.Tasks.Task.Run(() => Core.Meshing.RockTextures.BlendMasks(RockKindSize, 0x5EB7E77AUL,
+                    Core.Meshing.LayerBands.MinorShare, 1 - Core.Meshing.LayerBands.MinorShare));
+            }
+
+            float[][] masks = blendMasks.Result;
+            return share < 0.5f ? masks[0] : masks[1];
+        }
+
+        /// <summary>
+        /// The walls where two layers meet (Lucas: subtler, interlocked changes of rock): both rocks mixed by a mask, each with
+        /// the contrast and tint it has on its own walls; the main one's gloss. Null if a rock's texture failed.
+        /// </summary>
+        private static Material ForRockBlend(CelestialBody body, LayerSpec blend)
+        {
+            string key = (body?.bodyName ?? "") + "/" + blend.Name;
+            if (!BlendTextures.TryGetValue(key, out var textures) || textures.Albedo == null)
+            {
+                StartRockKinds();
+                Core.Meshing.RockKind upperKind = Core.Meshing.RockTextures.KindFor(blend.BlendUpper.Name, blend.BlendUpper.Texture);
+                Core.Meshing.RockKind lowerKind = Core.Meshing.RockTextures.KindFor(blend.BlendLower.Name, blend.BlendLower.Texture);
+                try
+                {
+                    var clock = System.Diagnostics.Stopwatch.StartNew();
+                    Core.Meshing.RockTexture mixed = Core.Meshing.RockTextures.Blend(RockKindJobs[upperKind].Result, RockKindJobs[lowerKind].Result,
+                        BlendMask(blend.BlendShare), blend.BlendUpper.Tint, blend.BlendLower.Tint, KindContrast, MaxKindTint, out float scale);
+                    Core.Meshing.RockKind main = blend.BlendShare < 0.5f ? upperKind : lowerKind;
+                    var (albedo, normal, _) = Upload(mixed, main, 0, null, 1f, "Subterra rock " + key);
+                    textures = (albedo, normal, scale);
+                    BlendTextures[key] = textures;
+                    Log.Info($"Rock between layers {blend.Name} ({upperKind}/{lowerKind}) made in {clock.ElapsedMilliseconds} ms");
+                }
+                catch (Exception e)
+                {
+                    Log.Warn($"Rock between layers {blend.Name} failed ({e.GetBaseException().Message}); its main layer instead");
+                    return null;
+                }
+            }
+
+            LayerSpec mainLayer = blend.BlendShare < 0.5f ? blend.BlendUpper : blend.BlendLower;
+            Core.Meshing.RockKind kind = Core.Meshing.RockTextures.KindFor(mainLayer.Name, mainLayer.Texture);
+            var material = new Material(Shader.Find("KSP/Bumped Specular"));
+            material.SetTexture("_MainTex", textures.Albedo);
+            material.SetTexture("_BumpMap", textures.Normal);
+            var tiling = new Vector2(MetersPerUv / RockKindMetersPerTile, MetersPerUv / RockKindMetersPerTile);
+            material.SetTextureScale("_MainTex", tiling);
+            material.SetTextureScale("_BumpMap", tiling);
+            material.SetColor("_Color", new Color(textures.Scale, textures.Scale, textures.Scale, 1));
+            float gloss = kind == Core.Meshing.RockKind.Ice ? 0.35f : kind == Core.Meshing.RockKind.Metal ? 0.5f : kind == Core.Meshing.RockKind.Salt ? 0.2f : 0.06f;
+            material.SetColor("_SpecColor", new Color(gloss, gloss, gloss));
+            material.SetFloat("_Shininess", Mathf.Max(0.06f, gloss * 0.8f));
+            material.enableInstancing = true;
+            return material;
         }
 
         private static Material ForRockKind(Core.Meshing.RockKind kind, Color layerColour, int step)
@@ -504,7 +588,8 @@ namespace Subterra
         /// a floodlight at full contrast).</summary>
         private const float KindContrast = 0.7f;
 
-        private static (Texture2D, Texture2D, Color) Upload(Core.Meshing.RockTexture rock, Core.Meshing.RockKind kind, int step, Texture2D sameRelief = null)
+        private static (Texture2D, Texture2D, Color) Upload(Core.Meshing.RockTexture rock, Core.Meshing.RockKind kind, int step, Texture2D sameRelief = null,
+            float contrast = KindContrast, string name = null)
         {
             double mr = 0, mg = 0, mb = 0;
             for (int i = 0; i < rock.R.Length; i++)
@@ -518,16 +603,16 @@ namespace Subterra
             mg /= rock.R.Length;
             mb /= rock.R.Length;
             int size = rock.Size;
-            string name = "Subterra rock " + kind + (step > 0 ? " iridescent " + step : "");
+            name = name ?? "Subterra rock " + kind + (step > 0 ? " iridescent " + step : "");
             var albedo = new Texture2D(size, size, TextureFormat.RGBA32, true) { name = name, wrapMode = TextureWrapMode.Repeat, anisoLevel = 4 };
             Texture2D normal = sameRelief ?? new Texture2D(size, size, TextureFormat.RGBA32, true, true) { name = name + " normal", wrapMode = TextureWrapMode.Repeat, anisoLevel = 4 };
             var colours = new Color32[size * size];
             double sr = 0, sg = 0, sb = 0;
             for (int i = 0; i < colours.Length; i++)
             {
-                float r = Mathf.Clamp01((float)(mr + (rock.R[i] - mr) * KindContrast));
-                float g = Mathf.Clamp01((float)(mg + (rock.G[i] - mg) * KindContrast));
-                float b = Mathf.Clamp01((float)(mb + (rock.B[i] - mb) * KindContrast));
+                float r = Mathf.Clamp01((float)(mr + (rock.R[i] - mr) * contrast));
+                float g = Mathf.Clamp01((float)(mg + (rock.G[i] - mg) * contrast));
+                float b = Mathf.Clamp01((float)(mb + (rock.B[i] - mb) * contrast));
                 colours[i] = new Color32((byte)(255 * r), (byte)(255 * g), (byte)(255 * b), 255);
                 sr += r;
                 sg += g;

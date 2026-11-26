@@ -117,6 +117,111 @@ namespace Subterra.Core.Meshing
         }
 
         /// <summary>
+        /// Where the lower rock shows in the mixed bands between two layers (see <see cref="LayerBands"/>), for each share
+        /// asked (0–1 of the area): 1 there, 0 where the upper rock shows, a soft edge between. One field of tiling noise, broad
+        /// lenses with smaller ones at their edges, cut at a level per share, so the lower rock's patches at a small share lie
+        /// inside its patches at a big one: going down, they grow and join up. Slow (hundreds of ms at 512): made once, at load.
+        /// </summary>
+        public static float[][] BlendMasks(int size, ulong seed, params float[] shares)
+        {
+            int[][] tables = Noise.Tables(Hash.Combine(seed, 0xB1E2DUL));
+            var field = new float[size * size];
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float u = (float)x / size, v = (float)y / size;
+                    field[y * size + x] = 0.65f * Fbm(u, v, 3, tables, 4) + 0.35f * Fbm(u + 0.5f, v + 0.25f, 9, tables, 3);
+                }
+            }
+
+            var sorted = (float[])field.Clone();
+            Array.Sort(sorted);
+            var masks = new float[shares.Length][];
+            for (int s = 0; s < shares.Length; s++)
+            {
+                float level = sorted[(int)((1 - Clamp01(shares[s])) * (sorted.Length - 1))];
+                const float soft = 0.02f;
+                var mask = new float[field.Length];
+                for (int i = 0; i < field.Length; i++)
+                {
+                    float t = Clamp01((field[i] - level + soft) / (2 * soft));
+                    mask[i] = t * t * (3 - 2 * t);
+                }
+
+                masks[s] = mask;
+            }
+
+            return masks;
+        }
+
+        /// <summary>
+        /// Two rocks mixed by <paramref name="mask"/> (1 = the lower), each first given the contrast and layer tint it has on
+        /// its own walls (the tint divided by the texture's mean, at most <paramref name="maxTint"/>), so the mix matches the
+        /// layers on either side. The colours come out divided by <paramref name="scale"/> (at least 1) to stay under 1: the
+        /// material's colour multiplies them back.
+        /// </summary>
+        public static RockTexture Blend(RockTexture upper, RockTexture lower, float[] mask, float[] upperTint, float[] lowerTint,
+            float contrast, float maxTint, out float scale)
+        {
+            int n = upper.Size * upper.Size;
+            if (lower.Size != upper.Size || mask.Length != n)
+            {
+                throw new ArgumentException("rock textures and mask must be the same size");
+            }
+
+            float[] tu = Tints(upper, upperTint, maxTint, out float[] mu), tl = Tints(lower, lowerTint, maxTint, out float[] ml);
+            var r = new float[n];
+            var g = new float[n];
+            var b = new float[n];
+            var h = new float[n];
+            float top = 1;
+            for (int i = 0; i < n; i++)
+            {
+                float m = mask[i];
+                r[i] = Mix(Clamp01(mu[0] + (upper.R[i] - mu[0]) * contrast) * tu[0], Clamp01(ml[0] + (lower.R[i] - ml[0]) * contrast) * tl[0], m);
+                g[i] = Mix(Clamp01(mu[1] + (upper.G[i] - mu[1]) * contrast) * tu[1], Clamp01(ml[1] + (lower.G[i] - ml[1]) * contrast) * tl[1], m);
+                b[i] = Mix(Clamp01(mu[2] + (upper.B[i] - mu[2]) * contrast) * tu[2], Clamp01(ml[2] + (lower.B[i] - ml[2]) * contrast) * tl[2], m);
+                h[i] = Mix(upper.Height[i], lower.Height[i], m);
+                top = Math.Max(top, Math.Max(r[i], Math.Max(g[i], b[i])));
+            }
+
+            for (int i = 0; i < n; i++)
+            {
+                r[i] /= top;
+                g[i] /= top;
+                b[i] /= top;
+            }
+
+            scale = top;
+            return new RockTexture { Size = upper.Size, R = r, G = g, B = b, Height = h };
+        }
+
+        private static float Mix(float a, float b, float t) => a + (b - a) * t;
+
+        // A layer tint over a texture's mean colour, per channel, at most maxTint (as the layer's own material does it).
+        private static float[] Tints(RockTexture rock, float[] tint, float maxTint, out float[] mean)
+        {
+            double r = 0, g = 0, b = 0;
+            for (int i = 0; i < rock.R.Length; i++)
+            {
+                r += rock.R[i];
+                g += rock.G[i];
+                b += rock.B[i];
+            }
+
+            mean = new[] { (float)(r / rock.R.Length), (float)(g / rock.R.Length), (float)(b / rock.R.Length) };
+            tint = tint ?? new[] { 0.5f, 0.5f, 0.5f };
+            var result = new float[3];
+            for (int c = 0; c < 3; c++)
+            {
+                result[c] = Math.Min(maxTint, tint[c] / Math.Max(0.05f, mean[c]));
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// <paramref name="rock"/> with thin-film colours over it (Lucas: the deep, hot underground ever more iridescent):
         /// bands of interference colours, as on an oil film or tempered metal, following the rock's relief and a slow swirl;
         /// <paramref name="strength"/> 0 (none) to 1 (vivid). The rock's light and dark stay; it tiles like the rock.

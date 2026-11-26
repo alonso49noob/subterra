@@ -42,5 +42,17 @@ namespace Subterra.Core.Model
 
         /// <summary>Kind of rock it looks like (its texture: basalt, granite, ice...); null = guessed from <see cref="Name"/>.</summary>
         public string Texture { get; set; }
+
+        /// <summary>
+        /// For the walls where two layers meet (made by <see cref="Meshing.LayerBands"/>, never read from a config): the layer
+        /// above and the layer below whose rocks this one mixes, and the share of the lower one (0–1). Null for real layers.
+        /// </summary>
+        public LayerSpec BlendUpper { get; set; }
+
+        public LayerSpec BlendLower { get; set; }
+
+        public float BlendShare { get; set; }
+
+        public bool IsBlend => BlendUpper != null && BlendLower != null;
     }
 }

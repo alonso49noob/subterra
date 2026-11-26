@@ -24,6 +24,9 @@
 - Set Position pocket size (Lucas): pocketScale (a multiple of the craft's size), pocketMinRadius and pocketMinHeight in
   Settings.cfg, and a slider in the Subterra window (Alt+Shift+U).
 - With the "ignore max temperature" cheat, drills, pumps and converters no longer shut down overheated.
+- Subtler, interlocked changes of rock between layers (Lucas): the boundary moves up and down by up to 12 m (a quarter of
+  a thin layer) in tongues a few tens of metres across, and for a few metres either side of it the walls mix both rocks,
+  mostly the upper with patches of the lower, then the reverse, the patches growing and joining going down.
 - Fixed (Lucas's play): seams in the rock textures every tile (8 m). The fine noise was asked for past the tile's edge,
   where it does not tile; the blend that tiles the noise matched in value but not in slope (a crease the normal map lit),
   and it had half the contrast in the middle of the tile it had at its edges (a grid of rougher bands).
