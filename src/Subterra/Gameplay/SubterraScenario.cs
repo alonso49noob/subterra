@@ -33,6 +33,23 @@ namespace Subterra
         /// <summary>Marks a zone of a network visited; true the first time.</summary>
         public bool Visit(string id, string zone) => visited.Add(id + "|" + zone);
 
+        // Bodies whose centre was reached by digging (see CentreReward): body name -> who and when.
+        private readonly Dictionary<string, (string vessel, double ut)> centres = new Dictionary<string, (string vessel, double ut)>();
+
+        public bool CentreReached(string body) => centres.ContainsKey(body);
+
+        /// <summary>Records that a vessel reached the body's centre; true the first time for that body.</summary>
+        public bool ReachCentre(string body, string vessel, double ut)
+        {
+            if (centres.ContainsKey(body))
+            {
+                return false;
+            }
+
+            centres[body] = (vessel, ut);
+            return true;
+        }
+
         public override void OnAwake()
         {
             Instance = this;
@@ -71,6 +88,14 @@ namespace Subterra
                 n.AddValue("zone", parts.Length > 1 ? parts[1] : "");
             }
 
+            foreach (KeyValuePair<string, (string vessel, double ut)> c in centres)
+            {
+                ConfigNode n = node.AddNode("CENTRE_REACHED");
+                n.AddValue("body", c.Key);
+                n.AddValue("vessel", c.Value.vessel ?? "");
+                n.AddValue("ut", c.Value.ut.ToString("R", CultureInfo.InvariantCulture));
+            }
+
             ExcavationService.Save(node);
         }
 
@@ -101,6 +126,17 @@ namespace Subterra
             foreach (ConfigNode n in node.GetNodes("VISITED"))
             {
                 visited.Add(n.GetValue("id") + "|" + n.GetValue("zone"));
+            }
+
+            centres.Clear();
+            foreach (ConfigNode n in node.GetNodes("CENTRE_REACHED"))
+            {
+                string body = n.GetValue("body");
+                if (!string.IsNullOrEmpty(body))
+                {
+                    double.TryParse(n.GetValue("ut"), NumberStyles.Float, CultureInfo.InvariantCulture, out double ut);
+                    centres[body] = (n.GetValue("vessel"), ut);
+                }
             }
 
             ExcavationService.Load(node);

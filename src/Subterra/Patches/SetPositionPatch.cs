@@ -105,9 +105,12 @@ namespace Subterra
                 wide = Math.Max(wide, (d - up * h).magnitude);
             }
 
-            middle = centroid + up * ((low + high) * 0.5 + Headroom * 0.5);
-            radius = (float)Math.Max(1.5, wide + Margin);
-            height = (float)Math.Max(3, high - low + Margin * 2 + Headroom);
+            // Scaled up (Lucas: room for something bigger) about the floor, Margin under the craft: it grows up and out.
+            Settings s = Settings.Current;
+            double scale = Math.Max(1, s.PocketScale);
+            radius = (float)Math.Max(Math.Max(1.5, wide + Margin) * scale, s.PocketMinRadius);
+            height = (float)Math.Max(Math.Max(3, high - low + Margin * 2 + Headroom) * scale, s.PocketMinHeight);
+            middle = centroid + up * (low - Margin + height * 0.5);
         }
 
         /// <summary>Extra room (m) over the craft in a carved pocket.</summary>

@@ -23,8 +23,15 @@ namespace Subterra
                     postfix: new HarmonyMethod(typeof(ThermalPatches), nameof(BackgroundPostfix)));
                 harmony.Patch(AccessTools.Method(typeof(FlightIntegrator), "CalculateAnalyticTemperature"),
                     postfix: new HarmonyMethod(typeof(ThermalPatches), nameof(AnalyticPostfix)));
+                // With the "ignore max temperature" cheat, drills, pumps and converters no longer shut down hot (Lucas: deep in
+                // hot rock the Drill-O-Matic Junior kept stopping, "Overheating - shutting down", with the cheat on).
+                var keepRunning = new HarmonyMethod(typeof(ThermalPatches), nameof(ShutdownPrefix));
+                harmony.Patch(AccessTools.Method(typeof(BaseConverter), "CheckForShutdown"), prefix: keepRunning);
+                harmony.Patch(AccessTools.Method(typeof(ModuleCoreHeat), "CheckCoreShutdown"), prefix: keepRunning);
             });
         }
+
+        private static bool ShutdownPrefix() => !CheatOptions.IgnoreMaxTemperature;
 
         private static void SunBodyFluxPostfix(FlightIntegrator __instance, Vessel ___vessel)
         {

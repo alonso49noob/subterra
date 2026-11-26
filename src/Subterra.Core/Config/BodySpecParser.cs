@@ -17,6 +17,12 @@ namespace Subterra.Core.Config
         public const double MinHeight = 5;
         public const double MaxHeight = 300;
 
+        /// <summary>Lake limits (m): wider and taller than any cave room (a radius: lakes are lenses kilometres across).</summary>
+        public const double MinLakeWidth = 100, MaxLakeWidth = 5000, MaxLakeHeight = 600;
+
+        /// <summary>A lake fills to this fraction of its height unless it says otherwise (an air gap under its dome).</summary>
+        public const double LakeFill = 0.9;
+
         /// <summary>TUBE_FIELD limits (m): a trunk of at least one generator step, a real roof, skylights not crowding.</summary>
         public const double MinFieldLength = 400;
         public const double MinRoofDepth = 1;
@@ -360,8 +366,25 @@ namespace Subterra.Core.Config
             }
 
             n.Depth = Clamp(n.Depth, 0, 5000, r, "depth");
-            n.Width = Clamp(n.Width, MinWidth, MaxWidth, r, "width");
-            n.Height = Clamp(n.Height, MinHeight, MaxHeight, r, "height");
+            if (n.Feature == NodeFeature.Lake)
+            {
+                n.Width = Clamp(n.Width, MinLakeWidth, MaxLakeWidth, r, "width");
+                n.Height = Clamp(n.Height, MinHeight, MaxLakeHeight, r, "height");
+                if (n.Water <= 0)
+                {
+                    n.Water = LakeFill * n.Height;
+                }
+
+                if (n.WaterReach <= 0)
+                {
+                    n.WaterReach = 1.2 * n.Width;
+                }
+            }
+            else
+            {
+                n.Width = Clamp(n.Width, MinWidth, MaxWidth, r, "width");
+                n.Height = Clamp(n.Height, MinHeight, MaxHeight, r, "height");
+            }
             if (n.Feature == NodeFeature.Skylight)
             {
                 if (n.SkylightRadius <= 0)

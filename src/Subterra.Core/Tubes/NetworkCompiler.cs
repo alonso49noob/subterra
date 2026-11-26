@@ -198,6 +198,49 @@ namespace Subterra.Core.Tubes
                         Source = i,
                     });
                 }
+                else if (node.Feature == NodeFeature.Lake)
+                {
+                    // A wide, low lens with smooth walls: the ice over a lake is melted smooth, its floor is sediment.
+                    prims.Add(new Chamber(Local(p.FloorCenter), up, (float)node.Width, (float)node.Height)
+                    {
+                        Roughness = (float)Math.Min(2.0, 0.002 * node.Width),
+                        NoiseScale = (float)Math.Max(20, 0.1 * node.Width),
+                        Zone = ZoneKind.SubglacialLake,
+                        Source = i,
+                    });
+
+                    // A cryovolcanic vent (Lucas: on airless icy moons a lake gives itself away by cryovolcanism): a straight
+                    // conduit from the top of the lake's dome up through the ice to a hole in the surface.
+                    if (node.SkylightRadius > 0)
+                    {
+                        Vec3d ventBottom = p.FloorCenter + p.Up * (p.Height - 2);
+                        double ventLength = p.SurfaceRadius + ShaftAboveSurface - ventBottom.Length;
+                        var vent = new Shaft(Local(ventBottom), up, (float)node.SkylightRadius, (float)ventLength)
+                        {
+                            Roughness = (float)(0.06 * node.SkylightRadius),
+                            NoiseScale = (float)Math.Max(4, 0.5 * node.SkylightRadius),
+                            Source = i,
+                            Lobes = 0.08f,
+                            LobeSeed = (float)(Hash.Of(id + "/vent/" + i) % 1000) / 100f,
+                            Ground = ShaftAboveSurface,
+                        };
+                        prims.Add(vent);
+                        skylights.Add(new Skylight
+                        {
+                            SurfaceCenter = Local(p.Up * p.SurfaceRadius),
+                            Up = up,
+                            Radius = (float)(1.3 * node.SkylightRadius),
+                            Lat = node.Lat,
+                            Lon = node.Lon,
+                            SurfaceRadius = p.SurfaceRadius,
+                            ShaftBottom = Local(ventBottom),
+                            Index = skylights.Count,
+                            Smooth = true,
+                            Natural = true,
+                            Shaft = vent,
+                        });
+                    }
+                }
                 else if (node.Feature == NodeFeature.Chamber)
                 {
                     prims.Add(new Chamber(Local(p.FloorCenter), up, (float)node.Width, (float)(1.2 * node.Height))

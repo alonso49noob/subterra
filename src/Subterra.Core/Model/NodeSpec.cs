@@ -15,6 +15,12 @@ namespace Subterra.Core.Model
         /// shape, without a shaft (radius: how far the opening may reach).
         /// </summary>
         Portal,
+
+        /// <summary>
+        /// A subglacial or perched lake (Lucas, part 4): a wide, low lens under the ice, smooth-walled, nearly full of water
+        /// with an air gap under its dome. Sealed: reached by drilling, as Lake Vostok was. Up to <see cref="Config.BodySpecParser.MaxLakeWidth"/>.
+        /// </summary>
+        Lake,
     }
 
     /// <summary>A tube graph node: position, roof depth (m under the local terrain), cross-section and feature.</summary>

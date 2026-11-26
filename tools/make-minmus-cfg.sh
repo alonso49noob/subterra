@@ -88,6 +88,16 @@ scatter GeodeCrystalsWalls "Subterra/Props/GeodeCrystal01" wall "Geode" 5 "0.5, 
 scatter GeodeCrystalsRoof "Subterra/Props/GeodeCrystal01" ceiling "Geode" 5 "0.5, 2.5" 1 false 0.02 -1 2
 rule Water "" MintIce 3 ""
 rule Ore TubeChamber "" 1.5 ""
+# Minmus's ocean (Lucas, 2026-11-26: a first subsurface ocean to introduce players to them, near Kerbin): shallow and calm,
+# 0.6 km under the poles and 1.5 km under the equator, 3 km deep, mint-green; with so little gravity the pressure is low (a
+# few atm) and anything can explore it. Mint-ice spikes under its ceiling. [Claude, revisar]
+printf '\tOCEAN\n\t{\n\t\tceilingPole = 600\n\t\tceilingEquator = 1500\n\t\tthickness = 3000\n\t\tdensity = 1010\n\t\ttemperature = 272\n\t\tcolour = 0.06, 0.18, 0.14\n\t\ttowerChance = 0.25\n\t\ttowerLength = 90\n\t\tceilingTint = 0.70, 0.90, 0.80\n\t}\n'
+# The Mint Lake (Lucas, part 4: lakes), perched in the mint ice over the ocean; Minmus has no air, so it gives itself away
+# (Lucas): a cryovolcanic dome over it, a vent at its top, a conduit down to the water and a plume. [Claude, revisar]
+site_head MinmusMintLake
+node 12 78 350 700 110 lake 12 "" "0.07,0.20,0.15"
+printf '\t}\n'
+volcano MinmusMintLakeDome 12 78 1200 120 36 24
 echo "}"
 } > "$out"
 echo "wrote $out"

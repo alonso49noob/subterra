@@ -144,7 +144,7 @@ namespace Subterra
             }
 
             Vec3d ahead = nose + axis * (radius + 0.5);
-            if (Underground.OceanAt(body, Frames.ToWorld(body, ahead)) != null || (bore != null && bore.JoinedTo != null))
+            if (Underground.OceanAt(body, Frames.ToWorld(body, ahead)) != null || (bore != null && bore.JoinedTo != null && !ExcavationService.IsDug(bore.JoinedTo)))
             {
                 boring = false;
                 UpdateEvents();

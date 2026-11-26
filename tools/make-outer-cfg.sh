@@ -84,6 +84,8 @@ out=GameData/Subterra/Bodies/Laythe/Laythe.cfg; mkdir -p "$(dirname "$out")"
 {
 head_body Laythe LY 265 "caves of Laythe: lava tubes under its volcanic islands (sea caves and life come with the oceans, sub-project 5)"
 layer Soil 0 3 0.15 1.6 30 "0.52,0.50,0.48"
+# Laythe's polar caps (Lucas, part 4: subglacial lakes). [Claude, revisar]
+layer PolarIce 3 2500 0.35 0.95 25 "0.70,0.74,0.80" "Poles" "Water:0.04"
 layer IslandBasalt 3 2000 0.6 3.0 35 "0.40,0.38,0.37" "*"
 # Deep structure (Lucas, 2026-11-26): a tidally heated, Earth-like interior. [Claude, revisar]
 layer MiddleCrust 2000 15000 0.78 2.9 30 "0.44,0.42,0.40"
@@ -104,6 +106,10 @@ for i in 0 1 2 3 4 5 6; do
   else node $(along ${ISLAND[@]} $t) 20 30 18; fi
 done
 for i in 0 1 2 3 4 5; do edge $i $((i + 1)) 0.4 0.06; done
+printf '\t}\n'
+# A lake under the north polar cap (Lucas, part 4: subglacial lakes), sealed: reached by drilling. [Claude, revisar]
+site_head LaytheNorthPolarLake
+node 86 120 1400 1500 180 lake "" "" "0.06,0.14,0.20"
 printf '\t}\n'
 field LaytheIslands lava "Dunes, Shores, Crescent Bay, Crater Island, Peaks" 2 "10, 60" "800, 6000" "10, 60" "800, 3000" 0.6 0.1 0.6 92
 common_scatters
@@ -211,6 +217,26 @@ icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed
   node $la1 $lo1 45 40 25 end
   edge 0 1 0.5 0.06; edge 1 2 0.5 0.06
   printf '\t}\n'
+  # Lakes in or under the ice (Lucas, part 4): Vall's perched lakes inside its ice shell, a few kilometres down (like the
+  # lakes thought to lie under Europa's chaos terrain); Eeloo's under its thin south polar ice, by the geysers. On these
+  # airless bodies each lake gives itself away (Lucas): a cryovolcanic dome over it, a vent at its top and a conduit down
+  # to the water, a plume rising from it. "name lat lon depth radius height colour vent domeRadius domeHeight" per lake.
+  # [Claude, revisar]
+  local lakes=""
+  case $body in
+    Vall) lakes="VallThera 22 64 2600 2800 380 0.05,0.13,0.20 20 3200 260;VallThrace -38 205 3100 2200 300 0.06,0.12,0.18 18 2600 220" ;;
+    Eeloo) lakes="EelooGeyserLake -78 120 650 1400 160 0.07,0.13,0.17 15 1800 150" ;;
+  esac
+  local entry lname llat llon ldepth lradius lheight lcolour lvent ldome ldomeh
+  IFS=";" read -ra entries <<<"$lakes"
+  for entry in "${entries[@]}"; do
+    [ -z "$entry" ] && continue
+    read lname llat llon ldepth lradius lheight lcolour lvent ldome ldomeh <<<"$entry"
+    site_head $lname
+    node $llat $llon $ldepth $lradius $lheight lake "$lvent" "" "$lcolour"
+    printf '\t}\n'
+    volcano ${lname}Dome $llat $llon $ldome $ldomeh $((lvent * 3)) $((lvent * 2))
+  done
   field ${body}Ice $style "$biomes" 3 "10, 80" "500, 4000" "10, 80" "1000, 3000" 0.5 0.15 0.6 $seed
   # Cryovolcanic conduits: frozen pipes spiralling down hundreds of metres from a skylight. [Claude, revisar]
   [ -n "$conduits" ] && field ${body}Conduits conduit "$biomes" $conduits "15, 40" "500, 1500" "15, 40" "1000, 3000" 0.3 0.3 0.3 $((seed + 50))

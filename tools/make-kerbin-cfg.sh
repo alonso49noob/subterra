@@ -45,6 +45,8 @@ layer Soil 0 3 0.1 1.6 25 "0.50,0.48,0.44"
 layer Limestone 3 2500 0.4 2.6 25 "0.66,0.64,0.58" "Highlands, Mountains" "Water:0.03"
 layer Sediments 3 1500 0.35 2.3 25 "0.56,0.52,0.46" "Grasslands, Shores, Tundra" "Water:0.02"
 layer Sandstone 3 1500 0.35 2.3 25 "0.62,0.54,0.44" "Deserts, Badlands" "Water:0.01"
+# The polar ice caps, kilometres thick (Lucas: subglacial lakes like Lake Vostok under them). [Claude, revisar]
+layer PolarIce 3 3000 0.35 0.95 20 "0.70,0.74,0.80" "Ice Caps, Northern Ice Shelf, Southern Ice Shelf" "Water:0.04"
 layer Granite 1500 8000 0.75 2.7 25 "0.52,0.50,0.50"
 # The deep structure like the Earth's (Lucas, 2026-11-26): crust in three, the mantle in five (rigid lithosphere, partly
 # molten asthenosphere, transition zone, lower mantle, the D'' layer over the core), a liquid outer and a solid inner core.
@@ -102,6 +104,12 @@ for alt in 450 250 0 -300 -650 -1050 -1500 -2000 -2550 -3150 -3800; do
   k=$((k + 1))
 done
 for i in 0 1 2 3 4 5 6 7 8 9 10; do edge $i $((i + 1)) 0.1 0.12; done
+printf '\t}\n'
+
+# Lake Kostok (Lucas, part 4: subglacial lakes; after Lake Vostok): a lens of fresh water 3.5 km across under 2.2 km of
+# the south polar ice, sealed: reached by drilling, as Vostok was. [Claude, revisar]
+site_head KerbinLakeKostok
+node -84.5 40 2200 1750 220 lake "" "" "0.06,0.14,0.20"
 printf '\t}\n'
 
 site_head KerbinDeepGeode

@@ -79,7 +79,14 @@ namespace Subterra
             return result;
         }
 
-        // Floor under a skylight shaft (within 1.2 radii horizontally); not under a dug mouth or a portal (nothing caved in there).
+        /// <summary>
+        /// Deepest (m under the opening) that rubble lies under a skylight. Lucas: a 159 km blast shaft from the surface had a
+        /// pile of it at its bottom, and in a pocket it crossed at 40 km. [Claude, revisar]
+        /// </summary>
+        private const float MaxRubbleDepth = 500;
+
+        // Floor under a skylight shaft (within 1.2 radii horizontally, up to MaxRubbleDepth down); not under a dug mouth or a
+        // portal (nothing caved in there).
         private static bool InRubbleZone(TubeNetwork net, Vec3 p)
         {
             foreach (Skylight s in net.Skylights)
@@ -90,8 +97,9 @@ namespace Subterra
                 }
 
                 Vec3 d = p - s.SurfaceCenter;
-                Vec3 horizontal = d - s.Up * Vec3.Dot(d, s.Up);
-                if (horizontal.Length < s.Radius * 1.2f)
+                float vertical = Vec3.Dot(d, s.Up);
+                Vec3 horizontal = d - s.Up * vertical;
+                if (vertical > -MaxRubbleDepth && horizontal.Length < s.Radius * 1.2f)
                 {
                     return true;
                 }

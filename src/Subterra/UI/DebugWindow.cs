@@ -124,6 +124,11 @@ namespace Subterra
                 wireframe = wire;
             }
 
+            // The pocket Set Position carves under the ground, as a multiple of the craft's size (Lucas: room for something
+            // bigger). For this session; pocketScale in Settings.cfg keeps it.
+            GUILayout.Label(Invariant($"{Localizer.Format("#Subterra_Debug_PocketSize")}: x{Settings.Current.PocketScale:F1}"));
+            Settings.Current.PocketScale = Mathf.Round(GUILayout.HorizontalSlider(Settings.Current.PocketScale, 1f, 20f) * 2f) / 2f;
+
             UndergroundState camera = UndergroundTracker.Camera;
             GUILayout.Label(Localizer.Format("#Subterra_Debug_Camera"));
             if (camera.Inside)

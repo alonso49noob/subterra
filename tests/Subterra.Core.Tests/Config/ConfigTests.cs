@@ -144,7 +144,7 @@ SUBTERRA_BODY
             var duna = Parse("Data/shipped-Duna.cfg");
             Assert.Empty(duna.Warnings);
             Assert.Equal("Duna", duna.Value.Body);
-            Assert.Equal(new[] { "DunaCatena", "DunaVolcanoTubes", "DunaPolarIce", "DunaCanyonCaves" }, duna.Value.Sites.Select(s => s.Name));
+            Assert.Equal(new[] { "DunaCatena", "DunaVolcanoTubes", "DunaPolarIce", "DunaSouthPolarLake", "DunaCanyonCaves" }, duna.Value.Sites.Select(s => s.Name));
             Assert.Equal(5, duna.Value.Sites.Single(s => s.Name == "DunaCatena").Nodes.Count(n => n.Feature == NodeFeature.Skylight));
             Assert.Equal(new[] { "DunaPlains", "DunaHighlands" }, duna.Value.Fields.Select(f => f.Name));
 
@@ -161,8 +161,12 @@ SUBTERRA_BODY
 
             var minmus = Parse("Data/shipped-Minmus.cfg");
             Assert.Empty(minmus.Warnings);
-            Assert.Equal(new[] { "MinmusFlatsGallery", "MinmusIceCaves", "MinmusCentralGeode" }, minmus.Value.Sites.Select(s => s.Name));
+            Assert.Equal(new[] { "MinmusFlatsGallery", "MinmusIceCaves", "MinmusCentralGeode", "MinmusMintLake" }, minmus.Value.Sites.Select(s => s.Name));
             Assert.Equal(NodeFeature.Geode, minmus.Value.Sites.Single(s => s.Name == "MinmusCentralGeode").Nodes[0].Feature);
+            // Lucas: an ocean under Minmus to introduce players to them, and a lake over it with a cryovolcanic vent.
+            Assert.NotNull(minmus.Value.Ocean);
+            Assert.Equal(NodeFeature.Lake, minmus.Value.Sites.Single(s => s.Name == "MinmusMintLake").Nodes[0].Feature);
+            Assert.True(minmus.Value.Sites.Single(s => s.Name == "MinmusMintLake").Nodes[0].SkylightRadius > 0);
 
             var moho = Parse("Data/shipped-Moho.cfg");
             Assert.Empty(moho.Warnings);
@@ -172,7 +176,7 @@ SUBTERRA_BODY
 
             var kerbin = Parse("Data/shipped-Kerbin.cfg");
             Assert.Empty(kerbin.Warnings);
-            Assert.Equal(new[] { "KscCave", "KerbinGreatHall", "KerbinCenotes", "KerbinKimberlite", "KerbinDeepGeode", "KerbinVerneRoute" }, kerbin.Value.Sites.Select(s => s.Name));
+            Assert.Equal(new[] { "KscCave", "KerbinGreatHall", "KerbinCenotes", "KerbinKimberlite", "KerbinLakeKostok", "KerbinDeepGeode", "KerbinVerneRoute" }, kerbin.Value.Sites.Select(s => s.Name));
             Assert.Equal(2, kerbin.Value.Reliefs.Count);
             Assert.Equal(FieldStyle.Karst, kerbin.Value.Fields.Single(f => f.Name == "KerbinKarst").Style);
         }

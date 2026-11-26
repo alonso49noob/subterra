@@ -164,6 +164,18 @@ namespace Subterra
         [UI_FloatRange(minValue = 2f, maxValue = 40f, stepIncrement = 0.5f)]
         public float holeDiameter;
 
+        /// <summary>
+        /// Height (m) of the shaft a vertical blast opens, from where the drill stands down (Lucas: a limit by height as well
+        /// as by width): a deep hole can be blasted a stretch at a time, going down the new shaft between blasts. 0 = all of
+        /// the hole.
+        /// </summary>
+        [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = "#Subterra_Drill_BlastHeight", guiUnits = " m", guiFormat = "F0")]
+        [UI_FloatRange(minValue = 0f, maxValue = 500f, stepIncrement = 5f)]
+        public float blastHeight;
+
+        // The bottom of the stretch a blast from depth "top" loads.
+        private double BlastBottom(double top) => blastHeight > 0 ? Math.Min(depth, top + blastHeight) : depth;
+
         private void ApplyDiameter()
         {
             if (holeDiameter <= 0)
@@ -201,14 +213,11 @@ namespace Subterra
 
             CelestialBody body = vessel.mainBody;
             string biome = KspSampler.Biome(body, holeLat, holeLon);
-            double top = 0;
-            UndergroundState state = UndergroundTracker.For(vessel);
-            if (state.Inside)
-            {
-                top = state.Depth;
-            }
-
-            BlastDesign design = BlastDesign.Plan(top, depth, blastRadius, runtime.Strata, biome, Voids(runtime, body, top, depth));
+            // From where the bit stands (the ground, or the floor of the cave or shaft the drill is down in) to the bottom,
+            // or as far down as the blast height says.
+            double top = Math.Min(BitDepth(body), depth);
+            double bottom = BlastBottom(top);
+            BlastDesign design = BlastDesign.Plan(top, bottom, blastRadius, runtime.Strata, biome, Voids(runtime, body, top, bottom));
             if (design.Decks.Count == 0)
             {
                 ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_TooShallow"), 5f);
@@ -386,8 +395,25 @@ namespace Subterra
         // Deepest this drill may bore here: its own limit (none by default, none with the cheat), never past the centre.
         private double MaxDepthHere(CelestialBody body)
         {
-            double centre = body.Radius - 1;
+            double centre = CentreDepth(body) - 1;
             return maxDepth > 0 && !FreeBlasting ? Math.Min(maxDepth, centre) : centre;
+        }
+
+        private string centreKey;
+        private double centreDepth;
+
+        // Depth of the body's centre under this hole's mouth: the ground's radius there (the body's radius stopped a hole begun
+        // on high ground short of the centre), looked up once per hole.
+        private double CentreDepth(CelestialBody body)
+        {
+            string key = body.bodyName + "/" + holeLat.ToString("F5") + "/" + holeLon.ToString("F5");
+            if (key != centreKey)
+            {
+                centreKey = key;
+                centreDepth = body.pqsController != null ? KspSampler.SurfaceRadius(body, holeLat, holeLon) : body.Radius;
+            }
+
+            return centreDepth;
         }
 
         // The rock temperature the tool stands; KSP's "ignore max temperature" cheat lifts it (0 = no limit).
@@ -421,32 +447,36 @@ namespace Subterra
             }
 
             CelestialBody body = vessel.mainBody;
-            Vector3d world = part.transform.position;
+            Vector3d world = BitPosition;
             double lat = body.GetLatitude(world), lon = body.GetLongitude(world);
             string biome = KspSampler.Biome(body, lat, lon);
             UpdateNeed(runtime, biome);
             if (DrillSideways(dt, runtime, body))
             {
+                assisting = false;
                 return;
             }
 
-            // A new hole where the vessel stands (first time, or after it moved away from the old one).
-            if (depth < 0 || holeBody != body.bodyName || Distance(body, lat, lon, holeLat, holeLon) > HoleTolerance)
+            // A new hole under the bit (first time, or after it moved away from the old one: sideways, or up or down, so a
+            // drill put down deep under its old hole starts a new one there, not on that hole's bottom near the ground).
+            double bitDepth = DepthOf(body, world, lat, lon);
+            if (!OnHole(body, lat, lon, bitDepth))
             {
                 holeBody = body.bodyName;
                 holeLat = lat;
                 holeLon = lon;
+                holeOffset = 0;
                 reachedCaves = "";
                 gasChecked = "";
                 gasResource = "";
                 gasLeft = 0;
-                UndergroundState state = UndergroundTracker.For(vessel);
-                depth = state.Inside ? state.Depth : 0;
+                depth = bitDepth;
                 holeTop = depth;
             }
 
             if (!drilling || !vessel.Landed || retracted)
             {
+                assisting = false;
                 Show(Borehole.Advance(depth, 0, baseRate, RockTempLimit, MaxDepthHere(body), runtime.Strata, runtime.Geotherm, biome, LayersHere(runtime, body, biome)),
                     drilling ? "#Subterra_Drill_NotLanded" : "#Subterra_Drill_Idle");
                 return;
@@ -456,17 +486,36 @@ namespace Subterra
             double got = need > 0 ? part.RequestResource("ElectricCharge", need) : 0;
             if (got < need * 0.99)
             {
+                assisting = false;
                 Show(Borehole.Advance(depth, 0, baseRate, RockTempLimit, MaxDepthHere(body), runtime.Strata, runtime.Geotherm, biome, LayersHere(runtime, body, biome)), "#Subterra_Drill_NoPower");
                 return;
             }
 
+            // Several drills of the vessel on one hole bore it together (Lucas): the one leading it adds the others' rates.
+            poweredAt = Time.fixedTime;
+            ModuleSubterraCoreDrill lead = Leader(body);
+            if (lead != this)
+            {
+                Assist(body, lead, lat, lon);
+                return;
+            }
+
+            assisting = false;
+            int crew = CrewRate(body, out double rate);
             double before = depth;
-            Borehole.Progress p = Borehole.Advance(depth, dt * Settings.Current.DigSpeed, baseRate, RockTempLimit, MaxDepthHere(body), runtime.Strata, runtime.Geotherm, biome, LayersHere(runtime, body, biome));
+            Borehole.Progress p = Borehole.Advance(depth, dt * Settings.Current.DigSpeed, rate, RockTempLimit, MaxDepthHere(body), runtime.Strata, runtime.Geotherm, biome, LayersHere(runtime, body, biome));
             depth = p.Depth;
             CheckCaves(runtime, body, lat, lon, before, depth);
             CheckGas(body, lat, lon, p.Layer);
+            if (depth >= CentreDepth(body) - CentreReward.Reach)
+            {
+                CentreReward.Reached(vessel, body);
+            }
+
             if (p.Blocked)
             {
+                // The drills helping on this hole stop with it (each alone would only meet the same rock).
+                StopCrew(body);
                 drilling = false;
                 UpdateEvents();
                 string why = depth >= MaxDepthHere(body) - 0.01 ? "#Subterra_Drill_MaxDepth" : "#Subterra_Drill_TooHard";
@@ -477,6 +526,10 @@ namespace Subterra
 
             working = true;
             Show(p, "#Subterra_Drill_Drilling");
+            if (crew > 1)
+            {
+                uiStatus = Localizer.Format("#Subterra_Drill_DrillingCrew", crew);
+            }
         }
 
         private string oceanKey;
@@ -582,9 +635,8 @@ namespace Subterra
                 return;
             }
 
-            UndergroundState state = UndergroundTracker.For(vessel);
-            double top = state.Inside ? state.Depth : 0;
-            uiNeedKg = depth > top ? (float)BlastDesign.Plan(top, depth, blastRadius, runtime.Strata, biome, null).TotalKg : 0;
+            double top = Math.Min(BitDepth(vessel.mainBody), depth);
+            uiNeedKg = depth > top ? (float)BlastDesign.Plan(top, BlastBottom(top), blastRadius, runtime.Strata, biome, null).TotalKg : 0;
         }
 
         private void Show(Borehole.Progress p, string status)
@@ -610,6 +662,8 @@ namespace Subterra
 
             Fields[nameof(blastHeading)].guiActive = on && horizontal;
             Fields[nameof(blastHeading)].guiActiveEditor = on && horizontal;
+            Fields[nameof(blastHeight)].guiActive = on && !horizontal;
+            Fields[nameof(blastHeight)].guiActiveEditor = on && !horizontal;
             Events[nameof(StartDrilling)].active = on && !drilling;
             Events[nameof(StopDrilling)].active = on && drilling;
             Events[nameof(TakeCoreSample)].active = on;

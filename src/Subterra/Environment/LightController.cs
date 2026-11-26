@@ -64,7 +64,7 @@ namespace Subterra
                     outside = current;
                 }
 
-                applied = outside.Value * Mathf.Clamp01(camera.Sky);
+                applied = outside.Value * Mathf.Clamp01(camera.Sky) + RockGlow(camera);
                 RenderSettings.ambientLight = applied.Value;
 
                 // The sun is only touched while it is switched off; near an opening KSP keeps control of it.
@@ -103,6 +103,24 @@ namespace Subterra
             applied = null;
             savedSun = null;
             sun = null;
+        }
+
+        /// <summary>How much of the hot rock's glow lights what is in the cave, as ambient light.</summary>
+        private const float GlowAmbient = 0.9f;
+
+        // Hot rock lights what is in it (Lucas: the glowing underground gives off its own light, more the hotter): its glow, as
+        // ambient light from all round, dull red past about 750 K to white-hot. With the "glow" look only, like the walls.
+        private static Color RockGlow(UndergroundState camera)
+        {
+            if (Settings.Current.DeepRockLook != "glow" || !Settings.Current.LayerTextures || !camera.RockTemp.HasValue
+                || camera.RockTemp.Value <= Subterra.Core.Meshing.Incandescence.GlowStart)
+            {
+                return Color.black;
+            }
+
+            Subterra.Core.Meshing.Incandescence.Colour(camera.RockTemp.Value, out float r, out float g, out float b);
+            float k = Subterra.Core.Meshing.Incandescence.Intensity(camera.RockTemp.Value) * GlowAmbient;
+            return new Color(r * k, g * k, b * k, 0);
         }
 
         private static bool FarFromOpenings(UndergroundState camera)

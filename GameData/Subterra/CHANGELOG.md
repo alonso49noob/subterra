@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- Science logs for each underground biome (Lucas): every stock experiment (crew and EVA reports, samples, goo, materials
+  bay, thermometer, barometer, seismometer, gravimeter, atmosphere analysis, EVA science) has its own text in skylight
+  shafts, galleries, chambers, branches, frozen vaults, dug tunnels, geodes, subglacial lakes and the ocean under the
+  ice, which is now a biome of its own ("Subsurface Ocean"). Named sites add their lore to the crew, EVA and sample
+  reports. Core samples were rewritten with more to them, cover every layer (and kinds of rock for other planet packs),
+  and add the layer's measurements: depth, hardness, density, temperature, what it holds.
+- Holes stack (Lucas): a hole begun at the bottom of a shaft, a cave or a Set Position pocket is blasted from there down;
+  the shaft used to open all the way up to the surface. Dug holes that meet (a shaft and the pocket it was blasted from,
+  a tunnel and another) are one network now: the pocket's floor no longer stays across the shaft. The danger rings of a
+  hole begun underground are drawn at its top, through the rock.
+- Blast height (Lucas: a limit by height as well as by width): how much of the hole a vertical blast opens, from where the
+  drill stands down (0 = all of it); a deep hole can be blasted a stretch at a time.
+- Drill string: it comes out of the bit (the stock Drill-O-Matic Junior's tip), not beside it, and a drill put deep under
+  its old hole (Set Position) starts a new hole there instead of taking up the old one near the ground (its string ran
+  up to it). A hole begun on high ground reaches the centre.
+- Drills of one vessel bore one hole together (Lucas): the Drill-O-Matic Juniors within 8 m of each other add their rates.
+- Hot rock lights what is in the cave (Lucas): with the "glow" look its glow is added to the ambient light, dull red past
+  about 750 K to white-hot.
+- No rubble under skylights more than 500 m down (a 159 km blast shaft had a pile at its bottom, black in the dark).
+- Set Position pocket size (Lucas): pocketScale (a multiple of the craft's size), pocketMinRadius and pocketMinHeight in
+  Settings.cfg, and a slider in the Subterra window (Alt+Shift+U).
+- With the "ignore max temperature" cheat, drills, pumps and converters no longer shut down overheated.
+- Cryovolcanic plumes (Lucas: lakes under the ice of airless moons give themselves away): columns of ice over the vents of
+  the lakes on Vall, Eeloo and Minmus, taller under weaker gravity, faint at night (cryovolcanoPlumes in Settings.cfg).
+- Subglacial lakes (Lucas): Lake Kostok under Kerbin's south pole, a brine lake under Duna's south cap, a lake under
+  Laythe's north pole, Thera and Thrace perched in Vall's ice, the Geyser Lake in Eeloo, and an ocean under Minmus (shallow
+  and calm, to meet the oceans near home) with the Mint Lake over it. On airless moons a cryovolcanic dome and vent mark
+  them.
+- The centre of a world (Lucas: a reward for the brave): the first time a hole or a craft gets within 1 km of a body's
+  centre, a dialog with that world's words, and in career and science games science, funds and reputation.
+
 - Hydrostatic pressure on the barometers (Lucas): a barometer under water, in KSP's sea or in Subterra's water,
   reads the pressure on its own part, the water over it included. The pressure KSP keeps on each part follows suit: in
   Subterra's water, the water's; in a dry cave under the sea level, the air alone (KSP counted its sea over it). A Set

@@ -51,19 +51,95 @@ namespace Subterra
                 return;
             }
 
-            if (spec.JoinedTo == null)
+            string joined = Join(runtime, spec, piece);
+            if (joined != null)
             {
-                TubeNetwork reached = Reached(runtime, spec, piece);
-                if (reached != null)
+                Log.Info($"Tunnel {spec.Id} reached {joined}");
+            }
+
+            Build(runtime, spec, piece, whole: joined != null);
+        }
+
+        /// <summary>True for the id of a dug tunnel, shaft or pocket (theirs start "XP-").</summary>
+        public static bool IsDug(string networkId) => networkId != null && networkId.StartsWith("XP-", StringComparison.Ordinal);
+
+        // The network a tunnel is meshed in: the cave it joined, the dug tunnel it joined, or its own.
+        private static string GroupOf(ExcavationSpec s) => s.JoinedTo ?? s.Id;
+
+        /// <summary>
+        /// Joins piece <paramref name="piece"/> of the tunnel to what it opened into: a cave (whose network takes in the tunnel
+        /// and every dug hole joined to it), and other dug holes standing on their own (taken into this tunnel's network).
+        /// Dug holes used to join only caves: a shaft blasted from the floor of a pocket was meshed apart from the pocket, so
+        /// the pocket's floor (and its collider) stayed across the shaft (Lucas). Returns what it joined, or null.
+        /// </summary>
+        private static string Join(BodyRuntime runtime, ExcavationSpec spec, int piece)
+        {
+            string joined = null;
+            string group = GroupOf(spec);
+            if (IsDug(group))
+            {
+                TubeNetwork cave = Reached(runtime, spec, piece);
+                if (cave != null)
                 {
-                    spec.JoinedTo = reached.Id;
-                    runtime.Catalog.RemoveDug(spec.Id);
-                    ChunkStreamer.Instance?.NetworkRemoved(spec.Id);
-                    Log.Info($"Tunnel {spec.Id} reached {reached.Id}");
+                    Retarget(runtime, group, cave.Id);
+                    group = cave.Id;
+                    joined = cave.Id;
                 }
             }
 
-            Build(runtime, spec, piece);
+            List<string> others = ReachedDug(runtime, spec, piece, group);
+            if (others.Count == 0)
+            {
+                return joined;
+            }
+
+            // The dug networks that meet become one. Kept: a cave's; else the one the active vessel is in (a network that goes
+            // takes its colliders with it at once, and the craft standing in it would drop through); else one that was there
+            // before this tunnel (this one may not be meshed yet).
+            string keep = group;
+            if (IsDug(group))
+            {
+                Vessel active = FlightGlobals.ActiveVessel;
+                string here = active != null ? UndergroundTracker.For(active).Net?.Id : null;
+                keep = here != null && (here == group || others.Contains(here)) ? here
+                    : runtime.Catalog.Find(group) == null ? others[0] : group;
+            }
+
+            foreach (string other in others.Concat(new[] { group }).Where(id => id != keep))
+            {
+                Retarget(runtime, other, keep);
+                if (other != group)
+                {
+                    joined = joined == null ? other : joined + ", " + other;
+                }
+            }
+
+            if (keep != group)
+            {
+                joined = joined == null ? keep : joined + ", " + keep;
+            }
+
+            return joined;
+        }
+
+        // Every tunnel meshed in dug network `from` (its own tunnel and those joined to it) moves into network `to`; the
+        // network `from` goes.
+        private static void Retarget(BodyRuntime runtime, string from, string to)
+        {
+            if (from == to)
+            {
+                return;
+            }
+
+            foreach (ExcavationSpec s in Specs.Where(s => s.Body == runtime.Body.bodyName && (s.Id == from || s.JoinedTo == from)))
+            {
+                s.JoinedTo = s.Id == to ? null : to;
+            }
+
+            if (runtime.Catalog.RemoveDug(from))
+            {
+                ChunkStreamer.Instance?.NetworkRemoved(from);
+            }
         }
 
         private static readonly List<ArmedBlast> Armed = new List<ArmedBlast>();
@@ -99,24 +175,29 @@ namespace Subterra
         /// with a new skylight at the top), and loaded parts near the top take the blast (destroyed, or heated and
         /// pushed).
         /// </summary>
+        /// <summary>Depth (m) of a hole's top past which it counts as begun underground (see <see cref="ArmedBlast.Stacked"/>).</summary>
+        public const double StackedTop = 1;
+
+        /// <summary>Metres a stacked blast's shaft rises past the hole's top, into the space above, so the two join.</summary>
+        public const double StackOverlap = 2;
+
         public static void Detonate(BodyRuntime runtime, ArmedBlast blast)
         {
             Armed.Remove(blast);
             CelestialBody body = runtime.Body;
             Vec3d dir = BodyFrame.Direction(blast.Lat, blast.Lon);
             double surface = KspSampler.SurfaceRadius(body, blast.Lat, blast.Lon);
-            Vec3d bottom = dir * (surface - blast.HoleBottom), top = dir * surface;
+            // A hole begun down in a cave or a shaft opens from its own top, a little into the space the drill stood in; one
+            // begun on the ground opens to the surface. The shaft always ran up to the surface, so a hole drilled beside the
+            // bottom of another shaft (or of a cave) cut a second shaft up through all the rock above (Lucas: holes could not
+            // be stacked).
+            Vec3d bottom = dir * (surface - blast.HoleBottom), top = dir * (blast.Stacked ? surface - blast.HoleTop + StackOverlap : surface);
             var spec = new ExcavationSpec($"XP-{body.bodyName}-{nextNumber++}", body.bodyName, bottom, (float)blast.Radius) { Shape = ExcavationShape.Shaft };
             spec.Points.Add(Vec3.Zero);
             spec.Points.Add(spec.ToLocal(top));
             Specs.Add(spec);
-            TubeNetwork reached = Reached(runtime, spec, 0);
-            if (reached != null)
-            {
-                spec.JoinedTo = reached.Id;
-            }
-
-            Build(runtime, spec, 0);
+            string reached = Join(runtime, spec, 0);
+            Build(runtime, spec, 0, whole: reached != null);
             Vector3d world = Frames.ToWorld(body, top);
             Damage(world, blast.TopDeckKg, confined: blast.HoleTop + 1 < blast.HoleBottom);
             try
@@ -128,7 +209,7 @@ namespace Subterra
                 Log.Warn($"Blast effect failed: {e.Message}");
             }
 
-            Log.Info($"Blast {blast.Id} opened shaft {spec.Id} ({blast.Radius:F1} m, {blast.HoleTop:F0}-{blast.HoleBottom:F0} m){(reached != null ? " into " + reached.Id : "")}");
+            Log.Info($"Blast {blast.Id} opened shaft {spec.Id} ({blast.Radius:F1} m, {blast.HoleTop:F0}-{blast.HoleBottom:F0} m{(blast.Stacked ? ", from under the ground" : "")}){(reached != null ? " into " + reached : "")}");
         }
 
         /// <summary>
@@ -176,14 +257,9 @@ namespace Subterra
             spec.Points.Add(Vec3.Zero);
             spec.Points.Add(spec.ToLocal(centre + up * (height * 0.5)));
             Specs.Add(spec);
-            TubeNetwork reached = Reached(runtime, spec, 0);
-            if (reached != null)
-            {
-                spec.JoinedTo = reached.Id;
-            }
-
-            Build(runtime, spec, 0);
-            Log.Info($"Pocket {spec.Id} carved: radius {radius:F1} m, {height:F1} m tall, {centre.Length - body.Radius:F0} m altitude{(reached != null ? ", into " + reached.Id : "")}");
+            string reached = Join(runtime, spec, 0);
+            Build(runtime, spec, 0, whole: reached != null);
+            Log.Info($"Pocket {spec.Id} carved: radius {radius:F1} m, {height:F1} m tall, {centre.Length - body.Radius:F0} m altitude{(reached != null ? ", into " + reached : "")}");
             return spec;
         }
 
@@ -249,6 +325,9 @@ namespace Subterra
             public double Radius;
             public double TotalKg;
             public double TopDeckKg;
+
+            /// <summary>True for a hole begun under the ground (in a cave or a shaft): its blast opens from there, not the surface.</summary>
+            public bool Stacked => HoleTop > StackedTop;
 
             public ConfigNode ToNode()
             {
@@ -396,6 +475,66 @@ namespace Subterra
         }
 
         // A network (other than dug tunnels) whose void the piece touches, or null.
+        // The network with every tunnel joined into `group` added to it, in its frame.
+        private static TubeNetwork WithJoined(CelestialBody body, TubeNetwork net, string group)
+        {
+            List<ExcavationSpec> members = Specs.Where(s => s.Body == body.bodyName && s.JoinedTo == group).ToList();
+            if (members.Count == 0)
+            {
+                return net;
+            }
+
+            var pieces = new List<Primitive>();
+            var allDirs = new List<Vec3d>();
+            var allRadii = new List<double>();
+            var allOpenings = new List<Skylight>();
+            foreach (ExcavationSpec s in members)
+            {
+                pieces.AddRange(s.Pieces(net.Anchor));
+                Samples(body, s, out List<Vec3d> d, out List<double> r);
+                allDirs.AddRange(d);
+                allRadii.AddRange(r);
+                foreach (Skylight o in Openings(body, s))
+                {
+                    allOpenings.Add(InFrame(o, s, net.Anchor));
+                }
+            }
+
+            return net.WithPrimitives(pieces, allDirs, allRadii, allOpenings);
+        }
+
+        // The other dug networks (holes standing on their own, with what joined them) that the piece's tube cuts into,
+        // besides `group` (the network the tunnel is in).
+        private static List<string> ReachedDug(BodyRuntime runtime, ExcavationSpec spec, int piece, string group)
+        {
+            var found = new List<string>();
+            Vec3d a = spec.ToBody(spec.Points[piece]), b = spec.ToBody(spec.Points[piece + 1]);
+            double length = (b - a).Length;
+            int samples = Math.Max(2, (int)Math.Ceiling(length / 2)) + 1;
+            foreach (TubeNetwork net in runtime.Catalog.NetworksNear((a + b) * 0.5, length * 0.5 + spec.Radius + 50))
+            {
+                if (!IsDug(net.Id) || net.Id == group || net.Id == spec.Id || !Clip(net, a, b, spec.Radius + 2, out double t0, out double t1))
+                {
+                    continue;
+                }
+
+                int first = Math.Max(0, (int)Math.Floor(t0 * (samples - 1))), last = Math.Min(samples - 1, (int)Math.Ceiling(t1 * (samples - 1)));
+                for (int i = first; i <= last; i++)
+                {
+                    Vec3d point = a + (b - a) * ((double)i / (samples - 1));
+                    Vec3 lift = spec.Shape == ExcavationShape.Tunnel ? net.UpAt(net.ToLocal(point)) * spec.Radius : Vec3.Zero;
+                    // Within the tube's radius of the other void (plus a metre): the two openings meet.
+                    if (net.Sdf.Distance(net.ToLocal(point) + lift) < spec.Radius + 1)
+                    {
+                        found.Add(net.Id);
+                        break;
+                    }
+                }
+            }
+
+            return found;
+        }
+
         private static TubeNetwork Reached(BodyRuntime runtime, ExcavationSpec spec, int piece)
         {
             Vec3d a = spec.ToBody(spec.Points[piece]), b = spec.ToBody(spec.Points[piece + 1]);
@@ -467,7 +606,8 @@ namespace Subterra
         }
 
         // (Re)builds the network the tunnel lives in after piece `changed` (-1: nothing to remesh yet).
-        private static void Build(BodyRuntime runtime, ExcavationSpec spec, int changed)
+        // `whole`: remesh all of the network (holes were just joined into it), not only around the changed piece.
+        private static void Build(BodyRuntime runtime, ExcavationSpec spec, int changed, bool whole = false)
         {
             if (spec.PieceCount == 0)
             {
@@ -519,8 +659,28 @@ namespace Subterra
 
             if (spec.JoinedTo == null)
             {
-                runtime.Catalog.PutDug(alone);
-                ChunkStreamer.Instance?.NetworkChanged(alone, changed >= 0 ? spec.PieceBounds(changed) : alone.Bounds);
+                // Standing on its own, with the dug holes joined to it.
+                TubeNetwork own = WithJoined(body, alone, spec.Id);
+                runtime.Catalog.PutDug(own);
+                ChunkStreamer.Instance?.NetworkChanged(own, changed >= 0 && !whole ? spec.PieceBounds(changed) : own.Bounds);
+                return;
+            }
+
+            if (IsDug(spec.JoinedTo))
+            {
+                // Joined to another dug hole: that one's network is rebuilt with this one in it.
+                ExcavationSpec root = Find(spec.JoinedTo);
+                if (root == null || root.JoinedTo != null)
+                {
+                    spec.JoinedTo = root?.JoinedTo == spec.Id ? null : root?.JoinedTo;
+                    Build(runtime, spec, changed, whole);
+                    return;
+                }
+
+                Samples(body, root, out List<Vec3d> rootDirs, out List<double> rootRadii);
+                TubeNetwork rooted = WithJoined(body, TubeNetwork.ForExcavation(root, rootDirs, rootRadii, Openings(body, root)), root.Id);
+                runtime.Catalog.PutDug(rooted);
+                ChunkStreamer.Instance?.NetworkChanged(rooted, changed >= 0 && !whole ? spec.Piece(changed, root.Anchor).Bounds : rooted.Bounds);
                 return;
             }
 
@@ -536,26 +696,9 @@ namespace Subterra
                 Bases[key] = baseNet;
             }
 
-            // Every tunnel joined into this network, in its frame.
-            var pieces = new List<Primitive>();
-            var allDirs = new List<Vec3d>();
-            var allRadii = new List<double>();
-            var allOpenings = new List<Skylight>();
-            foreach (ExcavationSpec s in Specs.Where(s => s.Body == body.bodyName && s.JoinedTo == spec.JoinedTo))
-            {
-                pieces.AddRange(s.Pieces(baseNet.Anchor));
-                Samples(body, s, out List<Vec3d> d, out List<double> r);
-                allDirs.AddRange(d);
-                allRadii.AddRange(r);
-                foreach (Skylight o in Openings(body, s))
-                {
-                    allOpenings.Add(InFrame(o, s, baseNet.Anchor));
-                }
-            }
-
-            TubeNetwork joined = baseNet.WithPrimitives(pieces, allDirs, allRadii, allOpenings);
+            TubeNetwork joined = WithJoined(body, baseNet, spec.JoinedTo);
             runtime.Catalog.Replace(joined);
-            Aabb box = changed >= 0 ? spec.Piece(changed, baseNet.Anchor).Bounds : joined.Bounds;
+            Aabb box = changed >= 0 && !whole ? spec.Piece(changed, baseNet.Anchor).Bounds : joined.Bounds;
             ChunkStreamer.Instance?.NetworkChanged(joined, box);
         }
 

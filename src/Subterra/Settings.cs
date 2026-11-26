@@ -50,6 +50,15 @@ namespace Subterra
         /// around it when it lands in solid rock.</summary>
         public bool CarveOnSetPosition = true;
 
+        /// <summary>Size of that pocket: a multiple of the craft's own size (1 = just room for it), and the least radius and height it
+        /// takes (m). Lucas: room for something bigger. The pocket grows up and out from under the craft. [Claude, revisar]</summary>
+        public float PocketScale = 1;
+        public float PocketMinRadius;
+        public float PocketMinHeight;
+
+        /// <summary>Plumes of ice over the vents of lakes on airless bodies (cryovolcanism: Lucas). [Claude, revisar]</summary>
+        public bool CryovolcanoPlumes = true;
+
         /// <summary>Parts are crushed past their maxPressure in deep water, and by KSP's own overpressure check underground (Lucas:
         /// off, it was a pain to test and held players back).</summary>
         public bool WaterCrush;
@@ -95,6 +104,10 @@ namespace Subterra
                 settings.WaterPhysics = ReadBool(n, "waterPhysics", settings.WaterPhysics);
                 settings.Ramps = ReadBool(n, "ramps", settings.Ramps);
                 settings.CarveOnSetPosition = ReadBool(n, "carveOnSetPosition", settings.CarveOnSetPosition);
+                settings.PocketScale = (float)Math.Max(1, Math.Min(50, Read(n, "pocketScale", settings.PocketScale)));
+                settings.PocketMinRadius = (float)Math.Max(0, Math.Min(2000, Read(n, "pocketMinRadius", settings.PocketMinRadius)));
+                settings.PocketMinHeight = (float)Math.Max(0, Math.Min(2000, Read(n, "pocketMinHeight", settings.PocketMinHeight)));
+                settings.CryovolcanoPlumes = ReadBool(n, "cryovolcanoPlumes", settings.CryovolcanoPlumes);
                 settings.WaterCrush = ReadBool(n, "waterCrush", settings.WaterCrush);
                 settings.LayerTextures = ReadBool(n, "layerTextures", settings.LayerTextures);
                 settings.UndergroundAir = ReadBool(n, "undergroundAir", settings.UndergroundAir);

@@ -84,6 +84,11 @@ edge 0 1 0.3 0.05; edge 1 2 0.3 0.05
 printf '\t}\n'
 
 # Canyon Caves: wide, low chambers under the floor of the Midland Canyon, near its walls.
+# The South Polar Lake (Lucas, part 4: subglacial lakes; after the lake radar found under Mars's south polar cap): a
+# lens of cold brine 5 km across, 1.3 km under the south polar ice, sealed: reached by drilling. [Claude, revisar]
+site_head DunaSouthPolarLake
+node -83 45 1300 2500 120 lake "" "" "0.14,0.08,0.06"
+printf '\t}\n'
 site_head DunaCanyonCaves
 node "${CANYON[0]}" "${CANYON[1]}" 30 120 30 skylight 25
 node $(along ${CANYON[@]} 0.5) 45 160 40 chamber

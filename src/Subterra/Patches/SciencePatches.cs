@@ -37,7 +37,31 @@ namespace Subterra
                         harmony.Patch(method, postfix: new HarmonyMethod(typeof(SciencePatches), nameof(SubjectPostfix)));
                     }
                 }
+
+                // The text of a result: Subterra's own logs for its biomes and core samples (see ScienceLogs).
+                harmony.Patch(AccessTools.Method(typeof(ResearchAndDevelopment), nameof(ResearchAndDevelopment.GetResults), new[] { typeof(string) }),
+                    prefix: new HarmonyMethod(typeof(SciencePatches), nameof(ResultsPrefix)));
             });
+        }
+
+        private static bool ResultsPrefix(string subjectID, ref string __result)
+        {
+            try
+            {
+                string text = ScienceLogs.For(subjectID);
+                if (text == null)
+                {
+                    return true;
+                }
+
+                __result = text;
+                return false;
+            }
+            catch (Exception e)
+            {
+                PatchManager.Fault(Id, e);
+                return true;
+            }
         }
 
         /// <summary>The cave biome id of a loaded vessel at exactly that latitude/longitude, or null.</summary>
@@ -59,6 +83,12 @@ namespace Subterra
                 if (state.Inside)
                 {
                     return BiomeIds.For(state.Zone);
+                }
+
+                // In the ocean under the ice or rock: a biome of its own (it took the surface biome over it).
+                if (Underground.OceanAt(body, v.GetWorldPos3D()) != null)
+                {
+                    return nameof(ZoneKind.SubsurfaceOcean);
                 }
             }
 

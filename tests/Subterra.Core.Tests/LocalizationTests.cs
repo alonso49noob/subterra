@@ -26,11 +26,23 @@ namespace Subterra.Core.Tests
 
         private static HashSet<string> Keys(string language)
         {
-            string path = Path.Combine(RepoRoot(), "GameData", "Subterra", "Localization", language + ".cfg");
-            CfgNode root = CfgText.Parse(File.ReadAllText(path)).Single(n => n.Name == "Localization");
-            CfgNode lang = root.GetNode(language);
-            Assert.NotNull(lang);
-            return new HashSet<string>(lang.Values.Select(v => v.Key));
+            // Every file of that language: <language>.cfg and the topic files (ScienceLogs-<language>.cfg...).
+            var keys = new HashSet<string>();
+            string folder = Path.Combine(RepoRoot(), "GameData", "Subterra", "Localization");
+            string[] files = Directory.GetFiles(folder, "*" + language + ".cfg");
+            Assert.NotEmpty(files);
+            foreach (string path in files)
+            {
+                CfgNode root = CfgText.Parse(File.ReadAllText(path)).Single(n => n.Name == "Localization");
+                CfgNode lang = root.GetNode(language);
+                Assert.NotNull(lang);
+                foreach (var v in lang.Values)
+                {
+                    Assert.True(keys.Add(v.Key), $"{v.Key} twice in the {language} files");
+                }
+            }
+
+            return keys;
         }
 
         [Fact]
