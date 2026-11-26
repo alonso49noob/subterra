@@ -47,9 +47,27 @@ namespace Subterra.Core.Meshing
                 for (int i = 0; i < n; i++)
                 {
                     int a = j * (n + 1) + i, b = a + 1, c = a + n + 1, d = c + 1;
-                    if (isOpen != null && isOpen(centre + Vec3d.FromVec3((m.Vertices[a] + m.Vertices[d]) * 0.5f)))
+                    if (isOpen != null)
                     {
-                        continue;
+                        // Where a shaft or cave goes through: whole cells of 8 m came off, a black L-shaped hole round a round
+                        // shaft (Lucas). A cell the hole only partly covers is cut into Sub × Sub pieces, and only the pieces
+                        // over the void come off: the hole follows the shaft's outline.
+                        int open = 0;
+                        foreach (Vec3 corner in new[] { m.Vertices[a], m.Vertices[b], m.Vertices[c], m.Vertices[d], (m.Vertices[a] + m.Vertices[d]) * 0.5f })
+                        {
+                            open += isOpen(centre + Vec3d.FromVec3(corner)) ? 1 : 0;
+                        }
+
+                        if (open == 5)
+                        {
+                            continue;
+                        }
+
+                        if (open > 0)
+                        {
+                            Subdivide(m, a, b, c, d, centre, isOpen);
+                            continue;
+                        }
                     }
 
                     m.Triangles.Add(a);
@@ -78,6 +96,47 @@ namespace Subterra.Core.Meshing
 
             m.SkirtTriangleStart = m.Triangles.Count;
             return m;
+        }
+
+        /// <summary>Pieces per side a cell is cut into where a hole crosses it.</summary>
+        private const int Sub = 4;
+
+        // The cell a-b-c-d (a, b on one row, c, d on the next) cut into Sub × Sub pieces by bilinear corners, the pieces whose
+        // middle is over a void left out.
+        private static void Subdivide(MeshData m, int a, int b, int c, int d, Vec3d centre, Func<Vec3d, bool> isOpen)
+        {
+            Vec3 pa = m.Vertices[a], pb = m.Vertices[b], pc = m.Vertices[c], pd = m.Vertices[d];
+            Vec2 ua = m.Uvs[a], ub = m.Uvs[b], uc = m.Uvs[c], ud = m.Uvs[d];
+            int start = m.Vertices.Count;
+            for (int y = 0; y <= Sub; y++)
+            {
+                for (int x = 0; x <= Sub; x++)
+                {
+                    float s = (float)x / Sub, t = (float)y / Sub;
+                    m.Vertices.Add((pa * (1 - s) + pb * s) * (1 - t) + (pc * (1 - s) + pd * s) * t);
+                    m.Uvs.Add(new Vec2((ua.X * (1 - s) + ub.X * s) * (1 - t) + (uc.X * (1 - s) + ud.X * s) * t,
+                        (ua.Y * (1 - s) + ub.Y * s) * (1 - t) + (uc.Y * (1 - s) + ud.Y * s) * t));
+                }
+            }
+
+            for (int y = 0; y < Sub; y++)
+            {
+                for (int x = 0; x < Sub; x++)
+                {
+                    int qa = start + y * (Sub + 1) + x, qb = qa + 1, qc = qa + Sub + 1, qd = qc + 1;
+                    if (isOpen(centre + Vec3d.FromVec3((m.Vertices[qa] + m.Vertices[qd]) * 0.5f)))
+                    {
+                        continue;
+                    }
+
+                    m.Triangles.Add(qa);
+                    m.Triangles.Add(qb);
+                    m.Triangles.Add(qc);
+                    m.Triangles.Add(qb);
+                    m.Triangles.Add(qd);
+                    m.Triangles.Add(qc);
+                }
+            }
         }
 
         /// <summary>How high (m) the floor rises over the smooth floor at a point: 0 to <see cref="Relief"/>.</summary>

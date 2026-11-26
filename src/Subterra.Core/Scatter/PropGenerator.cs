@@ -11,7 +11,7 @@ namespace Subterra.Core.Scatter
     /// </summary>
     public static class PropGenerator
     {
-        public static readonly string[] Names = { "Boulder01", "Boulder02", "Boulder03", "RubbleCone01", "Lavacicle01", "PahoehoeSlab01", "IceCluster01", "GeodeCrystal01", "GeodeCrystal02", "GeodeCrystal03", "GlowPatch01", "GlowMat01", "Fungus01", "KrakenRibs01", "KrakenBone01", "Stalagmite01", "DustDrift01", "IceColumn01" };
+        public static readonly string[] Names = { "Boulder01", "Boulder02", "Boulder03", "RubbleCone01", "Lavacicle01", "PahoehoeSlab01", "IceCluster01", "GeodeCrystal01", "GeodeCrystal02", "GeodeCrystal03", "GlowPatch01", "GlowMat01", "Fungus01", "KrakenRibs01", "KrakenBone01", "Stalagmite01", "DustDrift01", "IceColumn01", "IceIcicle01" };
 
         /// <summary>The prop for a model url or name (the part after the last '/'); null if unknown.</summary>
         public static MeshData Build(string model, int lod)
@@ -38,6 +38,7 @@ namespace Subterra.Core.Scatter
                 case "Boulder03": return Rock(subdivisions, seed, new Vec3(0.8f, 0.9f, 0.85f), 0.35f);
                 case "RubbleCone01": return Shape(subdivisions, seed, p => Cone(p), 0.12f);
                 case "Lavacicle01": return Shape(subdivisions, seed, p => Icicle(p), 0.05f, hanging: true);
+                case "IceIcicle01": return Shape(subdivisions, seed, p => Icicle(p), 0.04f, hanging: true);
                 case "PahoehoeSlab01": return Shape(subdivisions, seed, p => new Vec3(p.X * 1.6f, (p.Y + 1) * 0.12f, p.Z * 1.2f), 0.06f, baseAtZero: false);
                 case "Stalagmite01": return Shape(subdivisions, seed, p => Stalagmite(p), 0.06f);
                 case "DustDrift01": return Shape(subdivisions, seed, p => new Vec3(p.X * 2.2f, (p.Y + 1) * 0.18f, p.Z * 1.1f), 0.03f, baseAtZero: false);

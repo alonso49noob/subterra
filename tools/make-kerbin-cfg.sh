@@ -111,6 +111,18 @@ printf '\t}\n'
 site_head KerbinLakeKostok
 node -84.5 40 2200 1750 220 lake "" "" "0.06,0.14,0.20"
 printf '\t}\n'
+# More lakes under the south polar ice, of other kinds (Lucas: lakes like Whillans, very thin but wide; more than one per pole).
+# Whillans Lake: a film of water a few metres deep spread over 4.5 km, 800 m under the ice, its roof almost touching its floor.
+site_head KerbinWhillansLake
+node -81.5 -35 800 4500 14 lake "" "" "0.07,0.13,0.18"
+printf '\t}\n'
+# The Ellsworth Chain: three lakes in a row joined by water channels under the ice, the meltwater draining from one to the next.
+site_head KerbinEllsworthChain
+node -86.2 150 1900 700 70 lake "" "" "0.06,0.14,0.20"
+node -86.9 158 1950 1100 95 lake "" "" "0.06,0.14,0.20"
+node -87.4 168 2000 600 60 lake "" "" "0.06,0.14,0.20"
+edge 0 1 0.3 0.05; edge 1 2 0.3 0.05
+printf '\t}\n'
 
 site_head KerbinDeepGeode
 anode ${KIMBERLITE[0]} ${KIMBERLITE[1]} -4100 60 40 geode
@@ -192,6 +204,8 @@ scatter SkylightRubble "Subterra/Props/RubbleCone01, Subterra/Props/Boulder03" s
 scatter Stalactites "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 1.2 "0.5, 2.5" 1 false 0.03 0.4 2
 # Stalagmites rising from the floors of the limestone caves, under the stalactites. [Claude, revisar]
 scatter Stalagmites "Subterra/Props/Stalagmite01" floor "TubeGallery, TubeChamber, TubeBranch" 0.8 "0.4, 3" 0 true 0.03 0.45 2 0.05
+scatter LakeIcicles "Subterra/Props/IceIcicle01" ceiling "SubglacialLake" 0.5 "0.6, 2.6" 1 false 0.03 0.4 2
+scatter LakeIceColumns "Subterra/Props/IceColumn01" floor "SubglacialLake" 0.04 "0.6, 2" 0 true 0.03 0.5 2 0.3
 # Glowing fungi (bioluminescent, like Mycena): clumps on the floors of caves with air and water, and a few giant ones
 # in the big chambers (the Lidenbrock Sea had its forest of mushrooms).
 glow GlowFungi "Subterra/Props/Fungus01" floor "TubeGallery, TubeChamber, TubeBranch" 0.25 "0.6, 2.2" "0.35,0.95,0.85" 18 0 false 0.04 0.55

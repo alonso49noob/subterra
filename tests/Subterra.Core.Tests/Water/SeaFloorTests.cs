@@ -48,9 +48,21 @@ namespace Subterra.Core.Tests.Water
         public void ItOpensWhereACaveGoesThrough()
         {
             Vec3d dir = new Vec3d(0.3, 0.9, 0.2).Normalized;
-            MeshData whole = SeaFloorMesher.Build(Vall, dir, 100, 8, 4, out Vec3d centre);
+            SeaFloorMesher.Build(Vall, dir, 100, 8, 4, out Vec3d centre);
+            double Off(Vec3 local) => ((centre + Vec3d.FromVec3(local)).Normalized - centre.Normalized).Length * centre.Length;
             MeshData open = SeaFloorMesher.Build(Vall, dir, 100, 8, 4, out _, p => (p.Normalized - centre.Normalized).Length * centre.Length < 20);
-            Assert.True(open.Triangles.Count < whole.Triangles.Count);
+            // Nothing over the hole, and the floor comes close to its round edge (pieces of 2 m, not whole 8 m cells: Lucas saw an
+            // L-shaped black hole round a round shaft).
+            double nearest = double.MaxValue;
+            for (int i = 0; i < open.Triangles.Count; i += 3)
+            {
+                Vec3 a = open.Vertices[open.Triangles[i]], b = open.Vertices[open.Triangles[i + 1]], c = open.Vertices[open.Triangles[i + 2]];
+                double off = Off((a + b + c) / 3f);
+                Assert.True(off >= 19, $"a triangle {off:F1} m from the middle of a 20 m hole");
+                nearest = System.Math.Min(nearest, off);
+            }
+
+            Assert.True(nearest < 22.5, $"the floor stops {nearest:F1} m from the middle of a 20 m hole");
         }
 
         [Fact]

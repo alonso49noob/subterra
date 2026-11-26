@@ -89,6 +89,18 @@ printf '\t}\n'
 site_head DunaSouthPolarLake
 node -83 45 1300 2500 120 lake "" "" "0.14,0.08,0.06"
 printf '\t}\n'
+# The Brine Pockets: a chain of small, salty lakes under the north polar cap, joined by narrow channels (Lucas: more lakes, of
+# other kinds). [Claude, revisar]
+site_head DunaNorthBrines
+node 84.5 -60 900 400 40 lake "" "" "0.14,0.08,0.06"
+node 85.2 -52 950 650 55 lake "" "" "0.14,0.08,0.06"
+node 85.9 -45 1000 350 35 lake "" "" "0.14,0.08,0.06"
+edge 0 1 0.35 0.06; edge 1 2 0.35 0.06
+printf '\t}\n'
+# A film of brine 3 km across and a few metres deep, under the southern ice beside the South Polar Lake.
+site_head DunaSouthBrineFilm
+node -80.5 -20 1100 3200 12 lake "" "" "0.14,0.08,0.06"
+printf '\t}\n'
 site_head DunaCanyonCaves
 node "${CANYON[0]}" "${CANYON[1]}" 30 120 30 skylight 25
 node $(along ${CANYON[@]} 0.5) 45 160 40 chamber
@@ -130,6 +142,8 @@ EOF
 scatters
 # Dust blown in through the skylights: low drifts along the floors (drive over them). [Claude, revisar]
 scatter DustDrifts "Subterra/Props/DustDrift01" floor "TubeGallery, TubeChamber, TubeBranch" 0.5 "1.5, 6" 1 false 0.025 0.45 2 0.35
+scatter LakeIcicles "Subterra/Props/IceIcicle01" ceiling "SubglacialLake" 0.5 "0.6, 2.6" 1 false 0.03 0.4 2
+scatter LakeIceColumns "Subterra/Props/IceColumn01" floor "SubglacialLake" 0.04 "0.6, 2" 0 true 0.03 0.5 2 0.3
 rule Ore TubeGallery "" 1.5 ""
 rule Ore TubeChamber "" 2 ""
 rule Ore "" VolcanicBasalt 2 ""

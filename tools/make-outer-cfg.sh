@@ -111,9 +111,21 @@ printf '\t}\n'
 site_head LaytheNorthPolarLake
 node 86 120 1400 1500 180 lake "" "" "0.06,0.14,0.20"
 printf '\t}\n'
+# A thin, wide lake and a chain of three under the same cap (Lucas: lakes like Whillans; more than one per pole). [Claude, revisar]
+site_head LaytheWhillansLake
+node 83 -40 900 3800 12 lake "" "" "0.06,0.14,0.20"
+printf '\t}\n'
+site_head LaytheLakeChain
+node 87.5 40 1500 600 70 lake "" "" "0.06,0.14,0.20"
+node 88.2 60 1550 900 90 lake "" "" "0.06,0.14,0.20"
+node 88.6 85 1600 500 60 lake "" "" "0.06,0.14,0.20"
+edge 0 1 0.3 0.05; edge 1 2 0.3 0.05
+printf '\t}\n'
 field LaytheIslands lava "Dunes, Shores, Crescent Bay, Crater Island, Peaks" 2 "10, 60" "800, 6000" "10, 60" "800, 3000" 0.6 0.1 0.6 92
 common_scatters
 scatter Lavacicles "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 0.5 "0.5, 1.5" 1 false
+scatter LakeIcicles "Subterra/Props/IceIcicle01" ceiling "SubglacialLake" 0.5 "0.6, 2.6" 1 false 0.03 0.4 2
+scatter LakeIceColumns "Subterra/Props/IceColumn01" floor "SubglacialLake" 0.04 "0.6, 2" 0 true 0.03 0.5 2 0.3
 glow GlowFungi "Subterra/Props/Fungus01" floor "TubeGallery, TubeChamber, TubeBranch" 0.2 "0.4, 1.8" "0.4,0.7,1.0" 18 0 false 0.04 0.55
 glow GlowMoss "Subterra/Props/GlowMat01" wall "TubeGallery, TubeChamber, TubeBranch" 0.08 "2, 7" "0.2,0.4,0.65" 0 0 false 0.03 0.45
 echo "}"
@@ -149,10 +161,16 @@ layer Rubble 0 30000 0.3 1.2 0 "0.56,0.54,0.52"
 printf '\t}\n'
 # Gilly Tunnel: a winding gap under the surface along a block, two openings.
 site_head GillyTunnel
-node "${GILLY[0]}" "${GILLY[1]}" 15 30 20 skylight 12
-node "$(awk -v a=${GILLY[0]} 'BEGIN { printf "%.4f", a + 0.8 }')" "$(awk -v a=${GILLY[1]} 'BEGIN { printf "%.4f", a + 1.0 }')" 40 60 40 chamber
-node "$(awk -v a=${GILLY[0]} 'BEGIN { printf "%.4f", a + 1.6 }')" "$(awk -v a=${GILLY[1]} 'BEGIN { printf "%.4f", a + 2.0 }')" 15 30 20 skylight 12
-edge 0 1 0.5 0.12; edge 1 2 0.5 0.12
+# Lucas: Gilly's tunnels were too straight (three nodes in a line, 15 m down: its roof opened into a long trench). Six
+# nodes zigzagging between the blocks, deeper, and winding between them. [Claude, revisar]
+gnode() { node "$(awk -v a=${GILLY[0]} -v d=$1 'BEGIN { printf "%.4f", a + d }')" "$(awk -v a=${GILLY[1]} -v d=$2 'BEGIN { printf "%.4f", a + d }')" "${@:3}"; }
+gnode 0 0 30 26 20 skylight 10
+gnode 0.35 0.55 45 34 26
+gnode 0.75 0.6 55 60 40 chamber
+gnode 1.0 1.15 50 30 24
+gnode 1.45 1.3 45 36 26
+gnode 1.7 1.95 30 26 20 skylight 10
+for i in 0 1 2 3 4; do edge $i $((i + 1)) 0.8 0.15; done
 printf '\t}\n'
 field GillyGaps rubble "Lowlands, Midlands, Highlands" 30 "8, 40" "400, 1500" "10, 60" "500, 1200" 0.5 0.3 0.5 94
 scatter BreakdownBoulders "Subterra/Props/Boulder01, Subterra/Props/Boulder02, Subterra/Props/Boulder03" floor "TubeGallery, TubeChamber, TubeBranch" 2 "0.3, 5" 0.6 true 0.035 0.5 2.5 0.3
