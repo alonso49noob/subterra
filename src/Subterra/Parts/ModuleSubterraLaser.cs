@@ -318,6 +318,10 @@ namespace Subterra
                 glow.color = colour;
                 glow.range = 12f;
                 glow.intensity = 3f;
+                // Per pixel: as an "auto" light down the hole it went into the ambient term of the ground above, which lit up a
+                // whole terrain quad at night (Lucas: a lighter rectangle round the laser's hole by the runway).
+                glow.renderMode = LightRenderMode.ForcePixel;
+                glow.shadows = LightShadows.None;
             }
 
             beam.SetPosition(0, part.transform.position);

@@ -24,6 +24,9 @@
 - Set Position pocket size (Lucas): pocketScale (a multiple of the craft's size), pocketMinRadius and pocketMinHeight in
   Settings.cfg, and a slider in the Subterra window (Alt+Shift+U).
 - With the "ignore max temperature" cheat, drills, pumps and converters no longer shut down overheated.
+- Fixed (Lucas's play): lights down a hole lit the ground over it: a lighter rectangle round the laser's hole at night,
+  a halo round a shaft with a rover in it. Unity put them in the ambient term of the terrain over them; the laser's glow
+  and the lights of parts under the ground are now drawn per pixel.
 - Cryovolcanic plumes (Lucas: lakes under the ice of airless moons give themselves away): columns of ice over the vents of
   the lakes on Vall, Eeloo and Minmus, taller under weaker gravity, faint at night (cryovolcanoPlumes in Settings.cfg).
 - Subglacial lakes (Lucas): Lake Kostok under Kerbin's south pole, a brine lake under Duna's south cap, a lake under
