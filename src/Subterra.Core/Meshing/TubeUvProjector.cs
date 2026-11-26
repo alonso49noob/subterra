@@ -36,6 +36,14 @@ namespace Subterra.Core.Meshing
                 }
             }
 
+            // Box UVs in the network's own level frame (its vertical, and east and north), not the body's axes: in those, a floor
+            // is tilted, and every bump in it switched some triangles to another axis, a patchwork of rotated rock (Lucas, a
+            // dug tunnel's floor). Level, floors and roofs keep the projection from above all over, and walls switch only
+            // where they turn past 45° between east and north. One frame for the whole network: the same in every chunk.
+            Vec3 up = net.Anchor.Length > 1 ? net.Anchor.Normalized.ToVec3() : new Vec3(0, 1, 0);
+            Vec3 east = Vec3.Cross(new Vec3(0, 1, 0), up);
+            east = east.Length < 1e-4f ? new Vec3(1, 0, 0) : east.Normalized;
+            Vec3 north = Vec3.Cross(up, east);
             var result = new MeshData();
             var remap = new Dictionary<long, int>();
             List<int> tris = m.Triangles;
@@ -48,7 +56,7 @@ namespace Subterra.Core.Meshing
                 }
 
                 int a = tris[i], b = tris[i + 1], c = tris[i + 2];
-                int mode = TubeMapped(m, net, wall, piece, a, b, c) ? 3 : BoxAxis(m, a, b, c);
+                int mode = TubeMapped(m, net, wall, piece, a, b, c) ? 3 : BoxAxis(m, a, b, c, east, up, north);
                 foreach (int source in new[] { a, b, c })
                 {
                     long key = (long)source * 4 + mode;
@@ -58,8 +66,9 @@ namespace Subterra.Core.Meshing
                         Vec3 v = m.Vertices[source];
                         result.Vertices.Add(v);
                         result.Normals.Add(m.Normals.Count > source ? m.Normals[source] : new Vec3(0, 1, 0));
+                        float pe = Vec3.Dot(v, east), pu = Vec3.Dot(v, up), pn = Vec3.Dot(v, north);
                         Vec2 uv = mode == 3 ? wall[source].Value
-                            : mode == 0 ? new Vec2(v.Y, v.Z) : mode == 1 ? new Vec2(v.X, v.Z) : new Vec2(v.X, v.Y);
+                            : mode == 0 ? new Vec2(pn, pu) : mode == 1 ? new Vec2(pe, pn) : new Vec2(pe, pu);
                         result.Uvs.Add(new Vec2(uv.X / metersPerUv, uv.Y / metersPerUv));
                         remap[key] = index;
                     }
@@ -117,11 +126,13 @@ namespace Subterra.Core.Meshing
                 && Math.Abs(wa.Y - wb.Y) < limit && Math.Abs(wa.Y - wc.Y) < limit;
         }
 
-        private static int BoxAxis(MeshData m, int a, int b, int c)
+        // 0: facing east or west, 1: up or down (floors, roofs), 2: north or south. Floors win ties a little (bumpy floors stay
+        // in one projection up to slopes of about 50°).
+        private static int BoxAxis(MeshData m, int a, int b, int c, Vec3 east, Vec3 up, Vec3 north)
         {
             Vec3 n = Vec3.Cross(m.Vertices[b] - m.Vertices[a], m.Vertices[c] - m.Vertices[a]);
-            float ax = Math.Abs(n.X), ay = Math.Abs(n.Y), az = Math.Abs(n.Z);
-            return ax >= ay && ax >= az ? 0 : ay >= az ? 1 : 2;
+            float ae = Math.Abs(Vec3.Dot(n, east)), au = Math.Abs(Vec3.Dot(n, up)) * 1.2f, an = Math.Abs(Vec3.Dot(n, north));
+            return au >= ae && au >= an ? 1 : ae >= an ? 0 : 2;
         }
     }
 }

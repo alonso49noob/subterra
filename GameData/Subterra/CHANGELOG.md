@@ -24,6 +24,9 @@
 - Set Position pocket size (Lucas): pocketScale (a multiple of the craft's size), pocketMinRadius and pocketMinHeight in
   Settings.cfg, and a slider in the Subterra window (Alt+Shift+U).
 - With the "ignore max temperature" cheat, drills, pumps and converters no longer shut down overheated.
+- Fixed (Lucas's play): a patchwork of rotated rock on the floors of dug tunnels, pockets and chambers. Their box UVs used
+  the body's axes, to which a floor is tilted, and each bump switched some triangles to another axis; they follow the
+  network's level frame now (floors and roofs projected from above, walls from east or north).
 - Subtler, interlocked changes of rock between layers (Lucas): the boundary moves up and down by up to 12 m (a quarter of
   a thin layer) in tongues a few tens of metres across, and for a few metres either side of it the walls mix both rocks,
   mostly the upper with patches of the lower, then the reverse, the patches growing and joining going down.
