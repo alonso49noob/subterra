@@ -82,7 +82,9 @@ namespace Subterra
                 UndergroundState state = UndergroundTracker.For(v);
                 if (state.Inside)
                 {
-                    return BiomeIds.For(state.Zone);
+                    // A hole the player dug: the rock layer it is in (Lucas: not "Dug Tunnel" down at a body's core).
+                    return state.Zone.Kind == ZoneKind.Excavation && !string.IsNullOrEmpty(state.Layer) && state.Zone.SiteName == null
+                        ? BiomeIds.ForLayer(state.Layer) : BiomeIds.For(state.Zone);
                 }
 
                 // In the ocean under the ice or rock: a biome of its own (it took the surface biome over it).
@@ -100,6 +102,12 @@ namespace Subterra
         {
             if (BodyRegistry.Instance.TryGet(body, out BodyRuntime runtime))
             {
+                LayerSpec layer = BiomeIds.LayerOf(biomeId, runtime.Spec);
+                if (layer != null)
+                {
+                    return string.IsNullOrEmpty(layer.DisplayName) ? layer.Name : Localizer.Format(layer.DisplayName);
+                }
+
                 SiteSpec site = runtime.Spec.Sites.Find(s => s.Name == biomeId);
                 if (site != null && !string.IsNullOrEmpty(site.DisplayName))
                 {

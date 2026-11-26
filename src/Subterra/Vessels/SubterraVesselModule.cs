@@ -74,7 +74,10 @@ namespace Subterra
 
                 if (vessel.loaded)
                 {
-                    Guard.Update(vessel, state);
+                    // A craft on rails (just loaded, or just moved by a jump or Set Position) is checked where it is now, not
+                    // where the last refresh saw it: the guard let a craft jumped into a cave go before its floor was there.
+                    UndergroundState now = vessel.packed && !state.Inside ? UndergroundTracker.Compute(vessel.mainBody, vessel.GetWorldPos3D(), false) : state;
+                    Guard.Update(vessel, now);
                 }
                 else
                 {

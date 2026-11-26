@@ -25,6 +25,26 @@ namespace Subterra.Core.Water
         public double Length { get; }
     }
 
+    /// <summary>A hydrothermal vent on an ocean's floor: a chimney of <see cref="Radius"/> at its base, <see cref="Height"/> tall.</summary>
+    public readonly struct OceanVent
+    {
+        public OceanVent(Vec3d direction, double radius, double height, ulong seed)
+        {
+            Direction = direction;
+            Radius = radius;
+            Height = height;
+            Seed = seed;
+        }
+
+        public Vec3d Direction { get; }
+
+        public double Radius { get; }
+
+        public double Height { get; }
+
+        public ulong Seed { get; }
+    }
+
     /// <summary>A pillar of ice from an ocean's ceiling down to its floor (Pol), on the line from the body's centre.</summary>
     public readonly struct OceanPillar
     {
@@ -109,6 +129,31 @@ namespace Subterra.Core.Water
                 // Base 15-60 m in radius, 30-100% of the longest length.
                 yield return new OceanTower(towerDir, 15 + 45 * Unit(Hash.Mix(h + 3)), spec.TowerLength * (0.3 + 0.7 * Unit(Hash.Mix(h + 4))));
             }
+        }
+
+        /// <summary>Metres between the cells of the floor that may hold a vent.</summary>
+        public const double VentSpacing = 350;
+
+        /// <summary>The vents within <paramref name="reach"/> metres of <paramref name="dir"/> (chimneys 3–9 m wide at the base, 8–35 m tall).</summary>
+        public static List<OceanVent> VentsNear(OceanShell ocean, Vec3d dir, double reach, ulong seed)
+        {
+            var result = new List<OceanVent>();
+            if (ocean.Spec.VentChance <= 0)
+            {
+                return result;
+            }
+
+            dir = dir.Normalized;
+            int rings = (int)Math.Ceiling(reach / VentSpacing) + 1;
+            foreach ((Vec3d ventDir, ulong h) in Candidates(ocean, dir, VentSpacing, seed + 303, ocean.Spec.VentChance, rings))
+            {
+                if ((ventDir - dir).Length * ocean.BodyRadius <= reach)
+                {
+                    result.Add(new OceanVent(ventDir, 3 + 6 * Unit(Hash.Mix(h + 8)), 8 + 27 * Unit(Hash.Mix(h + 9)), Hash.Mix(h + 10)));
+                }
+            }
+
+            return result;
         }
 
         /// <summary>The pillars whose axis passes within <paramref name="reach"/> metres of <paramref name="dir"/>.</summary>

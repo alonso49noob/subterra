@@ -200,9 +200,9 @@ glow GiantFungi "Subterra/Props/Fungus01" floor "TubeChamber" 0.02 "4, 14" "0.45
 glow GlowMoss "Subterra/Props/GlowMat01" wall "TubeGallery, TubeChamber, TubeBranch" 0.25 "2, 6" "0.22,0.7,0.62" 0 0 false 0.03 0.35
 # Glowworms on the ceilings (like the Waitomo caves): hundreds of small specks of light, a starry sky over a dark room.
 glow Glowworms "Subterra/Props/GlowPatch01" ceiling "TubeGallery, TubeChamber, TubeBranch" 0.8 "0.5, 1.2" "0.45,0.95,0.9" 0 0 false 0.02 0.4
-scatter GeodeCrystalsFloor "Subterra/Props/GeodeCrystal01" floor "Geode" 6 "0.6, 3" 0.9 false 0.02 -1 2 0.1
-scatter GeodeCrystalsWalls "Subterra/Props/GeodeCrystal01" wall "Geode" 5 "0.5, 2.5" 1 false 0.02 -1 2
-scatter GeodeCrystalsRoof "Subterra/Props/GeodeCrystal01" ceiling "Geode" 5 "0.5, 2.5" 1 false 0.02 -1 2
+scatter GeodeCrystalsFloor "Subterra/Props/GeodeCrystal01, Subterra/Props/GeodeCrystal02, Subterra/Props/GeodeCrystal03" floor "Geode" 6 "0.6, 3" 0.9 false 0.02 -1 2 0.1
+scatter GeodeCrystalsWalls "Subterra/Props/GeodeCrystal01, Subterra/Props/GeodeCrystal02, Subterra/Props/GeodeCrystal03" wall "Geode" 5 "0.5, 2.5" 1 false 0.02 -1 2
+scatter GeodeCrystalsRoof "Subterra/Props/GeodeCrystal01, Subterra/Props/GeodeCrystal02, Subterra/Props/GeodeCrystal03" ceiling "Geode" 5 "0.5, 2.5" 1 false 0.02 -1 2
 rule Ore TubeChamber "" 1.3 ""
 rule Ore "" Granite 1.5 ""
 echo "}"

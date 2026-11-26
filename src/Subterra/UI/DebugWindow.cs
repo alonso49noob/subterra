@@ -211,7 +211,68 @@ namespace Subterra
                 lon = net.Nodes[0].Lon;
             }
 
-            FlightGlobals.fetch.SetVesselPosition(FlightGlobals.GetBodyIndex(vessel.mainBody), lat, lon, 50, Vector3.zero, asl: false, easeToSurface: false);
+            // Into the void, a little over its floor (Lucas: put 50 m over the ground, the craft fell in through the skylight,
+            // or onto the ground over a sealed site, and the guard let it go before the floor was there). Straight down
+            // from the ground over the place: the first void met, its floor found going on down.
+            CelestialBody body = vessel.mainBody;
+            // Over the floor by the craft's size (half its biggest extent and a margin), at most halfway up the void; on the axis
+            // of the site's first node when it has one (straight down from a skylight passed close by a wall: a buggy put 0.6 m
+            // off the rock broke apart when it was let go).
+            Vector3 size = vessel.vesselSize;
+            double clearance = System.Math.Max(3, System.Math.Max(size.x, System.Math.Max(size.y, size.z)) * 0.6 + 1);
+            Subterra.Core.Numerics.Vec3d target;
+            PathPoint first = net.Nodes.Count > 0 ? net.Nodes[0] : null;
+            if (first != null && first.FloorCenter.Length > 1 && net.IsInside(net.ToLocal(first.FloorCenter + first.FloorCenter.Normalized * 1.0)))
+            {
+                target = first.FloorCenter + first.FloorCenter.Normalized * System.Math.Min(clearance, System.Math.Max(1.5, first.Height * 0.5));
+            }
+            else
+            {
+                // Straight down from the ground over the place: the first void met, its floor found going on down.
+                Subterra.Core.Numerics.Vec3d dir = Subterra.Core.Geo.BodyFrame.Direction(lat, lon);
+                double surface = KspSampler.SurfaceRadius(body, lat, lon), floor = double.NaN, ceiling = double.NaN;
+                for (double depth = 0; depth < 20000; depth += 1)
+                {
+                    bool inside = net.IsInside(net.ToLocal(dir * (surface - depth)));
+                    if (inside && double.IsNaN(ceiling))
+                    {
+                        ceiling = depth;
+                    }
+                    else if (!inside && !double.IsNaN(ceiling))
+                    {
+                        floor = depth;
+                        break;
+                    }
+                }
+
+                if (double.IsNaN(floor))
+                {
+                    FlightGlobals.fetch.SetVesselPosition(FlightGlobals.GetBodyIndex(body), lat, lon, 50, Vector3.zero, asl: false, easeToSurface: false);
+                    return;
+                }
+
+                double at = System.Math.Max(ceiling + (floor - ceiling) * 0.5, floor - clearance);
+                target = dir * (surface - at);
+            }
+            // Placed as the test tools place a craft in a cave (Set Position under the ground shot it up out of the rock at
+            // tens of m/s): on rails, moved upright, its orbit at rest there; the load guard lets it go once the floor is built.
+            OrbitPhysicsManager.HoldVesselUnpack(2);
+            if (!vessel.packed)
+            {
+                vessel.GoOnRails();
+            }
+
+            vessel.Landed = true;
+            Vector3d world = Frames.ToWorld(body, target);
+            Vector3 newUp = (world - body.position).normalized, oldUp = (vessel.transform.position - body.position).normalized;
+            vessel.SetRotation(Quaternion.FromToRotation(oldUp, newUp) * vessel.transform.rotation);
+            vessel.SetPosition(world);
+            Subterra.Core.Geo.BodyFrame.ToLatLon(target, out vessel.latitude, out vessel.longitude);
+            vessel.altitude = target.Length - body.Radius;
+            Vector3d position = body.GetWorldSurfacePosition(vessel.latitude, vessel.longitude, vessel.altitude) - body.position;
+            vessel.orbit.UpdateFromStateVectors(position.xzy, Vector3d.Cross(body.angularVelocity, position).xzy, body, Planetarium.GetUniversalTime());
+            vessel.orbitDriver.updateFromParameters();
+            vessel.Landed = true;
         }
     }
 }

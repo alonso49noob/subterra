@@ -16,6 +16,7 @@ namespace Subterra.DevTools
         internal static void Register()
         {
             StepRegistry.Register("teleportToNetwork", TeleportToNetwork);
+            StepRegistry.Register("jumpToSite", JumpToSite);
             StepRegistry.Register("networkInfo", NetworkInfo);
             StepRegistry.Register("terrainProfile", TerrainProfile);
             StepRegistry.RegisterAssertion("insideNetwork", InsideNetwork);
@@ -304,6 +305,24 @@ namespace Subterra.DevTools
         // teleportToNetwork site = DevTube|procedural node = 1 inside = true offsetUp = 2 hold = false target = 0 —
         // (target = 0: over/in the centre of that radar target of the network instead of the node)
         // moves the active vessel (after it is off rails) to that point, at rest.
+        // jumpToSite site = DevTube: the Subterra window's own "Jump" to a named site (as a player uses it), then waits.
+        private static IEnumerator JumpToSite(ConfigNode node, TestContext ctx)
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel ?? throw new InvalidOperationException("no active vessel");
+            string site = node.RequireArg("site");
+            if (!BodyRegistry.Instance.TryGet(vessel.mainBody, out BodyRuntime runtime))
+            {
+                throw new InvalidOperationException($"no Subterra data for {vessel.mainBody.bodyName}");
+            }
+
+            TubeNetwork net = runtime.Catalog.Named.FirstOrDefault(n => n.SiteName == site) ?? throw new InvalidOperationException($"no site {site} on {vessel.mainBody.bodyName}");
+            var jump = typeof(DebugWindow).GetMethod("Jump", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+                ?? throw new InvalidOperationException("DebugWindow.Jump not found");
+            jump.Invoke(null, new object[] { net });
+            ctx.Detail = Invariant($"jumped to {site} ({net.Id})");
+            yield return new WaitForSeconds((float)node.ArgDouble("wait", 3));
+        }
+
         private static IEnumerator TeleportToNetwork(ConfigNode node, TestContext ctx)
         {
             Vessel vessel = FlightGlobals.ActiveVessel ?? throw new InvalidOperationException("no active vessel");

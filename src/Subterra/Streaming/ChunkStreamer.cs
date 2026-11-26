@@ -614,7 +614,7 @@ namespace Subterra
 
                     using (SubterraClock.Measure("ChunkStreamer.Step.Scatter"))
                     {
-                        chunk.AddScatter(scatter, MeshUploader.Upload(scatterVisual, chunk.Key + " " + scatter.Model, readable: false), PropLibrary.MaterialFor(scatter.Spec, scatter.Model, body));
+                        chunk.AddScatter(scatter, MeshUploader.Upload(scatterVisual, chunk.Key + " " + scatter.Model, readable: false), ScatterMaterial(net, chunk.Key, scatter));
                     }
 
                     chunk.Bytes += scatter.Visual.ByteSize + (scatter.Collider?.ByteSize ?? 0);
@@ -905,6 +905,17 @@ namespace Subterra
                 visual.SubMeshes[i] = bands[i].Triangles;
                 visual.SubMeshLayers[i] = bands[i].Layer;
             }
+        }
+
+        // A scatter's material. Loose rock (boulders, rubble, slabs) is the rock of the layer it lies in, as the walls are, hot
+        // rock's glow included (Lucas: Duna's boulders a flat red that did not match the walls; a rubble pile black in the glow
+        // 159 km down); ice, crystals, bones and glowing things keep their own.
+        private Material ScatterMaterial(TubeNetwork net, ChunkKey key, ScatterMesh scatter)
+        {
+            string model = scatter.Model ?? "";
+            bool rock = scatter.Spec?.Glow == null && (model.IndexOf("Boulder", StringComparison.OrdinalIgnoreCase) >= 0
+                || model.IndexOf("Rubble", StringComparison.OrdinalIgnoreCase) >= 0 || model.IndexOf("Slab", StringComparison.OrdinalIgnoreCase) >= 0);
+            return rock ? MaterialFor(net, key) : PropLibrary.MaterialFor(scatter.Spec, scatter.Model, body);
         }
 
         private Material MaterialFor(TubeNetwork net, ChunkKey key)

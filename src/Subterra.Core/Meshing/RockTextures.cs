@@ -487,10 +487,11 @@ namespace Subterra.Core.Meshing
 
                 case RockKind.Sediment:
                 {
-                    // Many thin beds of varied shade (silt, clay, sand), slightly wavy.
-                    Strata(u, 14, 0.05f * n, seed, out float bed, out float plane);
-                    h = 0.4f + 0.3f * bed + 0.3f * fine - 0.3f * plane;
-                    float l = 0.42f + 0.2f * bed + 0.08f * fine - 0.1f * plane;
+                    // Many thin beds of varied shade (silt, clay, sand), wavy. Soft: Lucas found Duna's canyon floors striped
+                    // like corduroy (the beds show on floors too, where the texture is laid from above).
+                    Strata(u, 14, 0.16f * n, seed, out float bed, out float plane);
+                    h = 0.45f + 0.12f * bed + 0.4f * fine - 0.1f * plane;
+                    float l = 0.44f + 0.09f * bed + 0.14f * fine - 0.035f * plane + 0.05f * (n - 0.5f);
                     Tone(l, 1.0f, 0.92f, 0.78f, out r, out g, out b);
                     return;
                 }

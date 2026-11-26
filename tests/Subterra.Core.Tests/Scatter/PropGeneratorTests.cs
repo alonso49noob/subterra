@@ -17,6 +17,8 @@ namespace Subterra.Core.Tests.Scatter
             MeshData m = PropGenerator.Build("Subterra/Props/" + name, lod);
             Assert.NotNull(m);
             Assert.True(m.Vertices.Count < 65535);
+            // Faceted props (crystals) give each face its own corners for hard edges: closed and outward once welded.
+            m = Welded(m);
             var uses = new Dictionary<(int, int), int>();
             for (int i = 0; i < m.Triangles.Count; i += 3)
             {
@@ -72,6 +74,33 @@ namespace Subterra.Core.Tests.Scatter
         }
 
         // Per vertex: the centroid of the connected piece it belongs to.
+        private static MeshData Welded(MeshData m)
+        {
+            var welded = new MeshData();
+            var index = new Dictionary<(int, int, int), int>();
+            var map = new int[m.Vertices.Count];
+            for (int i = 0; i < m.Vertices.Count; i++)
+            {
+                Vec3 v = m.Vertices[i];
+                var key = ((int)System.Math.Round(v.X * 10000), (int)System.Math.Round(v.Y * 10000), (int)System.Math.Round(v.Z * 10000));
+                if (!index.TryGetValue(key, out int j))
+                {
+                    j = welded.Vertices.Count;
+                    welded.Vertices.Add(v);
+                    index[key] = j;
+                }
+
+                map[i] = j;
+            }
+
+            foreach (int t in m.Triangles)
+            {
+                welded.Triangles.Add(map[t]);
+            }
+
+            return welded;
+        }
+
         private static Vec3[] PartCentres(MeshData m)
         {
             var parent = Enumerable.Range(0, m.Vertices.Count).ToArray();

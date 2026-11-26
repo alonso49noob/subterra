@@ -165,6 +165,7 @@ namespace Subterra.Core.Config
             ocean.TowerLength = Clamp(r.Double(node, "towerLength", ocean.TowerLength), 5, 5000, r, "towerLength");
             ocean.PillarChance = Clamp(r.Double(node, "pillarChance", 0), 0, 1, r, "pillarChance");
             ocean.PillarRadius = Clamp(r.Double(node, "pillarRadius", ocean.PillarRadius), 5, 1000, r, "pillarRadius");
+            ocean.VentChance = Clamp(r.Double(node, "ventChance", 0), 0, 1, r, "ventChance");
             string ceilingTint = node.GetValue("ceilingTint");
             if (!string.IsNullOrEmpty(ceilingTint))
             {

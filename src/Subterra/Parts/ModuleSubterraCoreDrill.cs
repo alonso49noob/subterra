@@ -615,7 +615,8 @@ namespace Subterra
 
                 reachedCaves += "|" + net.Id + "|";
                 DiscoveryService.DiscoverNetwork(vessel, net);
-                ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Drill_Breakthrough", d.ToString("F0")), 6f, ScreenMessageStyle.UPPER_CENTER);
+                bool lake = net.ZoneAt(net.ToLocal(dir * (surface - d))).Kind == ZoneKind.SubglacialLake;
+                ScreenMessages.PostScreenMessage(Localizer.Format(lake ? "#Subterra_Drill_BreakthroughLake" : "#Subterra_Drill_Breakthrough", d.ToString("F0")), 6f, ScreenMessageStyle.UPPER_CENTER);
                 Log.Info($"Core drill on {vessel.GetDisplayName()} reached {net.Id} at {d:F0} m");
             }
         }

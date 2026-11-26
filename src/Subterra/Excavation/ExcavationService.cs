@@ -736,6 +736,31 @@ namespace Subterra
                 }
             }
 
+            // Round a shaft's mouth too: its walls are clipped against the nearest sample, and with samples only on its axis
+            // a shaft on a slope stood out of the ground on the downhill side (Lucas, on Duna).
+            if (spec.Shape == ExcavationShape.Shaft && spec.Points.Count >= 2)
+            {
+                Vec3d top = spec.ToBody(spec.Points[spec.Points.Count - 1]), up = top.Normalized;
+                BodyFrame.ToLatLon(up, out double topLat, out double topLon);
+                if (top.Length > KspSampler.SurfaceRadius(body, topLat, topLon) - spec.Radius - 2)
+                {
+                    Vec3d e1 = Vec3d.Cross(new Vec3d(0, 1, 0), up);
+                    e1 = e1.Length < 1e-6 ? new Vec3d(1, 0, 0) : e1.Normalized;
+                    Vec3d e2 = Vec3d.Cross(up, e1);
+                    foreach (double ring in new[] { 1.05, 1.5, 2.5 })
+                    {
+                        for (int k = 0; k < 16; k++)
+                        {
+                            double a = 2 * Math.PI * k / 16;
+                            Vec3d dir = (up * top.Length + (e1 * Math.Cos(a) + e2 * Math.Sin(a)) * (spec.Radius * ring)).Normalized;
+                            BodyFrame.ToLatLon(dir, out double lat, out double lon);
+                            dirList.Add(dir);
+                            radiusList.Add(KspSampler.SurfaceRadius(body, lat, lon));
+                        }
+                    }
+                }
+            }
+
             dirs = dirList;
             radii = radiusList;
         }

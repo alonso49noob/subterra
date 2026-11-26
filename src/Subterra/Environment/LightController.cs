@@ -46,10 +46,19 @@ namespace Subterra
             using (SubterraClock.Measure("LightController"))
             {
                 UndergroundState camera = UndergroundTracker.Camera;
-                if (!camera.Inside)
+                // In the ocean under the ice or rock (not a cave): no sky and no sun either, day or night (Lucas: the oceans'
+                // light followed the day on the surface).
+                bool ocean = !camera.Inside && FlightCamera.fetch != null
+                    && Underground.OceanAt(FlightGlobals.currentMainBody, FlightCamera.fetch.mainCamera.transform.position) != null;
+                if (!camera.Inside && !ocean)
                 {
                     Restore();
                     return;
+                }
+
+                if (ocean)
+                {
+                    camera.Sky = 0;
                 }
 
                 if (!applied.HasValue)
@@ -68,7 +77,7 @@ namespace Subterra
                 RenderSettings.ambientLight = applied.Value;
 
                 // The sun is only touched while it is switched off; near an opening KSP keeps control of it.
-                bool off = sun != null && FarFromOpenings(camera);
+                bool off = sun != null && (ocean || FarFromOpenings(camera));
                 if (off && !savedSun.HasValue)
                 {
                     savedSun = sun.intensity;

@@ -83,15 +83,15 @@ scatter IceColumns "Subterra/Props/IceColumn01" floor "TubeChamber, TubeGallery"
 # Sunlight through thin mint ice: soft green patches on ceilings under 25 m of ice or less, fading at night.
 glow IceGlow "Subterra/Props/GlowPatch01" ceiling "" 0.25 "3, 9" "0.55,1.0,0.78" 30 25 true 0.015 0.2
 scatter SkylightRubble "Subterra/Props/RubbleCone01, Subterra/Props/Boulder03" skylightRubble "" 2 "0.5, 3.5" 0.5 true 0.02 0.3 2.5 0.25
-scatter GeodeCrystalsFloor "Subterra/Props/GeodeCrystal01" floor "Geode" 6 "0.6, 3" 0.9 false 0.02 -1 2 0.1
-scatter GeodeCrystalsWalls "Subterra/Props/GeodeCrystal01" wall "Geode" 5 "0.5, 2.5" 1 false 0.02 -1 2
-scatter GeodeCrystalsRoof "Subterra/Props/GeodeCrystal01" ceiling "Geode" 5 "0.5, 2.5" 1 false 0.02 -1 2
+scatter GeodeCrystalsFloor "Subterra/Props/GeodeCrystal01, Subterra/Props/GeodeCrystal02, Subterra/Props/GeodeCrystal03" floor "Geode" 6 "0.6, 3" 0.9 false 0.02 -1 2 0.1
+scatter GeodeCrystalsWalls "Subterra/Props/GeodeCrystal01, Subterra/Props/GeodeCrystal02, Subterra/Props/GeodeCrystal03" wall "Geode" 5 "0.5, 2.5" 1 false 0.02 -1 2
+scatter GeodeCrystalsRoof "Subterra/Props/GeodeCrystal01, Subterra/Props/GeodeCrystal02, Subterra/Props/GeodeCrystal03" ceiling "Geode" 5 "0.5, 2.5" 1 false 0.02 -1 2
 rule Water "" MintIce 3 ""
 rule Ore TubeChamber "" 1.5 ""
 # Minmus's ocean (Lucas, 2026-11-26: a first subsurface ocean to introduce players to them, near Kerbin): shallow and calm,
 # 0.6 km under the poles and 1.5 km under the equator, 3 km deep, mint-green; with so little gravity the pressure is low (a
 # few atm) and anything can explore it. Mint-ice spikes under its ceiling. [Claude, revisar]
-printf '\tOCEAN\n\t{\n\t\tceilingPole = 600\n\t\tceilingEquator = 1500\n\t\tthickness = 3000\n\t\tdensity = 1010\n\t\ttemperature = 272\n\t\tcolour = 0.06, 0.18, 0.14\n\t\ttowerChance = 0.25\n\t\ttowerLength = 90\n\t\tceilingTint = 0.70, 0.90, 0.80\n\t}\n'
+printf '\tOCEAN\n\t{\n\t\tceilingPole = 600\n\t\tceilingEquator = 1500\n\t\tthickness = 3000\n\t\tdensity = 1010\n\t\ttemperature = 272\n\t\tcolour = 0.06, 0.18, 0.14\n\t\ttowerChance = 0.25\n\t\ttowerLength = 90\n\t\tpillarChance = 0.4\n\t\tpillarRadius = 90\n\t\tventChance = 0.5\n\t\tceilingTint = 0.70, 0.90, 0.80\n\t}\n'
 # The Mint Lake (Lucas, part 4: lakes), perched in the mint ice over the ocean; Minmus has no air, so it gives itself away
 # (Lucas): a cryovolcanic dome over it, a vent at its top, a conduit down to the water and a plume. [Claude, revisar]
 site_head MinmusMintLake

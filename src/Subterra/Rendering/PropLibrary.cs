@@ -48,10 +48,10 @@ namespace Subterra
             bool ice = model.IndexOf("Ice", System.StringComparison.OrdinalIgnoreCase) >= 0;
             bool crystal = model.IndexOf("Crystal", System.StringComparison.OrdinalIgnoreCase) >= 0;
             bool bone = model.IndexOf("Kraken", System.StringComparison.OrdinalIgnoreCase) >= 0;
-            string key = crystal ? "crystal" : ice ? "ice" : bone ? "bone" : "rock/" + (body?.bodyName ?? "");
+            string key = crystal ? "crystal/" + model : ice ? "ice" : bone ? "bone" : "rock/" + (body?.bodyName ?? "");
             if (!Materials.TryGetValue(key, out Material material) || material == null)
             {
-                material = crystal ? MaterialFactory.Crystal()
+                material = crystal ? MaterialFactory.Crystal(model.EndsWith("02") ? new Color(0.94f, 0.97f, 1.0f) : model.EndsWith("03") ? new Color(1.0f, 0.8f, 0.42f) : new Color(0.78f, 0.6f, 1.0f))
                     : bone
                     ? MaterialFactory.Create("Rock_d", "Rock_n", new Color(1.35f, 1.25f, 1.05f))
                     : ice

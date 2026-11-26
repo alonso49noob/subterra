@@ -11,7 +11,7 @@ namespace Subterra.Core.Scatter
     /// </summary>
     public static class PropGenerator
     {
-        public static readonly string[] Names = { "Boulder01", "Boulder02", "Boulder03", "RubbleCone01", "Lavacicle01", "PahoehoeSlab01", "IceCluster01", "GeodeCrystal01", "GlowPatch01", "GlowMat01", "Fungus01", "KrakenRibs01", "KrakenBone01", "Stalagmite01", "DustDrift01", "IceColumn01" };
+        public static readonly string[] Names = { "Boulder01", "Boulder02", "Boulder03", "RubbleCone01", "Lavacicle01", "PahoehoeSlab01", "IceCluster01", "GeodeCrystal01", "GeodeCrystal02", "GeodeCrystal03", "GlowPatch01", "GlowMat01", "Fungus01", "KrakenRibs01", "KrakenBone01", "Stalagmite01", "DustDrift01", "IceColumn01" };
 
         /// <summary>The prop for a model url or name (the part after the last '/'); null if unknown.</summary>
         public static MeshData Build(string model, int lod)
@@ -43,7 +43,11 @@ namespace Subterra.Core.Scatter
                 case "DustDrift01": return Shape(subdivisions, seed, p => new Vec3(p.X * 2.2f, (p.Y + 1) * 0.18f, p.Z * 1.1f), 0.03f, baseAtZero: false);
                 case "IceColumn01": return Shape(subdivisions, seed, p => new Vec3(p.X * 0.4f * (1.2f - 0.4f * Math.Abs(p.Y)), (p.Y + 1) * 3.2f, p.Z * 0.4f * (1.2f - 0.4f * Math.Abs(p.Y))), 0.1f);
                 case "IceCluster01": return Crystals(lod == 0 ? 2 : 1, seed);
-                case "GeodeCrystal01": return Crystals(lod == 0 ? 2 : 1, seed, 7, 1.5f, 2.2f);
+                // Lucas: the geodes' crystals looked like toys, all alike. Faceted prisms with pointed tips, in clusters of
+                // many sizes: amethyst (01), slender clear quartz (02), stubby citrine (03).
+                case "GeodeCrystal01": return Prisms(seed, 9, 1.6f, 1.0f);
+                case "GeodeCrystal02": return Prisms(seed, 12, 2.2f, 0.7f);
+                case "GeodeCrystal03": return Prisms(seed, 6, 1.1f, 1.5f);
                 case "GlowPatch01": return Patch(lod == 0 ? 24 : 12, seed, -1);
                 case "GlowMat01": return Patch(lod == 0 ? 24 : 12, seed, 1);
                 case "Fungus01": return Fungi(lod == 0 ? 2 : 1, seed);
@@ -114,6 +118,67 @@ namespace Subterra.Core.Scatter
 
         // A few hexagonal-ish crystals leaning out from a common base.
         // A cluster of `count` pointed prisms leaning out from the base; `length` and `thickness` scale them.
+        // A cluster of crystals as real ones grow: six-sided prisms ending in six-sided points, each face flat (its own corners,
+        // so its own normal: hard edges that catch the light), leaning out from a common base, one big and many small.
+        private static MeshData Prisms(ulong seed, int count, float length, float thickness)
+        {
+            var rng = new Rng(seed);
+            var mesh = new MeshData();
+            for (int c = 0; c < count; c++)
+            {
+                double angle = rng.Range(0, 2 * Math.PI), lean = c == 0 ? rng.Range(0, 0.2) : rng.Range(0.2, 0.9);
+                float size = c == 0 ? 1f : (float)Math.Pow(rng.Range(0.15, 0.85), 1.4);
+                float height = (float)rng.Range(0.7, 1.3) * length * size, width = (float)rng.Range(0.1, 0.17) * thickness * (0.4f + 0.6f * size);
+                float tip = width * (float)rng.Range(1.2, 2.2);
+                var axis = new Vec3((float)(Math.Cos(angle) * lean), 1, (float)(Math.Sin(angle) * lean)).Normalized;
+                Vec3 side = Vec3.Cross(axis, new Vec3(0, 0, 1)).Normalized;
+                Vec3 other = Vec3.Cross(side, axis);
+                Vec3 foot = new Vec3((float)rng.Range(-0.25, 0.25), -0.08f, (float)rng.Range(-0.25, 0.25)) * thickness;
+                double twist = rng.Range(0, Math.PI / 3);
+                var ring = new Vec3[6];
+                for (int k = 0; k < 6; k++)
+                {
+                    double a = twist + k * Math.PI / 3;
+                    // Faces of uneven width, as real prisms have.
+                    float w = width * (float)(0.85 + 0.3 * rng.NextDouble());
+                    ring[k] = side * (float)Math.Cos(a) * w + other * (float)Math.Sin(a) * w;
+                }
+
+                // The base too (buried, but a closed solid casts proper shadows and passes the props' checks).
+                for (int k = 1; k < 5; k++)
+                {
+                    Tri(mesh, foot + ring[0], foot + ring[k + 1], foot + ring[k]);
+                }
+
+                Vec3 apex = foot + axis * (height + tip);
+                for (int k = 0; k < 6; k++)
+                {
+                    Vec3 b0 = foot + ring[k], b1 = foot + ring[(k + 1) % 6];
+                    Vec3 t0 = b0 + axis * height, t1 = b1 + axis * height;
+                    Quad(mesh, b0, b1, t1, t0);
+                    Tri(mesh, t0, t1, apex);
+                }
+            }
+
+            Finish(mesh);
+            return mesh;
+        }
+
+        private static void Tri(MeshData m, Vec3 a, Vec3 b, Vec3 c)
+        {
+            int i = m.Vertices.Count;
+            m.Vertices.Add(a);
+            m.Vertices.Add(b);
+            m.Vertices.Add(c);
+            m.Triangles.AddRange(new[] { i, i + 2, i + 1 });
+        }
+
+        private static void Quad(MeshData m, Vec3 a, Vec3 b, Vec3 c, Vec3 d)
+        {
+            Tri(m, a, b, c);
+            Tri(m, a, c, d);
+        }
+
         private static MeshData Crystals(int subdivisions, ulong seed, int count = 5, float length = 1f, float thickness = 1f)
         {
             var rng = new Rng(seed);

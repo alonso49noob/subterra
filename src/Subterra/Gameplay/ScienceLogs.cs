@@ -89,7 +89,7 @@ namespace Subterra
         private static string Cave(BodyRuntime runtime, CelestialBody body, string experiment, string biome)
         {
             SiteSpec site = runtime.Spec.Sites.Find(s => s.Name == biome);
-            ZoneKind zone = site == null ? ParseZone(biome) : SiteZone(body, site);
+            ZoneKind zone = site != null ? SiteZone(body, site) : biome.StartsWith(BiomeIds.LayerPrefix, StringComparison.Ordinal) ? ZoneKind.Excavation : ParseZone(biome);
             string key = Pick("#Subterra_Log_" + experiment + "_" + zone) ?? Pick("#Subterra_Log_Any_" + zone);
             if (key == null)
             {

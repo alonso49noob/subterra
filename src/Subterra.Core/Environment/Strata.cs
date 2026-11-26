@@ -20,15 +20,28 @@ namespace Subterra.Core.Environment
 
         public LayerSpec LayerAt(double depth, string biome)
         {
+            LayerSpec deepest = null;
             foreach (LayerSpec layer in layers)
             {
-                if (layer.Top <= depth && depth < layer.Bottom && Applies(layer, biome))
+                if (!Applies(layer, biome))
+                {
+                    continue;
+                }
+
+                if (layer.Top <= depth && depth < layer.Bottom)
                 {
                     return layer;
                 }
+
+                if (deepest == null || layer.Bottom > deepest.Bottom)
+                {
+                    deepest = layer;
+                }
             }
 
-            return null;
+            // Past the column's last layer (it ends at the body's mean radius, and a hole begun on high ground goes deeper than
+            // that to reach the centre): still that layer. Lucas saw the rock turn plain grey, unlit, at a body's very centre.
+            return deepest != null && depth >= deepest.Bottom ? deepest : null;
         }
 
         /// <summary>The layers seen going down at a point of <paramref name="biome"/>, top first.</summary>

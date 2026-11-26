@@ -92,7 +92,9 @@ namespace Subterra
         /// <summary>Discovers <paramref name="net"/> for <paramref name="vessel"/> (entered, or reached by a drill); no-op if known.</summary>
         internal static void DiscoverNetwork(Vessel vessel, TubeNetwork net)
         {
-            if (SubterraScenario.Instance == null || SubterraScenario.Instance.IsDiscovered(net.Id))
+            // Holes the player dug are not discoveries (no message, no waypoints): their networks are rebuilt as they grow and
+            // join each other, and one's skylight waypoint piled up hundreds of times (Lucas, under Minmus).
+            if (SubterraScenario.Instance == null || SubterraScenario.Instance.IsDiscovered(net.Id) || ExcavationService.IsDug(net.Id))
             {
                 return;
             }
@@ -105,8 +107,10 @@ namespace Subterra
             }
 
             SubterraScenario.Instance.Discover(discovery);
-            Log.Info($"Discovered: lava tube network {net.Id}");
-            ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Discovered", name), 6f, ScreenMessageStyle.UPPER_CENTER);
+            // A lake is not a lava tube (Lucas: "Discovered: lava tube network South Polar Lake").
+            bool lake = net.Site != null && net.Site.Nodes.Exists(n => n.Feature == Subterra.Core.Model.NodeFeature.Lake);
+            Log.Info($"Discovered: {(lake ? "lake" : "cave network")} {net.Id}");
+            ScreenMessages.PostScreenMessage(Localizer.Format(lake ? "#Subterra_DiscoveredLake" : "#Subterra_Discovered", name), 6f, ScreenMessageStyle.UPPER_CENTER);
             if (Settings.Current.Waypoints)
             {
                 AddWaypoints(discovery);

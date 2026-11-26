@@ -39,6 +39,10 @@ namespace Subterra.Core.Model
         /// <summary>Widest pillar radius (m) at its middle (they flare where they meet the ceiling and the floor).</summary>
         public double PillarRadius { get; set; } = 120;
 
+        /// <summary>Share (0–1) of the cells of the floor with a hydrothermal vent: a chimney with warm water rising from it (Lucas:
+        /// something to make an ocean lively to explore). [Claude, revisar]</summary>
+        public double VentChance { get; set; }
+
         /// <summary>r, g, b tint of the ceiling's underside (Pol's sulphur-yellow ice); null = plain ice.</summary>
         public float[] CeilingTint { get; set; }
     }

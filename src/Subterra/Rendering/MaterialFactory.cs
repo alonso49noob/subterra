@@ -179,17 +179,20 @@ namespace Subterra
         }
 
         /// <summary>Geode crystals: pale violet, glossy (they catch a lamp's light), on the procedural ice textures.</summary>
-        public static Material Crystal()
+        public static Material Crystal() => Crystal(new Color(0.86f, 0.80f, 1.0f));
+
+        /// <summary>Glossy crystal of a colour (one material per colour).</summary>
+        public static Material Crystal(Color tint)
         {
-            const string key = "#crystal";
+            string key = "#crystal/" + ColorUtility.ToHtmlStringRGB(tint);
             if (ByLayer.TryGetValue(key, out Material material) && material != null)
             {
                 return material;
             }
 
-            material = Create("Ice_d", "Ice_n", new Color(0.86f, 0.80f, 1.0f));
-            material.SetColor("_SpecColor", new Color(0.6f, 0.6f, 0.65f));
-            material.SetFloat("_Shininess", 0.5f);
+            material = Create("Ice_d", "Ice_n", tint);
+            material.SetColor("_SpecColor", new Color(0.85f, 0.85f, 0.9f));
+            material.SetFloat("_Shininess", 0.75f);
             material.name = "Subterra crystal";
             ByLayer[key] = material;
             return material;

@@ -73,7 +73,7 @@ field EveKarst karst "Lowlands, Midlands, Highlands, Foothills" 1.2 "8, 60" "100
 common_scatters
 scatter Stalactites "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 1 "0.5, 2.5" 1 false 0.03 0.4 2
 scatter Stalagmites "Subterra/Props/Stalagmite01" floor "TubeGallery, TubeChamber, TubeBranch" 0.6 "0.4, 3" 0 true 0.03 0.45 2 0.05
-scatter SaltCrystals "Subterra/Props/GeodeCrystal01" floor "Geode" 4 "0.6, 3" 0.9 false 0.02 -1 2 0.1
+scatter SaltCrystals "Subterra/Props/GeodeCrystal01, Subterra/Props/GeodeCrystal02, Subterra/Props/GeodeCrystal03" floor "Geode" 4 "0.6, 3" 0.9 false 0.02 -1 2 0.1
 rule Explodium "" Evaporites 3 ""
 echo "}"
 } > "$out"; echo "wrote $out"
