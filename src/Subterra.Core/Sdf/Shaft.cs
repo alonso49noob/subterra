@@ -37,13 +37,16 @@ namespace Subterra.Core.Sdf
             Vec3 q = p - bottomCenter;
             float h = Vec3.Dot(q, up);
             Vec3 across = q - up * h;
-            if (across.Length < radius * 0.5f)
+            float rho = across.Length;
+            if (rho < radius * 0.5f)
             {
                 return null;
             }
 
+            // Out past the wall (the rounded join with a floor flares out), round the real circumference and up the slope, so
+            // the texture keeps its scale there too.
             float angle = (float)Math.Atan2(Vec3.Dot(across, e2), Vec3.Dot(across, e1));
-            return new Vec2(angle * radius, h);
+            return new Vec2(angle * Math.Max(radius, rho), h + Math.Max(0, rho - radius) * 0.8f);
         }
 
         public Vec3 BottomCenter => bottomCenter;

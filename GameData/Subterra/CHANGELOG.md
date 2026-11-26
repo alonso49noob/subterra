@@ -24,6 +24,9 @@
 - Set Position pocket size (Lucas): pocketScale (a multiple of the craft's size), pocketMinRadius and pocketMinHeight in
   Settings.cfg, and a slider in the Subterra window (Alt+Shift+U).
 - With the "ignore max temperature" cheat, drills, pumps and converters no longer shut down overheated.
+- Fixed (Lucas's play): fans of patches where a shaft meets a floor (a blast shaft under a pocket). The join slopes through
+  45°, where the cut between wrapped wall and box floor lay, and its corners took turns being nearest one shaft or the
+  other; now one shaft per triangle, wrapped round it down to about 23° of slope, out to the join's real circumference.
 - Fixed (Lucas's play): a patchwork of rotated rock on the floors of dug tunnels, pockets and chambers. Their box UVs used
   the body's axes, to which a floor is tilted, and each bump switched some triangles to another axis; they follow the
   network's level frame now (floors and roofs projected from above, walls from east or north).

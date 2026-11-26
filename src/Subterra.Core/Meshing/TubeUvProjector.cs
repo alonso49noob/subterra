@@ -56,10 +56,13 @@ namespace Subterra.Core.Meshing
                 }
 
                 int a = tris[i], b = tris[i + 1], c = tris[i + 2];
-                int mode = TubeMapped(m, net, wall, piece, a, b, c) ? 3 : BoxAxis(m, a, b, c, east, up, north);
+                // Modes: 0-2 box (east, up, north), 3 tube walls (each corner on its own nearest tube piece), 4 + k the wall of
+                // shaft k (all three corners on that one shaft).
+                int shaftIndex = ShaftMapped(m, net, piece, a, b, c);
+                int mode = shaftIndex >= 0 ? 4 + shaftIndex : TubeMapped(m, net, wall, piece, a, b, c) ? 3 : BoxAxis(m, a, b, c, east, up, north);
                 foreach (int source in new[] { a, b, c })
                 {
-                    long key = (long)source * 4 + mode;
+                    long key = (long)source * 1000003L + mode;
                     if (!remap.TryGetValue(key, out int index))
                     {
                         index = result.Vertices.Count;
@@ -67,7 +70,8 @@ namespace Subterra.Core.Meshing
                         result.Vertices.Add(v);
                         result.Normals.Add(m.Normals.Count > source ? m.Normals[source] : new Vec3(0, 1, 0));
                         float pe = Vec3.Dot(v, east), pu = Vec3.Dot(v, up), pn = Vec3.Dot(v, north);
-                        Vec2 uv = mode == 3 ? wall[source].Value
+                        Vec2 uv = mode >= 4 ? ((Shaft)net.Primitives[mode - 4]).WallUv(v).Value
+                            : mode == 3 ? wall[source].Value
                             : mode == 0 ? new Vec2(pn, pu) : mode == 1 ? new Vec2(pe, pn) : new Vec2(pe, pu);
                         result.Uvs.Add(new Vec2(uv.X / metersPerUv, uv.Y / metersPerUv));
                         remap[key] = index;
@@ -90,26 +94,6 @@ namespace Subterra.Core.Meshing
             }
 
             Primitive pa = net.Primitives[piece[a]], pb = net.Primitives[piece[b]], pc = net.Primitives[piece[c]];
-            if (pa is Shaft shaft)
-            {
-                // One shaft, not across its seam, and a wall (not a floor facing along the axis).
-                if (piece[b] != piece[a] || piece[c] != piece[a])
-                {
-                    return false;
-                }
-
-                Vec3 n = Vec3.Cross(m.Vertices[b] - m.Vertices[a], m.Vertices[c] - m.Vertices[a]);
-                float nl = n.Length;
-                if (nl <= 0 || Math.Abs(Vec3.Dot(n, shaft.Up)) > 0.7f * nl)
-                {
-                    return false;
-                }
-
-                float seam = shaft.Radius * (float)Math.PI * 0.5f;
-                Vec2 sa = wall[a].Value, sb = wall[b].Value, sc = wall[c].Value;
-                return Math.Abs(sa.X - sb.X) < seam && Math.Abs(sa.X - sc.X) < seam && Math.Abs(sb.X - sc.X) < seam;
-            }
-
             if (!(pa is TubeSegment) || !(pb is TubeSegment) || !(pc is TubeSegment))
             {
                 return false;
@@ -124,6 +108,44 @@ namespace Subterra.Core.Meshing
             Vec2 wa = wall[a].Value, wb = wall[b].Value, wc = wall[c].Value;
             return Math.Abs(wa.X - wb.X) < limit && Math.Abs(wa.X - wc.X) < limit && Math.Abs(wb.X - wc.X) < limit
                 && Math.Abs(wa.Y - wb.Y) < limit && Math.Abs(wa.Y - wc.Y) < limit;
+        }
+
+        /// <summary>Sine of the slope (about 23°) under which ground by a shaft takes the projection from above.</summary>
+        private const float ShaftFloorCos = 0.92f;
+
+        // The shaft whose wall a triangle is on (index into the network's primitives), or -1. Lucas saw fans of patches where a
+        // shaft met a floor: the rounded join slopes through 45°, where the cut between "wall" (wrapped) and "floor" (box) lay,
+        // and its corners' nearest shafts (a pocket's, a blast shaft's) took turns, each turn a box triangle. One shaft per
+        // triangle (the one most corners are nearest, else the first corner's), all three corners wrapped round it, and box
+        // UVs only for ground nearly level: one ring of seam where the join flattens out.
+        private static int ShaftMapped(MeshData m, TubeNetwork net, int[] piece, int a, int b, int c)
+        {
+            int ka = piece[a], kb = piece[b], kc = piece[c];
+            int chosen = kb == kc && kb >= 0 && net.Primitives[kb] is Shaft ? kb
+                : ka >= 0 && net.Primitives[ka] is Shaft ? ka : kb >= 0 && net.Primitives[kb] is Shaft ? kb : kc >= 0 && net.Primitives[kc] is Shaft ? kc : -1;
+            if (chosen < 0)
+            {
+                return -1;
+            }
+
+            var shaft = (Shaft)net.Primitives[chosen];
+            Vec3 n = Vec3.Cross(m.Vertices[b] - m.Vertices[a], m.Vertices[c] - m.Vertices[a]);
+            float nl = n.Length;
+            if (nl <= 0 || Math.Abs(Vec3.Dot(n, shaft.Up)) > ShaftFloorCos * nl)
+            {
+                return -1;
+            }
+
+            Vec2? sa = shaft.WallUv(m.Vertices[a]), sb = shaft.WallUv(m.Vertices[b]), sc = shaft.WallUv(m.Vertices[c]);
+            if (sa == null || sb == null || sc == null)
+            {
+                return -1;
+            }
+
+            // Not across the seam behind the wall (the angle wraps there).
+            float seam = shaft.Radius * (float)Math.PI * 0.5f;
+            return Math.Abs(sa.Value.X - sb.Value.X) < seam && Math.Abs(sa.Value.X - sc.Value.X) < seam && Math.Abs(sb.Value.X - sc.Value.X) < seam
+                ? chosen : -1;
         }
 
         // 0: facing east or west, 1: up or down (floors, roofs), 2: north or south. Floors win ties a little (bumpy floors stay
