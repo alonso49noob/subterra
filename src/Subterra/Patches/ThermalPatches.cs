@@ -98,7 +98,32 @@ namespace Subterra
         {
             try
             {
-                if (!CheatOptions.IgnoreMaxTemperature || ___vessel == null)
+                if (___vessel == null)
+                {
+                    return;
+                }
+
+                // Coolers hold the craft down in time warp too (the warp temperature ignores the heat they take out part by
+                // part): at most the lowest target of those that have coolant and power.
+                double cap = double.MaxValue;
+                foreach (Part p in ___vessel.parts)
+                {
+                    foreach (PartModule m in p.Modules)
+                    {
+                        if (m is ModuleSubterraHeatSink sink && sink.HoldsInWarp)
+                        {
+                            cap = System.Math.Min(cap, sink.TargetTemp);
+                        }
+                    }
+                }
+
+                if (cap < __result)
+                {
+                    __result = cap;
+                    return;
+                }
+
+                if (!CheatOptions.IgnoreMaxTemperature)
                 {
                     return;
                 }
@@ -166,7 +191,7 @@ namespace Subterra
         private static readonly System.Collections.Generic.Dictionary<System.Guid, (float time, double? temp)> Buried =
             new System.Collections.Generic.Dictionary<System.Guid, (float, double?)>();
 
-        private static double? RockTempAround(Vessel vessel)
+        internal static double? RockTempAround(Vessel vessel)
         {
             if (vessel == null || vessel.mainBody == null)
             {

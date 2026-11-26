@@ -42,9 +42,37 @@ namespace Subterra
 
         public override string GetInfo() => Localizer.Format("#Subterra_Cooler_Info", maxPower.ToString("F0"), (maxPower / kJPerUnit * 3600).ToString("F0"), powerUse.ToString("F1"));
 
+        /// <summary>
+        /// True while this cooler holds the craft down in time warp (it has coolant and power): KSP's warp ("analytic")
+        /// temperature is capped at its target by ThermalPatches. Lucas: the coolers stopped working in time warp, where KSP
+        /// works the craft's temperature out in one go and ignores the heat taken out of each part.
+        /// </summary>
+        public bool HoldsInWarp { get; private set; }
+
+        public float TargetTemp => targetTemp;
+
+        // In time warp: coolant and power used at the full rate (the heat it would take out is not known part by part there).
+        private void WarpCooling()
+        {
+            double dt = TimeWarp.fixedDeltaTime;
+            double need = powerUse * dt;
+            if (need > 0 && part.RequestResource("ElectricCharge", need) < need * 0.99)
+            {
+                HoldsInWarp = false;
+                uiStatus = Localizer.Format("#Subterra_Drill_NoPower");
+                return;
+            }
+
+            double units = maxPower * dt / kJPerUnit;
+            double got = part.RequestResource(coolant, units);
+            HoldsInWarp = got > units * 0.5;
+            uiLoad = HoldsInWarp ? maxPower : 0;
+            uiStatus = Localizer.Format(HoldsInWarp ? "#Subterra_Cooler_Cooling" : "#Subterra_Cooler_Empty");
+        }
+
         private void FixedUpdate()
         {
-            if (!HighLogic.LoadedSceneIsFlight || vessel == null || !vessel.loaded || vessel.packed)
+            if (!HighLogic.LoadedSceneIsFlight || vessel == null || !vessel.loaded)
             {
                 return;
             }
@@ -52,10 +80,18 @@ namespace Subterra
             uiLoad = 0;
             if (!active)
             {
+                HoldsInWarp = false;
                 uiStatus = Localizer.Format("#Subterra_Drill_Idle");
                 return;
             }
 
+            if (vessel.packed || (TimeWarp.WarpMode == TimeWarp.Modes.HIGH && TimeWarp.CurrentRate > 1))
+            {
+                WarpCooling();
+                return;
+            }
+
+            HoldsInWarp = false;
             double dt = TimeWarp.fixedDeltaTime;
 
             // The heat above the set temperature, in every part (core and skin): what the cooler would take this step.

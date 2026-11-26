@@ -417,7 +417,37 @@ namespace Subterra
         }
 
         // The rock temperature the tool stands; KSP's "ignore max temperature" cheat lifts it (0 = no limit).
-        private double RockTempLimit => CheatOptions.IgnoreMaxTemperature ? 0 : maxRockTemp;
+        // An active SB-K cooler with water on the craft cools the bit too, as drilling mud does (Lucas: the Junior stopped at
+        // 26.9 km under Kerbin, the rock too hot): half a kelvin more per kW of cooling, at most twice the tool's own limit.
+        // [Claude, revisar]
+        private double RockTempLimit => CheatOptions.IgnoreMaxTemperature ? 0 : maxRockTemp + CoolingBonus();
+
+        private float nextCooling;
+        private double coolingBonus;
+
+        private double CoolingBonus()
+        {
+            if (vessel == null || Time.time < nextCooling)
+            {
+                return coolingBonus;
+            }
+
+            nextCooling = Time.time + 2f;
+            double kW = 0;
+            foreach (Part p in vessel.parts)
+            {
+                foreach (PartModule m in p.Modules)
+                {
+                    if (m is ModuleSubterraHeatSink sink && sink.active && p.Resources.Contains(sink.coolant) && p.Resources[sink.coolant].amount > 0)
+                    {
+                        kW += sink.maxPower;
+                    }
+                }
+            }
+
+            coolingBonus = Math.Min(maxRockTemp, kW * 0.5);
+            return coolingBonus;
+        }
 
         private void FixedUpdate()
         {
@@ -518,9 +548,17 @@ namespace Subterra
                 StopCrew(body);
                 drilling = false;
                 UpdateEvents();
-                string why = depth >= MaxDepthHere(body) - 0.01 ? "#Subterra_Drill_MaxDepth" : "#Subterra_Drill_TooHard";
-                ScreenMessages.PostScreenMessage(Localizer.Format(why), 5f);
+                double limit = RockTempLimit;
+                bool hot = limit > 0 && p.RockTemp.HasValue && p.RockTemp.Value >= limit - 1;
+                string why = depth >= MaxDepthHere(body) - 0.01 ? "#Subterra_Drill_MaxDepth" : hot ? "#Subterra_Drill_TooHot" : "#Subterra_Drill_TooHard";
+                // Why it stopped, and what would take it further (Lucas: the drills hit a wall at 26.9 km with no reason given).
+                string message = hot ? Localizer.Format(why, p.RockTemp.Value.ToString("F0"), limit.ToString("F0")) : Localizer.Format(why);
+                ScreenMessages.PostScreenMessage(message, 8f);
                 Show(p, why);
+                if (hot)
+                {
+                    uiStatus = Localizer.Format("#Subterra_Drill_TooHotShort", p.RockTemp.Value.ToString("F0"), limit.ToString("F0"));
+                }
                 return;
             }
 

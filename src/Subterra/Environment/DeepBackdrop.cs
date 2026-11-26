@@ -24,7 +24,7 @@ namespace Subterra
         {
             UndergroundState state = UndergroundTracker.Camera;
             Camera main = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
-            bool wanted = main != null && state.Inside && state.Depth > MinDepth && state.Sky < MaxSky && !UnderwaterView.Under;
+            bool wanted = main != null && state.Inside && state.Depth > MinDepth && state.Sky < MaxSky && !UnderwaterView.Under && !MapView.MapIsEnabled;
             if (!wanted)
             {
                 Restore();

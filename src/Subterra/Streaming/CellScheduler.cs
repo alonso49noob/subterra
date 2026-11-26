@@ -200,6 +200,7 @@ namespace Subterra
             double bodyRadius = body.Radius;
             string idPrefix = runtime.Spec.IdPrefix;
             List<FieldSpec> fields = runtime.Spec.Fields;
+            List<SiteSpec> named = runtime.Spec.Sites;
             var job = new CellJob();
 
             // 1. The cell's sample grid (+10 km), on the main thread.
@@ -221,6 +222,7 @@ namespace Subterra
                     {
                         // All fields at once: they share the per-cell cap and id counter (unique ids).
                         sites = FieldGenerator.Generate(fields, bodyName, idPrefix, catalog.Grid, cell, grid, grid);
+                        FieldGenerator.ClearOfNamed(sites, named, bodyRadius);
                     }
                     catch (Exception e)
                     {

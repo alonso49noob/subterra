@@ -50,7 +50,8 @@ namespace Subterra
                 // light followed the day on the surface).
                 bool ocean = !camera.Inside && FlightCamera.fetch != null
                     && Underground.OceanAt(FlightGlobals.currentMainBody, FlightCamera.fetch.mainCamera.transform.position) != null;
-                if (!camera.Inside && !ocean)
+                // The map has the planets' own light (Lucas: Kerbin in the map was lit like the mantle round the craft).
+                if ((!camera.Inside && !ocean) || MapView.MapIsEnabled)
                 {
                     Restore();
                     return;

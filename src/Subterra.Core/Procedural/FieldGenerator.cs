@@ -44,6 +44,38 @@ namespace Subterra.Core.Procedural
             return result;
         }
 
+        /// <summary>Metres kept between a procedural network and any node of a named site (Lucas: the Kraken's Vault on Bop
+        /// had its entrance on top of a cave system's).</summary>
+        public const double NamedKeepOut = 1500;
+
+        /// <summary>Drops the procedural sites with a node within <see cref="NamedKeepOut"/> (plus both widths) of a named site's node.</summary>
+        public static int ClearOfNamed(List<SiteSpec> sites, IReadOnlyList<SiteSpec> named, double bodyRadius)
+        {
+            if (sites == null || named == null || named.Count == 0 || bodyRadius <= 0)
+            {
+                return 0;
+            }
+
+            return sites.RemoveAll(s => !s.IsNamed && s.Nodes.Exists(n =>
+            {
+                Vec3d a = BodyFrame.Direction(n.Lat, n.Lon);
+                foreach (SiteSpec site in named)
+                {
+                    foreach (NodeSpec m in site.Nodes)
+                    {
+                        double keep = (NamedKeepOut + 0.5 * (n.Width + m.Width)) / bodyRadius;
+                        double cos = Vec3d.Dot(a, BodyFrame.Direction(m.Lat, m.Lon));
+                        if (cos > Math.Cos(keep))
+                        {
+                            return true;
+                        }
+                    }
+                }
+
+                return false;
+            }));
+        }
+
         /// <summary>The networks of a single field in one cell (as the only field of its body).</summary>
         public static List<SiteSpec> Generate(FieldSpec f, string body, string idPrefix, CellGrid grid, CellId cell, IHeightSampler h, IBiomeSampler b) =>
             Generate(new[] { f }, body, idPrefix, grid, cell, h, b);

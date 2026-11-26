@@ -38,7 +38,11 @@ namespace Subterra.Core.Tubes
                 yield return (node.Lat, node.Lon);
                 if (Ramps && node.Feature == NodeFeature.Skylight && node.Ramp)
                 {
-                    yield return RampTop(site, node, bodyRadius);
+                    foreach (var point in RampSamples(site, node, bodyRadius))
+                    {
+                        yield return point;
+                    }
+
                 }
 
                 if (node.Feature == NodeFeature.Portal)
@@ -298,14 +302,73 @@ namespace Subterra.Core.Tubes
 
         // Where a skylight's ramp reaches the ground: out from the node across its tube (square to the way to its first
         // neighbour, the side picked per node), as far as the slope needs to climb the node's depth and height.
-        public static (double lat, double lon) RampTop(SiteSpec site, NodeSpec node, double bodyRadius)
+        public static (double lat, double lon) RampTop(SiteSpec site, NodeSpec node, double bodyRadius) => RampPoint(site, node, bodyRadius, 1, 1);
+
+        /// <summary>
+        /// The top of the ramp on the side whose ground stays over its roof best (Lucas: ramps floated, out of the ground,
+        /// where it fell away along their run). Ties keep the node's own side.
+        /// </summary>
+        public static (double lat, double lon) RampTop(SiteSpec site, NodeSpec node, double bodyRadius, IHeightSampler heights) =>
+            RampPoint(site, node, bodyRadius, RampSide(site, node, bodyRadius, heights), 1);
+
+        /// <summary>Points sampled along the run of each candidate ramp (for <see cref="RequiredSamples"/>).</summary>
+        public const int RampProfile = 6;
+
+        // A point at share t (0 the node, 1 the top) of the run of the ramp on side sign (+1 the node's own side, -1 the other).
+        private static (double lat, double lon) RampPoint(SiteSpec site, NodeSpec node, double bodyRadius, int sign, double t)
         {
             Vec3d at = BodyFrame.Direction(node.Lat, node.Lon);
-            Vec3d side = RampDirection(site, node, at);
+            Vec3d side = RampDirection(site, node, at) * sign;
             double run = (node.Depth + node.Height + 2) / Math.Tan(RampSlope * Math.PI / 180) + node.Width * 0.5;
-            Vec3d top = (at + side * (run / bodyRadius)).Normalized;
+            Vec3d top = (at + side * (t * run / bodyRadius)).Normalized;
             BodyFrame.ToLatLon(top, out double lat, out double lon);
             return (lat, lon);
+        }
+
+        private static IEnumerable<(double lat, double lon)> RampSamples(SiteSpec site, NodeSpec node, double bodyRadius)
+        {
+            foreach (int sign in new[] { 1, -1 })
+            {
+                for (int k = 1; k <= RampProfile; k++)
+                {
+                    yield return RampPoint(site, node, bodyRadius, sign, (double)k / RampProfile);
+                }
+            }
+        }
+
+        // The side whose ground is highest over the ramp's roof at its worst point along the run (the roof drawn straight from
+        // the node's to the top's, which stands RampHeight over the ground at the top).
+        private static int RampSide(SiteSpec site, NodeSpec node, double bodyRadius, IHeightSampler heights)
+        {
+            double best = double.MinValue;
+            int bestSign = 1;
+            double nodeRoof = heights.SurfaceRadius(node.Lat, node.Lon) - node.Depth - node.Height + RampHeight;
+            foreach (int sign in new[] { 1, -1 })
+            {
+                var (tl, to) = RampPoint(site, node, bodyRadius, sign, 1);
+                double topRoof = heights.SurfaceRadius(tl, to) + 3 + RampHeight;
+                double worst = double.MaxValue;
+                // The last stretch opens into the ground's cut anyway: only the first three quarters count.
+                for (int k = 1; k < RampProfile; k++)
+                {
+                    double t = (double)k / RampProfile;
+                    if (t > 0.75)
+                    {
+                        break;
+                    }
+
+                    var (la, lo) = RampPoint(site, node, bodyRadius, sign, t);
+                    worst = Math.Min(worst, heights.SurfaceRadius(la, lo) - (nodeRoof + (topRoof - nodeRoof) * t));
+                }
+
+                if (worst > best + 0.5)
+                {
+                    best = worst;
+                    bestSign = sign;
+                }
+            }
+
+            return bestSign;
         }
 
         private static Vec3d RampDirection(SiteSpec site, NodeSpec node, Vec3d at)
@@ -338,7 +401,7 @@ namespace Subterra.Core.Tubes
             List<Primitive> prims, List<Skylight> skylights, Func<Vec3d, Vec3> local)
         {
             NodeSpec node = site.Nodes[i];
-            var (lat, lon) = RampTop(site, node, bodyRadius);
+            var (lat, lon) = RampTop(site, node, bodyRadius, heights);
             Vec3d topUp = BodyFrame.Direction(lat, lon);
             double surface = heights.SurfaceRadius(lat, lon);
             Vec3d top = topUp * (surface + 3);

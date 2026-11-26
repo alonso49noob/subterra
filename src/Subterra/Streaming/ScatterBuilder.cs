@@ -52,6 +52,12 @@ namespace Subterra
                         subset.Add(placed[i]);
                     }
 
+                    // Rocks on the floor left out on request (Lucas: a very optional switch for them).
+                    if (!Settings.Current.TunnelRocks && IsRock(spec.Models[m]))
+                    {
+                        continue;
+                    }
+
                     if (subset.Count == 0 || !PropLibrary.TryGet(spec.Models[m], key.Lod, out MeshData prop))
                     {
                         continue;
@@ -84,6 +90,11 @@ namespace Subterra
         /// pile of it at its bottom, and in a pocket it crossed at 40 km. [Claude, revisar]
         /// </summary>
         private const float MaxRubbleDepth = 500;
+
+        /// <summary>Boulders, rubble and slabs (the props <c>tunnelRocks = false</c> leaves out).</summary>
+        public static bool IsRock(string model) =>
+            model.IndexOf("Boulder", StringComparison.OrdinalIgnoreCase) >= 0 || model.IndexOf("Rubble", StringComparison.OrdinalIgnoreCase) >= 0
+            || model.IndexOf("Slab", StringComparison.OrdinalIgnoreCase) >= 0;
 
         // Floor under a skylight shaft (within 1.2 radii horizontally, up to MaxRubbleDepth down); not under a dug mouth or a
         // portal (nothing caved in there).

@@ -447,14 +447,19 @@ namespace Subterra.Core.Meshing
                     // Widmanstätten pattern: big grains (each etched to its own sheen), crossed by three sets of long straight
                     // kamacite plates with thin dark taenite between them; one set dominates in each grain. The directions
                     // (1,0), (2,3) and (2,-3) have whole frequencies, so the pattern tiles.
+                    // Lucas: the inner core looked artificial (ruler-straight lines) and all grey. The plates now bend with
+                    // the rock (a stronger warp), show faintly, and the metal is mottled and warm, with dark troilite nodules.
                     Cells(u, v, 3, seed, out _, out _, out float grain);
-                    float wu = u + 0.01f * (n - 0.5f), wv = v + 0.01f * (fine - 0.5f);
+                    float wu = u + 0.045f * (n - 0.5f) + 0.015f * (fine - 0.5f), wv = v + 0.045f * (fine - 0.5f) - 0.015f * (n - 0.5f);
                     float a = Lines(7 * wu + 0.25f), c = Lines(2 * wu + 3 * wv + 0.4f), d = Lines(2 * wu - 3 * wv + 0.15f);
                     int dominant = (int)(grain * 3);
-                    float lines = Math.Max(a * (dominant == 0 ? 1 : 0.35f), Math.Max(c * (dominant == 1 ? 1 : 0.35f), d * (dominant == 2 ? 1 : 0.35f)));
-                    h = 0.6f + 0.1f * fine - 0.4f * lines;
-                    float l = 0.55f + 0.25f * grain + 0.05f * fine - 0.3f * lines;
-                    Tone(l, 0.97f, 0.98f, 1.0f, out r, out g, out b);
+                    float lines = Math.Max(a * (dominant == 0 ? 1 : 0.25f), Math.Max(c * (dominant == 1 ? 1 : 0.25f), d * (dominant == 2 ? 1 : 0.25f)));
+                    lines *= 0.45f + 0.55f * n;
+                    Cells(u, v, 11, seed ^ 0x51u, out float nf1, out _, out _);
+                    float nodule = Math.Max(0, 1 - nf1 / 0.035f);
+                    h = 0.58f + 0.12f * fine + 0.1f * n - 0.22f * lines - 0.15f * nodule;
+                    float l = 0.46f + 0.14f * grain + 0.12f * n + 0.06f * fine - 0.14f * lines - 0.22f * nodule;
+                    Tone(l, 1.0f, 0.9f, 0.76f, out r, out g, out b);
                     return;
                 }
                 case RockKind.Olivine:

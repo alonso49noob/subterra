@@ -35,6 +35,15 @@ namespace Subterra
         /// </summary>
         private const double HoleReach = 15;
 
+        /// <summary>
+        /// Model transforms (comma-separated) hidden while the drill string bores (Lucas: the Junior's short stock bit showed
+        /// beside the string while it dug). The MiniDrill's is "drill".
+        /// </summary>
+        [KSPField] public string bitMesh = "";
+
+        private Renderer[] bitRenderers;
+        private bool bitHidden;
+
         private GameObject drillString;
         private float stringSpin;
         private Transform bit;
@@ -90,6 +99,8 @@ namespace Subterra
                     drillString.SetActive(false);
                 }
 
+                HideBit(false);
+
                 return;
             }
 
@@ -114,6 +125,7 @@ namespace Subterra
             if (length < 0.1f)
             {
                 drillString.SetActive(false);
+                HideBit(false);
                 return;
             }
 
@@ -128,6 +140,38 @@ namespace Subterra
             drillString.transform.localScale = new Vector3(stringRadius * 2, length * 0.5f, stringRadius * 2);
             drillString.layer = part.gameObject.layer;
             drillString.SetActive(true);
+            HideBit(true);
+        }
+
+        private void HideBit(bool hide)
+        {
+            if (hide == bitHidden || string.IsNullOrEmpty(bitMesh))
+            {
+                return;
+            }
+
+            if (bitRenderers == null)
+            {
+                var found = new System.Collections.Generic.List<Renderer>();
+                foreach (string name in bitMesh.Split(','))
+                {
+                    foreach (Transform t in part.FindModelTransforms(name.Trim()))
+                    {
+                        found.AddRange(t.GetComponentsInChildren<Renderer>(true));
+                    }
+                }
+
+                bitRenderers = found.ToArray();
+            }
+
+            bitHidden = hide;
+            foreach (Renderer r in bitRenderers)
+            {
+                if (r != null)
+                {
+                    r.enabled = !hide;
+                }
+            }
         }
 
         private void OnDestroy()

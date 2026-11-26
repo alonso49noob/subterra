@@ -485,7 +485,7 @@ namespace Subterra
 
                     foreach (var (mesh, water) in meshes)
                     {
-                        var go = new GameObject("SubterraWater") { layer = ChunkObject.Layer };
+                        var go = new GameObject("SubterraWater") { layer = ChunkObject.VisualLayer };
                         go.transform.SetParent(root, false);
                         go.AddComponent<MeshFilter>().sharedMesh = MeshUploader.Upload(mesh, net.Id + " water", readable: false);
                         var renderer = go.AddComponent<MeshRenderer>();

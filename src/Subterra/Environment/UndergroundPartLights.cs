@@ -4,20 +4,22 @@ using UnityEngine;
 namespace Subterra
 {
     /// <summary>
-    /// Lights of craft under the ground are drawn per pixel (Lucas: a halo of light on the ground round a shaft with a rover
-    /// in it, and a lighter rectangle round the laser's hole at night). Unity sends the lights it does not count as important
-    /// into an approximate, direction-blind ambient term of each object they reach (spotlights as plain point lights): from
-    /// down a hole they lit the terrain over it, a whole terrain quad at a time. Per pixel, the ground over a light below it
-    /// faces away and stays dark, and the cave around it is lit as it should be. Put back as it was above the ground.
+    /// Lights of craft under the ground leave the terrain out (Lucas: a halo of light on the ground round a shaft with a rover
+    /// in it, a lighter patch round the laser's hole at night): a light down a hole lit the ground over it, through the rock.
+    /// The terrain is on its own layer and the caves are drawn on another (<see cref="ChunkObject.VisualLayer"/>), so a light
+    /// under the ground drops the terrain's layer from its mask and still lights the cave and the craft. (Making them
+    /// per-pixel instead left the caves dark: Lucas.) Put back as it was above the ground.
     /// </summary>
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public sealed class UndergroundPartLights : MonoBehaviour
     {
-        /// <summary>Metres under the ground a light must be to be switched.</summary>
+        /// <summary>Metres under the ground a light must be to leave the terrain out.</summary>
         private const double MinDepth = 0.5;
 
-        // Lights switched, with the mode they had.
-        private readonly Dictionary<Light, LightRenderMode> switched = new Dictionary<Light, LightRenderMode>();
+        private const int TerrainMask = 1 << ChunkObject.Layer;
+
+        // Lights changed, with the mask they had.
+        private readonly Dictionary<Light, int> changed = new Dictionary<Light, int>();
         private readonly List<Light> scratch = new List<Light>();
         private float nextCheck;
 
@@ -45,53 +47,53 @@ namespace Subterra
                         p.GetComponentsInChildren(true, scratch);
                         foreach (Light light in scratch)
                         {
-                            if (light == null || light.type == LightType.Directional)
+                            if (light != null && light.type != LightType.Directional)
                             {
-                                continue;
-                            }
-
-                            seen.Add(light);
-                            bool under = Underground(v.mainBody, light.transform.position);
-                            if (under && !switched.ContainsKey(light))
-                            {
-                                switched[light] = light.renderMode;
-                                light.renderMode = LightRenderMode.ForcePixel;
-                            }
-                            else if (!under && switched.TryGetValue(light, out LightRenderMode mode))
-                            {
-                                light.renderMode = mode;
-                                switched.Remove(light);
+                                seen.Add(light);
+                                Apply(light, Underground(v.mainBody, light.transform.position));
                             }
                         }
                     }
                 }
 
-                // Forget lights that went (part destroyed, vessel unloaded).
-                if (switched.Count > seen.Count)
+                // Lights that went (part destroyed, vessel unloaded) are forgotten.
+                var gone = new List<Light>();
+                foreach (Light light in changed.Keys)
                 {
-                    var gone = new List<Light>();
-                    foreach (Light light in switched.Keys)
+                    if (light == null || !seen.Contains(light))
                     {
-                        if (light == null || !seen.Contains(light))
-                        {
-                            gone.Add(light);
-                        }
+                        gone.Add(light);
+                    }
+                }
+
+                foreach (Light light in gone)
+                {
+                    if (light != null)
+                    {
+                        light.cullingMask = changed[light];
                     }
 
-                    foreach (Light light in gone)
-                    {
-                        if (light != null)
-                        {
-                            light.renderMode = switched[light];
-                        }
-
-                        switched.Remove(light);
-                    }
+                    changed.Remove(light);
                 }
             }
         }
 
-        private static bool Underground(CelestialBody body, Vector3d world)
+        private void Apply(Light light, bool under)
+        {
+            if (under && !changed.ContainsKey(light))
+            {
+                changed[light] = light.cullingMask;
+                light.cullingMask &= ~TerrainMask;
+            }
+            else if (!under && changed.TryGetValue(light, out int mask))
+            {
+                light.cullingMask = mask;
+                changed.Remove(light);
+            }
+        }
+
+        /// <summary>True if a point is more than half a metre under the terrain straight above it.</summary>
+        public static bool Underground(CelestialBody body, Vector3d world)
         {
             double lat = body.GetLatitude(world), lon = body.GetLongitude(world);
             return KspSampler.SurfaceRadius(body, lat, lon) - (world - body.position).magnitude > MinDepth;
@@ -99,15 +101,15 @@ namespace Subterra
 
         private void OnDestroy()
         {
-            foreach (KeyValuePair<Light, LightRenderMode> pair in switched)
+            foreach (KeyValuePair<Light, int> pair in changed)
             {
                 if (pair.Key != null)
                 {
-                    pair.Key.renderMode = pair.Value;
+                    pair.Key.cullingMask = pair.Value;
                 }
             }
 
-            switched.Clear();
+            changed.Clear();
         }
     }
 }

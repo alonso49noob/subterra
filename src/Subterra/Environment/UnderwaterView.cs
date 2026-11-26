@@ -49,7 +49,7 @@ namespace Subterra
                 sample = Underground.OceanAt(FlightGlobals.currentMainBody, camera.transform.position) ?? InIce(FlightGlobals.currentMainBody, camera.transform.position);
             }
 
-            if (sample == null || !sample.Value.Under)
+            if (sample == null || !sample.Value.Under || MapView.MapIsEnabled)
             {
                 Leave();
                 return;

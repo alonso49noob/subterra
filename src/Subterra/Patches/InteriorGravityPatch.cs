@@ -175,25 +175,71 @@ namespace Subterra
                 return;
             }
 
-            // Under water (Subterra's or KSP's sea), the pressure on the sensor's own part: the water over it too (Lucas:
-            // hydrostatic pressure on the barometers). KSP's barometer showed only the air.
+            // The three states (Lucas: the PresMat should count gas, liquid and solid, and read the rock's pressure on airless
+            // bodies too, the Mun's core for one): the air, the water over the sensor's own part (Subterra's or KSP's sea;
+            // an ocean's ice ceiling with it), and a share of the weight of the rock over it.
             SubterraWaterModule water = SubterraWaterModule.Of(sensor.vessel);
             Part part = sensor.part;
-            double kPa;
+            CelestialBody body = sensor.vessel.mainBody;
+            Vector3d at = part.transform.position;
+            double gas = Math.Max(0, sensor.vessel.staticPressurekPa), fluid;
+            bool inOcean = Underground.OceanAt(body, at) is Core.Water.WaterSample sea && sea.Under;
             if (water != null && water.PressureOn(part, out double wet))
             {
-                kPa = wet;
+                fluid = wet;
             }
             else if (part.WaterContact && part.submergedPortion > 0)
             {
-                kPa = part.staticPressureAtm * 101.325;
+                fluid = part.staticPressureAtm * 101.325;
+            }
+            else if (inOcean && BodyRegistry.Instance.TryGet(body, out BodyRuntime rt) && rt.Ocean != null)
+            {
+                // In an ocean under the ice the water module had no reading for (Lucas, Minmus: "sigo en el vacío").
+                Core.Water.WaterSample s = Underground.OceanAt(body, at).Value;
+                double g = FlightGlobals.getGeeForceAtPosition(at, body).magnitude * Factor(body, at);
+                Core.Geo.BodyFrame.ToLatLon(Frames.ToBody(body, at), out double lat, out _);
+                fluid = Core.Water.WaterPhysics.PressureKPa(s.Depth, s.Density, g, gas + rt.Ocean.OverburdenKPa(lat, g));
             }
             else
+            {
+                fluid = Math.Max(gas, part.staticPressureAtm * 101.325);
+            }
+
+            // The rock: its weight from the surface down to the sensor (an ocean's ice is in the water's reading already).
+            double rock = inOcean ? 0 : RockKPa(body, at);
+            double total = fluid + rock;
+            if (total <= 1e-6)
             {
                 return;
             }
 
-            sensor.readoutInfo = kPa.ToString("0.00##") + " " + Localizer.Format("#autoLOC_7001410");
+            string unit = Localizer.Format("#autoLOC_7001410");
+            sensor.readoutInfo = rock > 0.005 || fluid - gas > 0.005
+                ? Localizer.Format("#Subterra_Pres_Reading", Kpa(total), unit, Kpa(gas), Kpa(Math.Max(0, fluid - gas)), Kpa(rock))
+                : Kpa(total) + " " + unit;
+        }
+
+        private static string Kpa(double kPa) =>
+            kPa < 10 ? kPa.ToString("0.00##") : kPa < 1000 ? kPa.ToString("0.0") : kPa.ToString("#,0");
+
+        /// <summary>The PresMat's share of the weight of the rock over a world point (kPa); 0 above the ground.</summary>
+        public static double RockKPa(CelestialBody body, Vector3d world)
+        {
+            if (body == null || Settings.Current.RockPressureScale <= 0 || !BodyRegistry.Instance.TryGet(body, out BodyRuntime rt))
+            {
+                return 0;
+            }
+
+            double lat = body.GetLatitude(world), lon = body.GetLongitude(world);
+            double depth = KspSampler.SurfaceRadius(body, lat, lon) - (world - body.position).magnitude;
+            if (depth <= 0.5)
+            {
+                return 0;
+            }
+
+            var spans = rt.Strata.Spans(KspSampler.Biome(body, lat, lon));
+            return Core.Environment.Lithostatic.PressureKPa(spans, depth, body.GeeASL * PhysicsGlobals.GravitationalAcceleration, body.Radius)
+                * Settings.Current.RockPressureScale;
         }
 
         /// <summary>Gravity (m/s²) at a depth below the datum of <paramref name="body"/> (for tests and tools).</summary>

@@ -14,6 +14,14 @@ namespace Subterra
     {
         public const int Layer = 15;
 
+        /// <summary>
+        /// Layer of the cave meshes as drawn (the colliders stay on <see cref="Layer"/>, with the terrain's): the parts' layer, which
+        /// every flight camera draws. Apart from the terrain, so a light down a hole can leave the ground over it out (lights
+        /// lit the terrain through the rock) and still light the cave (Lucas: lights did not work underground once they were
+        /// made per-pixel to stop that).
+        /// </summary>
+        public const int VisualLayer = 0;
+
         private Material rockMaterial;
 
         public ChunkObject(Core.Meshing.ChunkKey key, long bytes)
@@ -83,7 +91,7 @@ namespace Subterra
         public void Create(Mesh mesh, Material material, Transform parent)
         {
             Mesh = mesh;
-            GameObject = new GameObject("SubterraChunk " + Key) { layer = Layer };
+            GameObject = new GameObject("SubterraChunk " + Key) { layer = VisualLayer };
             GameObject.transform.SetParent(parent, false);
             GameObject.AddComponent<MeshFilter>().sharedMesh = mesh;
             Renderer = GameObject.AddComponent<MeshRenderer>();
@@ -95,7 +103,7 @@ namespace Subterra
 
         public void AddScatter(ScatterMesh scatter, Mesh visual, Material material)
         {
-            var go = new GameObject("SubterraScatter " + scatter.Scatter) { layer = Layer };
+            var go = new GameObject("SubterraScatter " + scatter.Scatter) { layer = VisualLayer };
             go.transform.SetParent(GameObject.transform, false);
             go.AddComponent<MeshFilter>().sharedMesh = visual;
             var renderer = go.AddComponent<MeshRenderer>();
@@ -161,7 +169,7 @@ namespace Subterra
         // every chunk before the baked collider mesh was set.
         private static MeshCollider NewCollider(GameObject owner)
         {
-            var go = new GameObject("SubterraCollider") { layer = owner.layer };
+            var go = new GameObject("SubterraCollider") { layer = Layer };
             go.transform.SetParent(owner.transform, false);
             return go.AddComponent<MeshCollider>();
         }

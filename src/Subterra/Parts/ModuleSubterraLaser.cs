@@ -318,15 +318,15 @@ namespace Subterra
                 glow.color = colour;
                 glow.range = 12f;
                 glow.intensity = 3f;
-                // Per pixel: as an "auto" light down the hole it went into the ambient term of the ground above, which lit up a
-                // whole terrain quad at night (Lucas: a lighter rectangle round the laser's hole by the runway).
-                glow.renderMode = LightRenderMode.ForcePixel;
                 glow.shadows = LightShadows.None;
             }
 
             beam.SetPosition(0, part.transform.position);
             beam.SetPosition(1, beamEnd.Value);
             glow.transform.position = beamEnd.Value;
+            // Down a hole it leaves the terrain out (it lit the ground over the hole through the rock: Lucas), the cave still lit.
+            bool under = UndergroundPartLights.Underground(vessel.mainBody, beamEnd.Value);
+            glow.cullingMask = under ? ~(1 << ChunkObject.Layer) : ~0;
             beam.enabled = true;
             glow.enabled = true;
         }

@@ -16,7 +16,7 @@ namespace Subterra
     public sealed class ModuleSubterraWinch : PartModule
     {
         /// <summary>Fastest the cable runs (m/s).</summary>
-        [KSPField] public float maxSpeed = 30f;
+        [KSPField] public float maxSpeed = 500f;
 
         /// <summary>Electric charge per second while the motor runs (holding needs none: a brake).</summary>
         [KSPField] public float powerUse = 0.4f;
@@ -25,7 +25,7 @@ namespace Subterra
         [KSPField] public float maxCable = 0f;
 
         [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = "#Subterra_Winch_Speed", guiUnits = " m/s")]
-        [UI_FloatRange(minValue = 0.5f, maxValue = 30f, stepIncrement = 0.5f)]
+        [UI_FloatRange(minValue = 0.5f, maxValue = 500f, stepIncrement = 0.5f)]
         public float speed = 5f;
 
         [KSPField(isPersistant = true)] public bool hooked;
@@ -52,9 +52,15 @@ namespace Subterra
 
         /// <summary>How hard the cable steers the velocity (1/s), the most it accelerates the vessel besides holding its
         /// weight (m/s²), and the pull back to the axis (m/s per metre off it, and its limit).</summary>
-        private const double Gain = 2.0, MaxAccel = 15.0, AxisGain = 0.8, MaxAxisSpeed = 3.0, SpinDamping = 3.0;
+        private const double Gain = 2.0, MaxAccel = 40.0, AxisGain = 0.8, MaxAxisSpeed = 3.0, SpinDamping = 3.0;
 
-        private LineRenderer cable;
+        /// <summary>Deceleration (m/s²) the safety brake plans with, and the integral gain (1/s²) of the speed control.</summary>
+        private const double BrakeAccel = 6.0, IntegralGain = 0.6;
+
+        private Vector3d integral;
+        private GameObject cable;
+        private GameObject[] tripod;
+        private Material cableMaterial, tripodMaterial;
         private float nextTrace;
 
         // A part of the hanging vessel destroyed: where it was (diagnostics: the top parts broke as it started down).
@@ -81,17 +87,38 @@ namespace Subterra
             }
         }
 
+        /// <summary>Distance (m) from the body's centre of the ground the anchor's tripod stands on.</summary>
+        [KSPField(isPersistant = true)] public double anchorGround;
+
+        /// <summary>Radius (m) of the tripod's footprint round the hole's axis.</summary>
+        [KSPField(isPersistant = true)] public float anchorSpread = 1.5f;
+
+        /// <summary>Most metres over the ground (or a cave's floor) the craft may stand to hook: the cable needs something to
+        /// be anchored to (Lucas: hooked in mid air the winch held the craft floating, an exploit).</summary>
+        private const double MaxHookHeight = 6;
+
         [KSPEvent(guiActive = true, guiName = "#Subterra_Winch_Hook")]
         public void Hook()
         {
             CelestialBody body = vessel.mainBody;
+            Vector3d upWorld = (vessel.GetWorldPos3D() - body.position).normalized;
+            double clearance = Clearance(upWorld, out double lowest);
+            if (!vessel.Landed && !vessel.Splashed && clearance > MaxHookHeight)
+            {
+                ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Winch_NoGround"), 4f);
+                return;
+            }
+
             // The vessel's own position (CoMD lags behind on a vessel just moved on rails).
             Vec3d at = Frames.ToBody(body, vessel.GetWorldPos3D());
             BodyFrame.ToLatLon(at, out anchorLat, out anchorLon);
-            anchorRadius = at.Length;
+            anchorGround = at.Length - lowest - Math.Max(0, Math.Min(clearance, MaxHookHeight));
+            // The pulley at the top of the tripod, at least 2 m over the ground.
+            anchorRadius = Math.Max(at.Length, anchorGround + 2);
+            anchorSpread = 1.5f;
 
             // Hooked by a blast shaft's mouth: the cable hangs on the shaft's axis (the vessel is drawn over it before it
-            // goes down), not wherever the vessel stood by the rim.
+            // goes down), not wherever the vessel stood by the rim; the tripod straddles the hole.
             foreach (Core.Excavation.ExcavationSpec shaft in ExcavationService.All)
             {
                 if (shaft.Shape != Core.Excavation.ExcavationShape.Shaft || shaft.Body != body.bodyName || shaft.Points.Count < 2)
@@ -105,14 +132,49 @@ namespace Subterra
                 if (off.Length < shaft.Radius + 6 && Math.Abs(at.Length - top.Length) < 60)
                 {
                     BodyFrame.ToLatLon(axis, out anchorLat, out anchorLon);
+                    anchorSpread = (float)shaft.Radius + 1f;
                     break;
                 }
             }
             anchorBody = body.bodyName;
             hooked = true;
             motion = 0;
+            nextBottom = 0;
             UpdateEvents();
             ScreenMessages.PostScreenMessage(Localizer.Format("#Subterra_Winch_Hooked"), 4f);
+        }
+
+        // The deepest bottom (distance from the body's centre) of the dug shafts on the cable's axis, 0 if none: the brake
+        // stops the craft over it even before the floor's colliders are built (Lucas: a safety brake at the bottom).
+        private double shaftBottom;
+        private float nextBottom;
+
+        private double ShaftBottom(CelestialBody body)
+        {
+            if (Time.time < nextBottom)
+            {
+                return shaftBottom;
+            }
+
+            nextBottom = Time.time + 2f;
+            shaftBottom = 0;
+            Vec3d axis = BodyFrame.Direction(anchorLat, anchorLon);
+            foreach (Core.Excavation.ExcavationSpec shaft in ExcavationService.All)
+            {
+                if (shaft.Shape != Core.Excavation.ExcavationShape.Shaft || shaft.Body != body.bodyName || shaft.Points.Count < 2)
+                {
+                    continue;
+                }
+
+                Vec3d bottom = shaft.ToBody(shaft.Points[0]);
+                Vec3d off = bottom - axis * Vec3d.Dot(bottom, axis);
+                if (off.Length < shaft.Radius + 2 && Vec3d.Dot(bottom, axis) > 0 && (shaftBottom == 0 || bottom.Length < shaftBottom))
+                {
+                    shaftBottom = bottom.Length;
+                }
+            }
+
+            return shaftBottom;
         }
 
         [KSPEvent(guiActive = true, guiName = "#Subterra_Winch_Lower")]
@@ -146,6 +208,10 @@ namespace Subterra
             if (!hooked)
             {
                 Hook();
+                if (!hooked)
+                {
+                    return;
+                }
             }
 
             motion = m;
@@ -237,8 +303,15 @@ namespace Subterra
             }
             else if (m == 1)
             {
-                double floor = Clearance(up);
+                double floor = Clearance(up, out double lowest);
                 double room = floor - StopGap;
+                // The dug shaft's bottom, known before its floor is built and in reach of the ray.
+                double bottom = ShaftBottom(body);
+                if (bottom > 0)
+                {
+                    room = Math.Min(room, radius - lowest - bottom - StopGap);
+                }
+
                 if (maxCable > 0)
                 {
                     room = Math.Min(room, maxCable - paidOut);
@@ -253,8 +326,9 @@ namespace Subterra
                 }
                 else
                 {
-                    vertical = -Math.Min(speed, Math.Max(0.3, room * SlowPerSecond));
-                    uiStatus = Localizer.Format("#Subterra_Winch_Lowering");
+                    // The safety brake: no faster than what stops at BrakeAccel before the bottom (and slow for the last metres).
+                    vertical = -Math.Min(speed, Math.Max(0.3, Math.Min(Math.Sqrt(2 * BrakeAccel * room), room * SlowPerSecond + 2)));
+                    uiStatus = Localizer.Format(-vertical < speed - 0.5 && room < 2 * speed * speed / BrakeAccel ? "#Subterra_Winch_Braking" : "#Subterra_Winch_Lowering");
                 }
             }
             else if (m == 2)
@@ -267,7 +341,7 @@ namespace Subterra
                 }
                 else
                 {
-                    vertical = Math.Min(speed, Math.Max(0.3, paidOut * SlowPerSecond));
+                    vertical = Math.Min(speed, Math.Max(0.3, Math.Min(Math.Sqrt(2 * BrakeAccel * paidOut), paidOut * SlowPerSecond + 2)));
                     uiStatus = Localizer.Format("#Subterra_Winch_Raising");
                 }
             }
@@ -284,13 +358,30 @@ namespace Subterra
                 Log.Info($"Winch on {vessel.GetDisplayName()}: {paidOut:F1} m of cable out, {off:F2} m off the axis, vertical {Vector3d.Dot(vessel.srf_velocity, up):F1} m/s, target {vertical:F1} m/s");
             }
 
+            // Over the pulley the cable is slack: it only pulls (Lucas: the winch held craft floating in the air).
+            if (paidOut < -0.5)
+            {
+                uiStatus = Localizer.Format("#Subterra_Winch_Slack");
+                integral = Vector3d.zero;
+                return;
+            }
+
             Vector3d target = up * vertical;
             if (off > 0.05)
             {
                 target -= offAxis / off * Math.Min(MaxAxisSpeed, off * AxisGain);
             }
 
-            Vector3d steer = (target - vessel.srf_velocity) * Gain;
+            // Proportional and integral (Lucas: the speed set was not the speed it went: the air's drag deep down, which the
+            // integral makes up for).
+            Vector3d error = target - vessel.srf_velocity;
+            integral += error * (IntegralGain * dt);
+            if (integral.magnitude > MaxAccel)
+            {
+                integral = integral.normalized * MaxAccel;
+            }
+
+            Vector3d steer = error * Gain + integral;
             if (steer.magnitude > MaxAccel)
             {
                 steer = steer.normalized * MaxAccel;
@@ -312,11 +403,11 @@ namespace Subterra
         }
 
         // Metres from the vessel's lowest point to whatever is under it (cave floor, terrain), 1000 if nothing near.
-        private double Clearance(Vector3d up)
+        private double Clearance(Vector3d up, out double lowest)
         {
             Vector3 down = -(Vector3)up;
             Vector3 origin = vessel.CoMD;
-            double lowest = 0;
+            lowest = 0;
             foreach (Part p in vessel.parts)
             {
                 lowest = Math.Max(lowest, Vector3.Dot(p.transform.position - origin, down));
@@ -341,32 +432,136 @@ namespace Subterra
         {
             if (!HighLogic.LoadedSceneIsFlight || vessel == null || !hooked || vessel.mainBody.bodyName != anchorBody)
             {
-                if (cable != null)
-                {
-                    cable.enabled = false;
-                }
-
+                ShowRig(false);
                 return;
             }
 
             if (cable == null)
             {
-                var go = new GameObject("SubterraWinchCable");
-                cable = go.AddComponent<LineRenderer>();
-                Shader shader = Shader.Find("KSP/Alpha/Unlit Transparent") ?? Shader.Find("Unlit/Color") ?? Shader.Find("Sprites/Default");
-                cable.material = new Material(shader) { color = new Color(0.15f, 0.15f, 0.15f, 1f) };
-                cable.startWidth = cable.endWidth = 0.06f;
-                cable.positionCount = 2;
-                cable.useWorldSpace = true;
-                cable.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                cable.receiveShadows = false;
+                BuildRig();
             }
 
+            // The cable a lit, braided cylinder (Lucas: a cable texture; the flat line drawn before vanished looking up at it).
             CelestialBody body = vessel.mainBody;
-            Vector3d top = Frames.ToWorld(body, BodyFrame.Direction(anchorLat, anchorLon) * anchorRadius);
-            cable.SetPosition(0, top);
-            cable.SetPosition(1, part.transform.position);
-            cable.enabled = true;
+            Vec3d dir = BodyFrame.Direction(anchorLat, anchorLon);
+            Vector3 top = Frames.ToWorld(body, dir * anchorRadius);
+            Stretch(cable, top, part.transform.position, CableRadius, true);
+
+            // The anchor (Lucas: a base for it): a tripod over the hole, its feet on the ground round the axis.
+            Vector3 up = Frames.DirectionToWorld(body, dir.ToVec3());
+            Vector3 east = Vector3.Cross(up, Vector3.Cross(Mathf.Abs(up.y) < 0.9f ? Vector3.up : Vector3.right, up)).normalized;
+            Vector3 north = Vector3.Cross(up, east);
+            double ground = anchorGround > 0 ? anchorGround : anchorRadius - 2;
+            Vector3 foot0 = Frames.ToWorld(body, dir * ground);
+            Vector3 apex = top + up * 0.3f;
+            for (int i = 0; i < 3; i++)
+            {
+                float a = i * 2f * Mathf.PI / 3f;
+                Vector3 foot = foot0 + (east * Mathf.Cos(a) + north * Mathf.Sin(a)) * anchorSpread;
+                Stretch(tripod[i], foot, apex, 0.08f, false);
+            }
+
+            // The pulley at the top.
+            tripod[3].transform.position = apex;
+            tripod[3].transform.rotation = Quaternion.FromToRotation(Vector3.up, east);
+            tripod[3].transform.localScale = new Vector3(0.45f, 0.06f, 0.45f);
+            ShowRig(true);
+        }
+
+        private const float CableRadius = 0.035f;
+
+        private void BuildRig()
+        {
+            Shader lit = Shader.Find("KSP/Diffuse") ?? Shader.Find("Standard");
+            cableMaterial = new Material(lit) { color = new Color(0.62f, 0.6f, 0.55f), mainTexture = BraidTexture() };
+            tripodMaterial = new Material(lit) { color = new Color(0.75f, 0.6f, 0.15f) };
+            cable = Cylinder("SubterraWinchCable", cableMaterial);
+            tripod = new GameObject[4];
+            for (int i = 0; i < 4; i++)
+            {
+                tripod[i] = Cylinder("SubterraWinchTripod", tripodMaterial);
+            }
+        }
+
+        private GameObject Cylinder(string name, Material material)
+        {
+            GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            go.name = name;
+            Destroy(go.GetComponent<Collider>());
+            var renderer = go.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            go.layer = part.gameObject.layer;
+            return go;
+        }
+
+        // A Unity cylinder (2 m tall, 1 m wide) from a to b; the cable's braid repeats every 12 cm.
+        private void Stretch(GameObject go, Vector3 a, Vector3 b, float radius, bool braid)
+        {
+            Vector3 along = b - a;
+            float length = along.magnitude;
+            if (length < 0.01f)
+            {
+                go.SetActive(false);
+                return;
+            }
+
+            go.transform.position = a + along * 0.5f;
+            go.transform.rotation = Quaternion.FromToRotation(Vector3.up, along / length);
+            go.transform.localScale = new Vector3(radius * 2, length * 0.5f, radius * 2);
+            if (braid)
+            {
+                cableMaterial.mainTextureScale = new Vector2(1, length / 0.12f);
+            }
+        }
+
+        private void ShowRig(bool show)
+        {
+            if (cable != null && cable.activeSelf != show)
+            {
+                cable.SetActive(show);
+            }
+
+            if (tripod != null)
+            {
+                foreach (GameObject leg in tripod)
+                {
+                    if (leg != null && leg.activeSelf != show)
+                    {
+                        leg.SetActive(show);
+                    }
+                }
+            }
+        }
+
+        // Diagonal strands of a twisted wire rope, light and dark.
+        private static Texture2D braid;
+
+        private static Texture2D BraidTexture()
+        {
+            if (braid != null)
+            {
+                return braid;
+            }
+
+            const int w = 32, h = 32;
+            braid = new Texture2D(w, h, TextureFormat.RGBA32, true) { name = "SubterraWinchBraid", wrapMode = TextureWrapMode.Repeat };
+            var px = new Color32[w * h];
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    // Four strands round the rope, each a band slanting along it.
+                    float s = ((x * 4f / w) + (y / (float)h)) % 1f;
+                    float shade = 0.55f + 0.45f * Mathf.Sin(s * Mathf.PI);
+                    byte v = (byte)(255 * shade);
+                    px[y * w + x] = new Color32(v, v, v, 255);
+                }
+            }
+
+            braid.SetPixels32(px);
+            braid.Apply(true);
+            return braid;
         }
 
         private void OnDestroy()
@@ -375,8 +570,28 @@ namespace Subterra
             GameEvents.onPartDie.Remove(OnPartDie);
             if (cable != null)
             {
-                Destroy(cable.material);
-                Destroy(cable.gameObject);
+                Destroy(cable);
+            }
+
+            if (tripod != null)
+            {
+                foreach (GameObject leg in tripod)
+                {
+                    if (leg != null)
+                    {
+                        Destroy(leg);
+                    }
+                }
+            }
+
+            if (cableMaterial != null)
+            {
+                Destroy(cableMaterial);
+            }
+
+            if (tripodMaterial != null)
+            {
+                Destroy(tripodMaterial);
             }
         }
     }

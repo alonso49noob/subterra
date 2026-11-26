@@ -271,8 +271,12 @@ namespace Subterra.DevTools
                 throw new ArgumentException($"{net.Id} has no ramp");
             }
 
-            var (lat, lon) = NetworkCompiler.RampTop(net.Site, net.Site.Nodes[i], FlightGlobals.GetBodyByName(net.Body).Radius);
-            Skylight mouth = net.Skylights.OrderBy(s => Math.Abs(s.Lat - lat) + Math.Abs(s.Lon - lon)).First();
+            // The ramp's mouth (its side is picked from the ground, so it is looked up, not worked out again).
+            var (lat0, lon0) = NetworkCompiler.RampTop(net.Site, net.Site.Nodes[i], FlightGlobals.GetBodyByName(net.Body).Radius);
+            Skylight mouth = net.Skylights.Where(s => s.Smooth && !s.Natural)
+                .OrderBy(s => Math.Abs(s.Lat - net.Site.Nodes[i].Lat) + Math.Abs(s.Lon - net.Site.Nodes[i].Lon)).FirstOrDefault()
+                ?? net.Skylights.OrderBy(s => Math.Abs(s.Lat - lat0) + Math.Abs(s.Lon - lon0)).First();
+            double lat = mouth.Lat, lon = mouth.Lon;
             Vec3d topUp = BodyFrame.Direction(lat, lon);
             Vec3d top = topUp * (mouth.SurfaceRadius + 3);
             PathPoint p = net.Nodes[i];

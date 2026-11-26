@@ -46,7 +46,9 @@ namespace Subterra
             // A vessel already off rails is only pinned when nothing holds it up: colliders being rebuilt around it (a mole or a
             // laser digging under it, a winch lowering it into new chunks) yanked it onto rails mid-move, and it came off them
             // with a jolt that broke parts. Held by Subterra's winch or mole, or with ground under it, it is left alone.
-            if (needed && !vessel.packed && (HeldBySubterra(vessel) || GroundUnder(vessel)))
+            // In water too (an ocean under the ice, a flooded cave): it floats, nothing to fall through (Lucas, in Tylo's ocean:
+            // "I can't even move"; the guard put the craft back on rails every few seconds as it swam out of its pocket).
+            if (needed && !vessel.packed && (HeldBySubterra(vessel) || GroundUnder(vessel) || InWater(vessel)))
             {
                 needed = false;
             }
@@ -92,6 +94,13 @@ namespace Subterra
         {
             Vector3 down = -(Vector3)(vessel.CoMD - vessel.mainBody.position).normalized;
             return Physics.Raycast(vessel.CoMD, down, GroundReach, 1 << ChunkObject.Layer, QueryTriggerInteraction.Ignore);
+        }
+
+        private static bool InWater(Vessel vessel)
+        {
+            SubterraWaterModule water = SubterraWaterModule.Of(vessel);
+            return (water != null && water.AnyWet)
+                || Underground.OceanAt(vessel.mainBody, vessel.CoMD) is Core.Water.WaterSample s && s.Under;
         }
 
         private static bool HeldBySubterra(Vessel vessel)

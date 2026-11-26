@@ -194,9 +194,11 @@ namespace Subterra.Core.Tubes
         /// <summary>Longest path step (m) for a tube with this roof: shallow tubes follow the ground closely.</summary>
         public static double StepFor(double roofDepth) => Math.Max(MinStep, Math.Min(MaxStep, StepPerRoof * roofDepth));
 
-        public const double MinStep = 40;
+        // Lucas: tubes near the surface showed through it (floating over Laythe's island and Kerbin's hills, holes to the sky
+        // on the Verne route): the ground dipped between samples 180-300 m apart. Steps of 2.5 roofs, at least 25 m.
+        public const double MinStep = 25;
 
-        private const double StepPerRoof = 6;
+        private const double StepPerRoof = 2.5;
 
         // Unit directions along edge e, From to To inclusive, with the lateral wander applied.
         private static List<Vec3d> Directions(SiteSpec site, int e, double bodyRadius)

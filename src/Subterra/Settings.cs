@@ -56,6 +56,13 @@ namespace Subterra
         public float PocketMinRadius;
         public float PocketMinHeight;
 
+        /// <summary>Share of the real weight of the rock the PresMat adds to the air and water (Lucas liked pressures some 1000 times
+        /// under real life; the rock at full weight would swamp the rest). [Claude, revisar]</summary>
+        public double RockPressureScale = 0.01;
+
+        /// <summary>Boulders, rubble and slabs on the floors of caves and tunnels (Lucas: a very optional switch to take them out).</summary>
+        public bool TunnelRocks = true;
+
         /// <summary>Plumes of ice over the vents of lakes on airless bodies (cryovolcanism: Lucas). [Claude, revisar]</summary>
         public bool CryovolcanoPlumes = true;
 
@@ -107,6 +114,8 @@ namespace Subterra
                 settings.PocketScale = (float)Math.Max(1, Math.Min(50, Read(n, "pocketScale", settings.PocketScale)));
                 settings.PocketMinRadius = (float)Math.Max(0, Math.Min(2000, Read(n, "pocketMinRadius", settings.PocketMinRadius)));
                 settings.PocketMinHeight = (float)Math.Max(0, Math.Min(2000, Read(n, "pocketMinHeight", settings.PocketMinHeight)));
+                settings.RockPressureScale = Math.Max(0, Math.Min(1, Read(n, "rockPressureScale", settings.RockPressureScale)));
+                settings.TunnelRocks = ReadBool(n, "tunnelRocks", settings.TunnelRocks);
                 settings.CryovolcanoPlumes = ReadBool(n, "cryovolcanoPlumes", settings.CryovolcanoPlumes);
                 settings.WaterCrush = ReadBool(n, "waterCrush", settings.WaterCrush);
                 settings.LayerTextures = ReadBool(n, "layerTextures", settings.LayerTextures);
