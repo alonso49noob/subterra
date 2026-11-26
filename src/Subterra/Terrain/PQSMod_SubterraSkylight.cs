@@ -655,17 +655,46 @@ namespace Subterra
             }
         }
 
-        // Shows the patch exactly when KSP shows the quad.
+        // Shows the patch exactly when KSP shows the quad, drawn exactly as it: its material (KSP swaps a quad's material with
+        // distance) and its shader values.
         private void SyncPatch(PQ quad)
         {
             if (patches.TryGetValue(quad, out GameObject go) && go != null && quad.meshRenderer != null)
             {
-                go.GetComponent<MeshRenderer>().enabled = quad.meshRenderer.enabled;
+                var renderer = go.GetComponent<MeshRenderer>();
+                renderer.enabled = quad.meshRenderer.enabled;
+                Material material = ParallaxBridge.QuadMaterial(quad) ?? quad.meshRenderer.sharedMaterial;
+                if (material != null && renderer.sharedMaterial != material)
+                {
+                    renderer.sharedMaterial = material;
+                }
+
                 if (quad.meshRenderer.HasPropertyBlock())
                 {
-                    var block = new MaterialPropertyBlock();
-                    quad.meshRenderer.GetPropertyBlock(block);
-                    go.GetComponent<MeshRenderer>().SetPropertyBlock(block);
+                    quad.meshRenderer.GetPropertyBlock(SyncBlock);
+                    renderer.SetPropertyBlock(SyncBlock);
+                }
+            }
+        }
+
+        private static readonly MaterialPropertyBlock SyncBlock = new MaterialPropertyBlock();
+
+        private static bool patchLogged;
+
+        // Every frame, not only when KSP changes a quad's visibility: the patch round a hole kept the values its quad had when
+        // it was cut, and drew lighter than the ground round it (Lucas: a lighter patch round the laser's holes at night).
+        private void LateUpdate()
+        {
+            if (patches.Count == 0)
+            {
+                return;
+            }
+
+            foreach (PQ quad in patches.Keys)
+            {
+                if (quad != null)
+                {
+                    SyncPatch(quad);
                 }
             }
         }
@@ -712,6 +741,13 @@ namespace Subterra
             }
 
             bool hasNormals = normals.Count == positions.Count, hasTangents = tangents.Count == positions.Count, hasColours = colours.Count == positions.Count;
+            if (!patchLogged)
+            {
+                patchLogged = true;
+                Log.Info($"Terrain patch: {positions.Count} vertices, normals {normals.Count}, tangents {tangents.Count}, colours {colours.Count}, uv dims {string.Join("/", dims)}, "
+                    + $"block {(quad.meshRenderer != null && quad.meshRenderer.HasPropertyBlock())}, material {quad.meshRenderer?.sharedMaterial?.name} ({quad.meshRenderer?.sharedMaterial?.shader?.name})");
+            }
+
             T Blend<T>(List<T> list, int i, Func<T, float, T> scale, Func<T, T, T> add)
             {
                 if (i < count)

@@ -174,7 +174,63 @@ namespace Subterra
             }
 
             camera.farClipPlane = Mathf.Lerp(MaxSight, MinSight, deep);
+            Shells(camera, tint, camera.farClipPlane);
             Under = true;
+        }
+
+        // Fog that KSP's shaders do not draw themselves (they ignore Unity's fog: the floor of Minmus's ocean ended in a hard
+        // edge at the far plane, Lucas): shells of the water's colour round the camera, each veiling a little of what lies
+        // past it, so things fade into the water with distance and are gone before the far plane.
+        private static readonly float[] ShellRadii = { 0.16f, 0.26f, 0.37f, 0.5f, 0.64f, 0.78f, 0.92f };
+        private const float ShellAlpha = 0.24f;
+        private readonly List<GameObject> shells = new List<GameObject>();
+        private Material shellMaterial;
+
+        private void Shells(Camera camera, Color tint, float far)
+        {
+            if (shellMaterial == null)
+            {
+                shellMaterial = new Material(Shader.Find("Hidden/Internal-Colored")) { name = "Subterra underwater fog", renderQueue = 2900 };
+                shellMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                shellMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                shellMaterial.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Front);
+                shellMaterial.SetInt("_ZWrite", 0);
+                shellMaterial.SetInt("_ZTest", (int)UnityEngine.Rendering.CompareFunction.LessEqual);
+            }
+
+            while (shells.Count < ShellRadii.Length)
+            {
+                GameObject shell = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                shell.name = "SubterraUnderwaterFog";
+                Destroy(shell.GetComponent<Collider>());
+                var renderer = shell.GetComponent<MeshRenderer>();
+                renderer.sharedMaterial = shellMaterial;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+                shells.Add(shell);
+            }
+
+            shellMaterial.color = new Color(tint.r * 0.5f, tint.g * 0.5f, tint.b * 0.5f, ShellAlpha);
+            for (int i = 0; i < shells.Count; i++)
+            {
+                GameObject shell = shells[i];
+                shell.transform.SetParent(camera.transform, false);
+                shell.transform.localPosition = Vector3.zero;
+                shell.transform.localScale = Vector3.one * (2f * far * ShellRadii[i]);
+                shell.layer = camera.gameObject.layer;
+                shell.SetActive(true);
+            }
+        }
+
+        private void HideShells()
+        {
+            foreach (GameObject shell in shells)
+            {
+                if (shell != null)
+                {
+                    shell.SetActive(false);
+                }
+            }
         }
 
         /// <summary>Farthest the camera sees under water (m), in clear shallow water and at its darkest.</summary>
@@ -191,6 +247,7 @@ namespace Subterra
         private void Leave()
         {
             Under = false;
+            HideShells();
             if (veil != null && veil.activeSelf)
             {
                 veil.SetActive(false);
@@ -237,6 +294,19 @@ namespace Subterra
             if (veil != null)
             {
                 Destroy(veil);
+            }
+
+            foreach (GameObject shell in shells)
+            {
+                if (shell != null)
+                {
+                    Destroy(shell);
+                }
+            }
+
+            if (shellMaterial != null)
+            {
+                Destroy(shellMaterial);
             }
         }
     }

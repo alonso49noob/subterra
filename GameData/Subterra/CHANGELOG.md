@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Layers on the map (Lucas): a Subterra toolbar button in the map view and the Tracking Station draws the focused body cut
+  in half at true scale, each rock layer a band of its colour (the ocean under the ice in blue), names on the bands thick
+  enough to read, and a key with every layer's depths and temperature.
+- Under water, fog the shaders cannot draw themselves: shells of the water's colour round the camera fade what is far, and
+  the floor patch is wider (Minmus's ocean floor ended in a hard edge). From a cave or shaft over an ocean, its water shows
+  through the hole instead of stars.
+- Fixed (Lucas's play): the ground round a dug hole drew lighter than the rest (at night, by the runway). The terrain patch
+  round a hole kept its quad's material and shader values from when it was cut; it follows them every frame now.
 - Science logs for each underground biome (Lucas): every stock experiment (crew and EVA reports, samples, goo, materials
   bay, thermometer, barometer, seismometer, gravimeter, atmosphere analysis, EVA science) has its own text in skylight
   shafts, galleries, chambers, branches, frozen vaults, dug tunnels, geodes, subglacial lakes and the ocean under the

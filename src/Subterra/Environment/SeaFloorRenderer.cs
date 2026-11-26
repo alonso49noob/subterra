@@ -17,10 +17,11 @@ namespace Subterra
     public sealed class SeaFloorRenderer : MonoBehaviour
     {
         /// <summary>Half the patch's side (m), its cells (m), and how far over the floor it is shown.</summary>
-        private const float HalfSize = 400f, Cell = 8f, ShowHeight = 1500f;
+        // Wide enough that its edge is always past the fog (Lucas saw the edge of Minmus's floor), 10 m cells.
+        private const float HalfSize = 900f, Cell = 10f, ShowHeight = 1500f;
 
         /// <summary>Move this far (m) from the patch's centre and a new one is made around the vessel.</summary>
-        private const float Rebuild = 120f;
+        private const float Rebuild = 250f;
 
         private GameObject patch;
         private CelestialBody patchBody;
