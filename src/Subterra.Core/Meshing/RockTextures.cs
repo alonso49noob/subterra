@@ -400,13 +400,23 @@ namespace Subterra.Core.Meshing
             }
         }
 
-        // Tiling fBm in [0, 1] (four shifted copies blended across the edges).
+        // Tiling fBm in [0, 1] (four shifted copies blended across the edges). Lucas saw seams in the rock every tile: callers
+        // passing u + 0.31 went past 1, where the blend no longer tiles, and the linear blend tiled in value but not in slope,
+        // a crease the normal map (made from the slope) lit as a line. Coordinates wrap, and the blend eases in and out (its
+        // weights flat at the edges), so the value and its slope match across them.
         private static float Fbm(float u, float v, float features, int[][] tables, int octaves)
         {
+            u = Wrap(u);
+            v = Wrap(v);
             float a = S(u, v), b = S(u - 1, v), c = S(u, v - 1), d = S(u - 1, v - 1);
-            float value = (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
-            // The blended fBm hardly strays from 0 (a few hundredths): stretched to use the whole 0–1.
-            return Clamp01(value * 1.8f + 0.5f);
+            float wu = u * u * (3 - 2 * u), wv = v * v * (3 - 2 * v);
+            float wa = (1 - wu) * (1 - wv), wb = wu * (1 - wv), wc = (1 - wu) * wv, wd = wu * wv;
+            float value = a * wa + b * wb + c * wc + d * wd;
+            // Averaging copies flattens the noise: in the middle of the tile it had about half the contrast it had at the edges,
+            // a rougher band round every tile that read as a grid. Scaled back by the blend's own spread, the same everywhere.
+            value /= (float)Math.Sqrt(wa * wa + wb * wb + wc * wc + wd * wd);
+            // The fBm hardly strays from 0 (a few hundredths): stretched to use the whole 0–1, about as before on average.
+            return Clamp01(value * 1.25f + 0.5f);
 
             float S(float x, float y) => Noise.Fbm(new Vec3(x * features, y * features, 0.37f), tables, octaves);
         }

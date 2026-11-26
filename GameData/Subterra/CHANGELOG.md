@@ -24,6 +24,9 @@
 - Set Position pocket size (Lucas): pocketScale (a multiple of the craft's size), pocketMinRadius and pocketMinHeight in
   Settings.cfg, and a slider in the Subterra window (Alt+Shift+U).
 - With the "ignore max temperature" cheat, drills, pumps and converters no longer shut down overheated.
+- Fixed (Lucas's play): seams in the rock textures every tile (8 m). The fine noise was asked for past the tile's edge,
+  where it does not tile; the blend that tiles the noise matched in value but not in slope (a crease the normal map lit),
+  and it had half the contrast in the middle of the tile it had at its edges (a grid of rougher bands).
 - Fixed (Lucas's play): lights down a hole lit the ground over it: a lighter rectangle round the laser's hole at night,
   a halo round a shaft with a rover in it. Unity put them in the ambient term of the terrain over them; the laser's glow
   and the lights of parts under the ground are now drawn per pixel.
