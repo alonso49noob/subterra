@@ -35,7 +35,7 @@ layer AnorthositeBreccia 10 3000 0.55 2.8 3 "0.62,0.61,0.59" "*"
 layer Megaregolith 3000 53000 0.65 2.9 3 "0.48,0.47,0.45" "*" "Water:0.02"
 # Deep structure (Lucas, 2026-11-26): under the ocean (3-8 km down, 50 km deep) its floor of high-pressure ice, a rocky
 # mantle, a liquid outer and a solid inner core. [Claude, revisar]
-layer HighPressureIce 53000 120000 0.6 1.3 1 "0.58,0.66,0.72"
+layer HighPressureIce 53000 120000 0.6 1.3 1 "0.56,0.50,0.68"
 layer RockyMantle 120000 400000 0.88 3.4 4 "0.46,0.32,0.22"
 layer OuterCore 400000 520000 0.5 8.0 2 "0.74,0.42,0.16"
 layer InnerCore 520000 600000 0.98 10.0 1 "0.82,0.66,0.38"
