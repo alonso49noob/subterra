@@ -197,6 +197,8 @@ namespace Subterra
                 return;
             }
 
+            HideOthers();
+
             // The cut turns to face the camera when it has swung round the planet.
             float facing = CameraLongitude();
             if (Mathf.Abs(Mathf.DeltaAngle(facing, wedgeStart + 45f)) > Refacing)
@@ -212,6 +214,46 @@ namespace Subterra
                 float light = 0.45f + 0.55f * Mathf.Max(0, Vector3.Dot(normal, toSun));
                 faces[k].GetComponent<MeshRenderer>().sharedMaterial.color = new Color(light, light, light, 1);
             }
+        }
+
+        // Whatever else is drawn round the planet (KSP's resource overlay, the atmosphere's halo, other mods' spheres) is hidden
+        // while the cutaway shows (Lucas: striped heat-map bands showed through the cut: the far inside of the resource
+        // overlay's sphere). Every frame, as KSP may turn them back on; put back after.
+        private readonly List<Renderer> othersHidden = new List<Renderer>();
+
+        private void HideOthers()
+        {
+            if (shown == null || shown.scaledBody == null)
+            {
+                return;
+            }
+
+            foreach (Renderer r in shown.scaledBody.GetComponentsInChildren<Renderer>())
+            {
+                if (r == null || !r.enabled || r.gameObject == shown.scaledBody || (root != null && r.transform.IsChildOf(root.transform)))
+                {
+                    continue;
+                }
+
+                r.enabled = false;
+                if (!othersHidden.Contains(r))
+                {
+                    othersHidden.Add(r);
+                }
+            }
+        }
+
+        private void ShowOthers()
+        {
+            foreach (Renderer r in othersHidden)
+            {
+                if (r != null)
+                {
+                    r.enabled = true;
+                }
+            }
+
+            othersHidden.Clear();
         }
 
         // The camera's longitude round the planet's axis, in the scaled body's frame (degrees).
@@ -751,6 +793,8 @@ namespace Subterra
 
                 Destroy(root);
             }
+
+            ShowOthers();
 
             // The planet's own mesh back.
             if (planetFilter != null && planetMesh != null)
