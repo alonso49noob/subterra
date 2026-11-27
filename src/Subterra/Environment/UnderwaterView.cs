@@ -125,7 +125,10 @@ namespace Subterra
             veil.transform.localRotation = Quaternion.identity;
             veil.transform.localScale = new Vector3(height * camera.aspect, height, 1);
             veil.layer = camera.gameObject.layer;
-            material.color = new Color(tint.r, tint.g, tint.b, Mathf.Lerp(0.35f, 0.8f, deep));
+            // Light: the veil is drawn over everything, the craft's lit surroundings too (Lucas: the lights did not make it easier
+            // to see). The dark is the haze's, with distance; the veil only tints, and nearly not at all with lamps on.
+            float veilAlpha = LampsOn(camera) ? Mathf.Lerp(0.05f, 0.15f, deep) : Mathf.Lerp(0.15f, 0.4f, deep);
+            material.color = new Color(tint.r, tint.g, tint.b, veilAlpha);
             veil.SetActive(true);
 
             if (!fogSaved)

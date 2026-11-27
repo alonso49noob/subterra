@@ -51,6 +51,7 @@ namespace Subterra
                             {
                                 seen.Add(light);
                                 Apply(light, Underground(v.mainBody, light.transform.position));
+                                Boost(light, light.enabled && InWater(v.mainBody, light.transform.position));
                             }
                         }
                     }
@@ -75,7 +76,65 @@ namespace Subterra
 
                     changed.Remove(light);
                 }
+
+                var unboosted = new List<Light>();
+                foreach (Light light in boosted.Keys)
+                {
+                    if (light == null || !seen.Contains(light))
+                    {
+                        unboosted.Add(light);
+                    }
+                }
+
+                foreach (Light light in unboosted)
+                {
+                    Boost(light, false);
+                    boosted.Remove(light);
+                }
             }
+        }
+
+        // Lamps under water reach farther and shine brighter (Lucas: the lights did not make it easier to see under water):
+        // half again their range, a third more light. Put back out of the water.
+        private const float WaterRange = 1.5f, WaterIntensity = 1.35f;
+        private readonly Dictionary<Light, (float range, float intensity)> boosted = new Dictionary<Light, (float, float)>();
+
+        private void Boost(Light light, bool wet)
+        {
+            if (light == null)
+            {
+                return;
+            }
+
+            if (wet && !boosted.ContainsKey(light))
+            {
+                boosted[light] = (light.range, light.intensity);
+                light.range *= WaterRange;
+                light.intensity *= WaterIntensity;
+            }
+            else if (!wet && boosted.TryGetValue(light, out var was))
+            {
+                light.range = was.range;
+                light.intensity = was.intensity;
+                boosted.Remove(light);
+            }
+        }
+
+        private static bool InWater(CelestialBody body, Vector3d world)
+        {
+            Core.Water.WaterSample? sea = Subterra.Underground.OceanAt(body, world);
+            if (sea.HasValue && sea.Value.Under)
+            {
+                return true;
+            }
+
+            if (!Subterra.Underground.Locate(body, world, out Core.Tubes.TubeNetwork net, out Core.Numerics.Vec3 local) || net.Waters.Count == 0)
+            {
+                return false;
+            }
+
+            Core.Water.WaterSample? w = net.WaterAt(local, margin: 0f, above: 0f);
+            return w.HasValue && w.Value.Under;
         }
 
         private void Apply(Light light, bool under)
@@ -101,6 +160,16 @@ namespace Subterra
 
         private void OnDestroy()
         {
+            foreach (KeyValuePair<Light, (float range, float intensity)> pair in boosted)
+            {
+                if (pair.Key != null)
+                {
+                    pair.Key.range = pair.Value.range;
+                    pair.Key.intensity = pair.Value.intensity;
+                }
+            }
+
+            boosted.Clear();
             foreach (KeyValuePair<Light, int> pair in changed)
             {
                 if (pair.Key != null)
