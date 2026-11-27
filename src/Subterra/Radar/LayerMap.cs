@@ -82,11 +82,32 @@ namespace Subterra
 
         // Lucas: "something more 3D". A cutaway, as the Earth is drawn in textbooks: the planet's own surface with a quarter
         // taken out towards the camera, and on the two faces of the cut each layer a band of its colour, the faces lit by the
-        // sun as solid rock would be. The real scaled planet is hidden while it shows.
+        // sun as solid rock would be. The scaled planet draws the cut mesh while it shows.
         private GameObject root;
         private GameObject[] faces;
         private Material shellSource;
         private MeshRenderer hidden;
+        private MeshFilter planetFilter;
+        private Mesh planetMesh, cutMesh;
+        private float localRadius = 1000;
+
+        // The mean distance of a mesh's vertices from its centre.
+        private static float MeshRadius(Mesh mesh)
+        {
+            Vector3[] v = mesh.vertices;
+            if (v.Length == 0)
+            {
+                return 1000;
+            }
+
+            double sum = 0;
+            foreach (Vector3 p in v)
+            {
+                sum += p.magnitude;
+            }
+
+            return (float)(sum / v.Length);
+        }
         private float wedgeStart;
 
         /// <summary>Degrees the camera may swing from the cut's middle before the cut turns to face it again.</summary>
@@ -188,7 +209,12 @@ namespace Subterra
             root = new GameObject("SubterraLayerMap") { layer = parent.gameObject.layer };
             root.transform.SetParent(parent, false);
             shellSource = hidden.sharedMaterial;
-            hidden.enabled = false;
+            // The planet's own mesh is swapped for the cut one (and put back after). Turning its renderer off did nothing:
+            // KSP turns it back on every frame for its fading (Lucas saw the planet whole, the cut hidden inside it).
+            planetFilter = source;
+            planetMesh = source.sharedMesh;
+            // The scaled mesh's own radius (not always 1000 units: on Jool's moons the cut was ten times the planet).
+            localRadius = MeshRadius(planetMesh);
             Cut(body, CameraLongitude() - 45f);
             Log.Info(Invariant($"Layer map: {bands.Count} bands of {body.bodyName}, cut open"));
         }
@@ -214,13 +240,14 @@ namespace Subterra
                 Destroy(child.gameObject);
             }
 
-            // The surface: the scaled planet's own mesh and material, less the triangles wholly inside the quarter.
-            var shell = new GameObject("surface") { layer = root.layer };
-            shell.transform.SetParent(root.transform, false);
-            shell.AddComponent<MeshFilter>().sharedMesh = Shell(body.scaledBody.GetComponent<MeshFilter>().sharedMesh, start);
-            var sr = shell.AddComponent<MeshRenderer>();
-            sr.sharedMaterials = hidden.sharedMaterials;
-            sr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            // The surface: the planet's own mesh, less the triangles wholly inside the quarter, drawn by its own renderer.
+            if (cutMesh != null)
+            {
+                Destroy(cutMesh);
+            }
+
+            cutMesh = Shell(planetMesh, start);
+            planetFilter.sharedMesh = cutMesh;
 
             // The two faces of the cut, in the meridian planes at its two sides.
             faces = new GameObject[2];
@@ -301,7 +328,7 @@ namespace Subterra
             var vertices = new List<Vector3>();
             var colours = new List<Color>();
             var triangles = new List<int>();
-            float scale = (float)(1000.0 / body.Radius);
+            float scale = (float)(localRadius / body.Radius);
             float toward = first ? 1f : -1f;
             void Annulus(double outer, double inner, Color colour, float lift)
             {
@@ -356,12 +383,15 @@ namespace Subterra
 
             // Names on the bands thick enough on screen, at the middle of the face nearer the camera.
             Camera cam = PlanetariumCamera.Camera;
-            float scale = (float)(1000.0 / shown.Radius);
+            float scale = (float)(localRadius / shown.Radius);
             var style = new GUIStyle(GUI.skin.label) { fontSize = 12, fontStyle = FontStyle.Bold };
             style.normal.textColor = Color.white;
             var shadow = new GUIStyle(style);
             shadow.normal.textColor = new Color(0, 0, 0, 0.8f);
             Transform face = NearerFace(cam);
+            // No two names on top of each other (Lucas: thin bands' names overlapped): a name whose box would touch one
+            // already drawn is left to the key.
+            var drawn = new List<Rect>();
             foreach (Band b in bands)
             {
                 float mid = (float)(shown.Radius - (b.Top + b.Bottom) * 0.5) * scale;
@@ -374,11 +404,19 @@ namespace Subterra
                 }
 
                 var rect = new Rect(at.x - 80, Screen.height - at.y - 9, 160, 20);
+                if (drawn.Exists(r => r.Overlaps(rect)))
+                {
+                    continue;
+                }
+
+                drawn.Add(rect);
                 GUI.Label(new Rect(rect.x + 1, rect.y + 1, rect.width, rect.height), b.Name, shadow);
                 GUI.Label(rect, b.Name, style);
             }
 
-            keyRect = GUILayout.Window(GetInstanceID(), keyRect, Key, Localizer.Format("#Subterra_LayerMap_Title", shown.displayName.LocalizeRemoveGender()));
+            keyRect.width = 380;
+            keyRect.height = KeyTop + bands.Count * KeyRow + 8;
+            keyRect = GUI.Window(GetInstanceID(), keyRect, Key, Localizer.Format("#Subterra_LayerMap_Title", shown.displayName.LocalizeRemoveGender()));
         }
 
         private Transform NearerFace(Camera cam)
@@ -387,7 +425,7 @@ namespace Subterra
             Transform nearest = faces[0].transform;
             foreach (GameObject f in faces)
             {
-                float d = (f.transform.TransformPoint(new Vector3(500, 0, 0)) - cam.transform.position).sqrMagnitude;
+                float d = (f.transform.TransformPoint(new Vector3(localRadius * 0.5f, 0, 0)) - cam.transform.position).sqrMagnitude;
                 if (d < best)
                 {
                     best = d;
@@ -398,16 +436,19 @@ namespace Subterra
             return nearest;
         }
 
+        // Laid out by hand, a row per band, the window as tall as its rows (Lucas: the key came out an empty bar; and before,
+        // its colours as tiny pixels: a 1x1 texture drawn at its own size).
+        private const float KeyRow = 21, KeyTop = 26;
+
         private void Key(int id)
         {
-            foreach (Band b in bands)
+            for (int i = 0; i < bands.Count; i++)
             {
-                GUILayout.BeginHorizontal();
-                // A real swatch (Lucas: the colours showed as tiny pixels: a 1x1 texture drawn at its own size).
-                Rect swatch = GUILayoutUtility.GetRect(22, 16, GUILayout.Width(22), GUILayout.Height(16));
-                GUI.DrawTexture(new Rect(swatch.x + 2, swatch.y + 2, 18, 13), Swatch(b.Colour), ScaleMode.StretchToFill);
-                GUILayout.Label(Invariant($"{b.Name}: {Km(b.Top)}–{Km(b.Bottom)}{(b.Temperature.HasValue ? $", {b.Temperature.Value:F0} K" : "")}"));
-                GUILayout.EndHorizontal();
+                Band b = bands[i];
+                float y = KeyTop + i * KeyRow;
+                GUI.DrawTexture(new Rect(10, y + 3, 18, 14), Swatch(b.Colour), ScaleMode.StretchToFill);
+                GUI.Label(new Rect(34, y, keyRect.width - 42, KeyRow),
+                    Invariant($"{b.Name}: {Km(b.Top)}–{Km(b.Bottom)}{(b.Temperature.HasValue ? $", {b.Temperature.Value:F0} K" : "")}"));
             }
 
             GUI.DragWindow();
@@ -451,12 +492,20 @@ namespace Subterra
                 Destroy(root);
             }
 
-            // The real planet back.
-            if (hidden != null)
+            // The planet's own mesh back.
+            if (planetFilter != null && planetMesh != null)
             {
-                hidden.enabled = true;
+                planetFilter.sharedMesh = planetMesh;
             }
 
+            if (cutMesh != null)
+            {
+                Destroy(cutMesh);
+            }
+
+            cutMesh = null;
+            planetFilter = null;
+            planetMesh = null;
             root = null;
             faces = null;
             hidden = null;
