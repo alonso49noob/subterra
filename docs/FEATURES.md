@@ -190,10 +190,11 @@ PART 5 - Subterra-Oceans (separate package, needs Kopernicus)         [PLANNED]
 
 
 -------------------------------------------------------------------------------
-PART 6 - Subsurface radar                                              [PLANNED]
+PART 6 - Subsurface radar                                                 [DONE]
 -------------------------------------------------------------------------------
-  [PLANNED] Ground-penetrating radar compatible with SCANsat: finds hidden caves, oceans, aquifers, geodes and
-            anomalies; shows where to dig.
+  [DONE, alonso, merged 2026-11-25] SR-E "Eco" orbital radar sounder, SG-P "Plomada" gravimeter, SG-Z "Zahori"
+            ground radar: find hidden caves, oceans, water and layers; detections become waypoints; 3D wireframe of
+            detected voids. Subterra radar layer on the map and a SCANsat layer; SubterraCavity resource.
 
 
 -------------------------------------------------------------------------------
