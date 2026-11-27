@@ -637,3 +637,11 @@ sedimentos), 512² y sin costuras; se calculan en hilos aparte mientras carga el
   Hecho [Claude, revisar]: colores de película fina sobre la roca y brillo y borde que cambian de tono con el ángulo. Va
   de nada cerca de la superficie a intenso cerca del núcleo, según la temperatura de la roca (400→2000 K) o la fracción
   de radio recorrida, lo que sea mayor. Ocho niveles; cada uno se genera la primera vez que se ve.
+
+## Interior de los gigantes gaseosos — pedido de Lucas, 2026-11-27 (para luego)
+
+- "Para luego deberías hacer que los gigantes gaseosos tengan interior también". Pendiente. Jool no tiene terreno (PQS),
+  así que hoy Subterra lo salta al cargar ("it has no terrain (PQS)") y el mapa de capas no lo muestra. Idea a revisar
+  con Lucas: capas de un gigante tipo Júpiter (nubes de amoníaco, hidrógeno molecular, hidrógeno metálico líquido, núcleo
+  de roca y hielo), primero en el corte del mapa de capas (sin PQS: solo SUBTERRA_BODY con capas), y quizá la presión y
+  la temperatura al bajar por su atmósfera; nada de cuevas.
