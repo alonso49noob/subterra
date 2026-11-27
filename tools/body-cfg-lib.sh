@@ -20,9 +20,11 @@ layer() { printf '\t\tLAYER\n\t\t{\n\t\t\tname = %s\n\t\t\tdisplayName = #Subter
   if [ -n "${10:-}" ]; then printf '\t\t\tgasResource = %s\n\t\t\tgasChance = %s\n' "${10%%:*}" "${10#*:}"; fi
   printf '\t\t}\n'; }
 # Optional 9th–12th: noise mask frequency and threshold (clusters), scalePower (mostly small sizes), sink.
-scatter() { # name models placement zones density scale align collide [noiseFreq noiseThreshold scalePower sink]
+scatter() { # name models placement zones density scale align collide [noiseFreq noiseThreshold scalePower sink sites]
   printf '\tCAVE_SCATTER\n\t{\n\t\tname = %s\n\t\tmodel = %s\n\t\tplacement = %s\n' "$1" "$2" "$3"
   [ -n "$4" ] && printf '\t\tzones = %s\n' "$4"
+  # The named sites it is limited to (comma-separated; none: everywhere its zones are).
+  [ -n "${13:-}" ] && printf '\t\tsites = %s\n' "${13}"
   printf '\t\tdensity = %s\n\t\tscale = %s\n' "$5" "$6"
   [ -n "${11:-}" ] && printf '\t\tscalePower = %s\n' "${11}"
   [ -n "${12:-}" ] && printf '\t\tsink = %s\n' "${12}"
@@ -34,9 +36,10 @@ volcano() { # name lat lon radius height craterRadius craterDepth
   printf '\tRELIEF\n\t{\n\t\tname = %s\n\t\tkind = volcano\n\t\tlat = %s\n\t\tlon = %s\n\t\tradius = %s\n\t\theight = %s\n\t\tcraterRadius = %s\n\t\tcraterDepth = %s\n\t}\n' "$@"
 }
 # A glowing scatter (light from the props: GlowLights): fungi on floors, daylight through thin roofs on ceilings.
-glow() { # name model placement zones density scale colour lightRange maxRoof daylight noiseFreq noiseThreshold
+glow() { # name model placement zones density scale colour lightRange maxRoof daylight noiseFreq noiseThreshold [sites]
   printf '\tCAVE_SCATTER\n\t{\n\t\tname = %s\n\t\tmodel = %s\n\t\tplacement = %s\n' "$1" "$2" "$3"
   [ -n "$4" ] && printf '\t\tzones = %s\n' "$4"
+  [ -n "${13:-}" ] && printf '\t\tsites = %s\n' "${13}"
   printf '\t\tdensity = %s\n\t\tscale = %s\n\t\tscalePower = 2\n\t\talignToSurface = 1\n\t\tglow = %s\n\t\tglowLight = %s\n' "$5" "$6" "$7" "$8"
   [ "$9" != "0" ] && printf '\t\tmaxRoof = %s\n' "$9"
   printf '\t\tdaylight = %s\n\t\tnoiseMask\n\t\t{\n\t\t\tfrequency = %s\n\t\t\tthreshold = %s\n\t\t}\n\t\tlodDistances = 100, 400\n\t\tcollide = false\n\t}\n' "${10}" "${11}" "${12}"

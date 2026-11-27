@@ -569,6 +569,8 @@ namespace Subterra.Core.Config
 
             scatter.MaxRoof = Math.Max(0, r.Double(node, "maxRoof", 0));
 
+            scatter.Sites.AddRange(SplitList(node.GetValue("sites")));
+
             foreach (string zone in SplitList(node.GetValue("zones")))
             {
                 if (Enum.TryParse(zone, true, out ZoneKind kind) && kind != ZoneKind.None)

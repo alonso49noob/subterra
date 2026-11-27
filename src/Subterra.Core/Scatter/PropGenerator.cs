@@ -11,7 +11,7 @@ namespace Subterra.Core.Scatter
     /// </summary>
     public static class PropGenerator
     {
-        public static readonly string[] Names = { "Boulder01", "Boulder02", "Boulder03", "RubbleCone01", "Lavacicle01", "PahoehoeSlab01", "IceCluster01", "GeodeCrystal01", "GeodeCrystal02", "GeodeCrystal03", "GlowPatch01", "GlowMat01", "Fungus01", "KrakenRibs01", "KrakenBone01", "Stalagmite01", "DustDrift01", "IceColumn01", "IceIcicle01" };
+        public static readonly string[] Names = { "Boulder01", "Boulder02", "Boulder03", "RubbleCone01", "Lavacicle01", "PahoehoeSlab01", "IceCluster01", "GeodeCrystal01", "GeodeCrystal02", "GeodeCrystal03", "GlowPatch01", "GlowMat01", "Fungus01", "KrakenRibs01", "KrakenBone01", "Stalagmite01", "DustDrift01", "IceColumn01", "IceIcicle01", "SaltCubes01" };
 
         /// <summary>The prop for a model url or name (the part after the last '/'); null if unknown.</summary>
         public static MeshData Build(string model, int lod)
@@ -49,6 +49,7 @@ namespace Subterra.Core.Scatter
                 case "GeodeCrystal01": return Prisms(seed, 9, 1.6f, 1.0f);
                 case "GeodeCrystal02": return Prisms(seed, 12, 2.2f, 0.7f);
                 case "GeodeCrystal03": return Prisms(seed, 6, 1.1f, 1.5f);
+                case "SaltCubes01": return Cubes(seed, 9);
                 case "GlowPatch01": return Patch(lod == 0 ? 24 : 12, seed, -1);
                 case "GlowMat01": return Patch(lod == 0 ? 24 : 12, seed, 1);
                 case "Fungus01": return Fungi(lod == 0 ? 2 : 1, seed);
@@ -159,6 +160,41 @@ namespace Subterra.Core.Scatter
                     Quad(mesh, b0, b1, t1, t0);
                     Tri(mesh, t0, t1, apex);
                 }
+            }
+
+            Finish(mesh);
+            return mesh;
+        }
+
+        // Halite: a cluster of cubes, a few tilted, the biggest in the middle, half sunk in the floor (Lucas: more kinds of lake; a
+        // brine lake leaves salt on its shores). [Claude, revisar]
+        private static MeshData Cubes(ulong seed, int count)
+        {
+            var rng = new Rng(seed);
+            var mesh = new MeshData();
+            for (int c = 0; c < count; c++)
+            {
+                float s = c == 0 ? 0.55f : (float)rng.Range(0.12, 0.38);
+                double yaw = rng.Range(0, Math.PI / 2), tilt = c == 0 ? 0 : rng.Range(0, 0.5);
+                Vec3 x = new Vec3((float)Math.Cos(yaw), 0, (float)Math.Sin(yaw));
+                Vec3 z = new Vec3(-x.Z, 0, x.X);
+                Vec3 y = (new Vec3(0, 1, 0) + x * (float)tilt).Normalized;
+                x = Vec3.Cross(y, z).Normalized;
+                z = Vec3.Cross(x, y);
+                Vec3 centre = new Vec3((float)rng.Range(-0.6, 0.6), s * 0.35f, (float)rng.Range(-0.6, 0.6)) * (c == 0 ? 0 : 1);
+                centre = new Vec3(centre.X, s * 0.35f, centre.Z);
+                var p = new Vec3[8];
+                for (int k = 0; k < 8; k++)
+                {
+                    p[k] = centre + x * (((k & 1) == 0 ? -1 : 1) * s) + y * (((k & 2) == 0 ? -1 : 1) * s) + z * (((k & 4) == 0 ? -1 : 1) * s);
+                }
+
+                Quad(mesh, p[0], p[1], p[3], p[2]);
+                Quad(mesh, p[4], p[6], p[7], p[5]);
+                Quad(mesh, p[0], p[4], p[5], p[1]);
+                Quad(mesh, p[2], p[3], p[7], p[6]);
+                Quad(mesh, p[0], p[2], p[6], p[4]);
+                Quad(mesh, p[1], p[5], p[7], p[3]);
             }
 
             Finish(mesh);

@@ -123,6 +123,12 @@ node -86.9 158 1950 1100 95 lake "" "" "0.06,0.14,0.20"
 node -87.4 168 2000 600 60 lake "" "" "0.06,0.14,0.20"
 edge 0 1 0.3 0.05; edge 1 2 0.3 0.05
 printf '\t}\n'
+# The Salt Lake (Lucas: more kinds of lake): a brine pan under the desert, shallow and wide, its shores crusted with salt
+# cubes; moved at load into the Desert biome if it is not there. [Claude, revisar]
+site_head KerbinSaltLake
+printf '\t\tsnapBiome = Desert\n'
+node -6 -140 140 650 28 lake "" "" "0.24,0.21,0.13"
+printf '\t}\n'
 
 site_head KerbinDeepGeode
 anode ${KIMBERLITE[0]} ${KIMBERLITE[1]} -4100 60 40 geode
@@ -204,8 +210,11 @@ scatter SkylightRubble "Subterra/Props/RubbleCone01, Subterra/Props/Boulder03" s
 scatter Stalactites "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 1.2 "0.5, 2.5" 1 false 0.03 0.4 2
 # Stalagmites rising from the floors of the limestone caves, under the stalactites. [Claude, revisar]
 scatter Stalagmites "Subterra/Props/Stalagmite01" floor "TubeGallery, TubeChamber, TubeBranch" 0.8 "0.4, 3" 0 true 0.03 0.45 2 0.05
-scatter LakeIcicles "Subterra/Props/IceIcicle01" ceiling "SubglacialLake" 0.5 "0.6, 2.6" 1 false 0.03 0.4 2
-scatter LakeIceColumns "Subterra/Props/IceColumn01" floor "SubglacialLake" 0.04 "0.6, 2" 0 true 0.03 0.5 2 0.3
+# Fewer than at first: 0.5 icicles per 100 m² lagged under Lake Kostok (Lucas). [Claude, revisar]
+scatter LakeIcicles "Subterra/Props/IceIcicle01" ceiling "SubglacialLake" 0.12 "0.6, 2.6" 1 false 0.03 0.4 2 "" "KerbinLakeKostok, KerbinWhillansLake, KerbinEllsworthChain"
+scatter LakeIceColumns "Subterra/Props/IceColumn01" floor "SubglacialLake" 0.012 "0.6, 2" 0 true 0.03 0.5 2 0.3 "KerbinLakeKostok, KerbinWhillansLake, KerbinEllsworthChain"
+# Halite on the Salt Lake's shores and floor. [Claude, revisar]
+scatter SaltCrust "Subterra/Props/SaltCubes01" floor "SubglacialLake" 1.5 "0.4, 2.2" 0 false 0.05 0.3 1.5 0.15 "KerbinSaltLake"
 # Glowing fungi (bioluminescent, like Mycena): clumps on the floors of caves with air and water, and a few giant ones
 # in the big chambers (the Lidenbrock Sea had its forest of mushrooms).
 glow GlowFungi "Subterra/Props/Fungus01" floor "TubeGallery, TubeChamber, TubeBranch" 0.25 "0.6, 2.2" "0.35,0.95,0.85" 18 0 false 0.04 0.55

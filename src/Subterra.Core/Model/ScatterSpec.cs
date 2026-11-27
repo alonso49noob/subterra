@@ -23,6 +23,9 @@ namespace Subterra.Core.Model
         /// <summary>Zones where it appears; empty = all.</summary>
         public List<ZoneKind> Zones { get; set; } = new List<ZoneKind>();
 
+        /// <summary>Named sites it is limited to (none: every network with its zones). Lucas: more kinds of lake, each with its own look.</summary>
+        public List<string> Sites { get; set; } = new List<string>();
+
         /// <summary>Instances per 100 m².</summary>
         public double Density { get; set; } = 0.5;
 

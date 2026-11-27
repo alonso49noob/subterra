@@ -142,8 +142,11 @@ EOF
 scatters
 # Dust blown in through the skylights: low drifts along the floors (drive over them). [Claude, revisar]
 scatter DustDrifts "Subterra/Props/DustDrift01" floor "TubeGallery, TubeChamber, TubeBranch" 0.5 "1.5, 6" 1 false 0.025 0.45 2 0.35
-scatter LakeIcicles "Subterra/Props/IceIcicle01" ceiling "SubglacialLake" 0.5 "0.6, 2.6" 1 false 0.03 0.4 2
-scatter LakeIceColumns "Subterra/Props/IceColumn01" floor "SubglacialLake" 0.04 "0.6, 2" 0 true 0.03 0.5 2 0.3
+# Fewer than at first: 0.5 icicles per 100 m² lagged under Lake Kostok (Lucas). [Claude, revisar]
+scatter LakeIcicles "Subterra/Props/IceIcicle01" ceiling "SubglacialLake" 0.12 "0.6, 2.6" 1 false 0.03 0.4 2
+scatter LakeIceColumns "Subterra/Props/IceColumn01" floor "SubglacialLake" 0.012 "0.6, 2" 0 true 0.03 0.5 2 0.3
+# Salt left by the brines (perchlorate and halite) on their floors. [Claude, revisar]
+scatter BrineSalt "Subterra/Props/SaltCubes01" floor "SubglacialLake" 0.6 "0.3, 1.6" 0 false 0.05 0.35 1.5 0.15 "DunaNorthBrines, DunaSouthBrineFilm"
 rule Ore TubeGallery "" 1.5 ""
 rule Ore TubeChamber "" 2 ""
 rule Ore "" VolcanicBasalt 2 ""

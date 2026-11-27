@@ -36,6 +36,11 @@ namespace Subterra
 
             foreach (ScatterSpec spec in scatters)
             {
+                if (spec.Sites.Count > 0 && (net.Site == null || !spec.Sites.Contains(net.Site.Name)))
+                {
+                    continue;
+                }
+
                 List<ScatterInstance> placed = ScatterPlacer.Place(chunk, spec, ScatterPlacer.ChunkSeed(key, spec.Name),
                     p => net.UpAt(p), p => net.ZoneAt(p).Kind, p => InRubbleZone(net, p), p => -net.AboveSurface(p));
                 if (placed.Count == 0)

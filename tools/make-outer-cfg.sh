@@ -121,11 +121,20 @@ node 88.2 60 1550 900 90 lake "" "" "0.06,0.14,0.20"
 node 88.6 85 1600 500 60 lake "" "" "0.06,0.14,0.20"
 edge 0 1 0.3 0.05; edge 1 2 0.3 0.05
 printf '\t}\n'
+# The Hot Spring (Lucas: more kinds of lake): warm, mineral water under the island tube, its walls and floor furred with
+# glowing bacterial mats, orange and green as in Earth's hot springs. [Claude, revisar]
+site_head LaytheHotSpring
+node -44.20 -19.05 180 350 45 lake "" "" "0.10,0.22,0.18"
+printf '\t}\n'
 field LaytheIslands lava "Dunes, Shores, Crescent Bay, Crater Island, Peaks" 2 "10, 60" "800, 6000" "10, 60" "800, 3000" 0.6 0.1 0.6 92
 common_scatters
 scatter Lavacicles "Subterra/Props/Lavacicle01" ceiling "TubeGallery, TubeChamber, TubeBranch" 0.5 "0.5, 1.5" 1 false
-scatter LakeIcicles "Subterra/Props/IceIcicle01" ceiling "SubglacialLake" 0.5 "0.6, 2.6" 1 false 0.03 0.4 2
-scatter LakeIceColumns "Subterra/Props/IceColumn01" floor "SubglacialLake" 0.04 "0.6, 2" 0 true 0.03 0.5 2 0.3
+# Fewer than at first: 0.5 icicles per 100 m² lagged under Lake Kostok (Lucas). [Claude, revisar]
+scatter LakeIcicles "Subterra/Props/IceIcicle01" ceiling "SubglacialLake" 0.12 "0.6, 2.6" 1 false 0.03 0.4 2 "" "LaytheNorthPolarLake, LaytheWhillansLake, LaytheLakeChain"
+scatter LakeIceColumns "Subterra/Props/IceColumn01" floor "SubglacialLake" 0.012 "0.6, 2" 0 true 0.03 0.5 2 0.3 "LaytheNorthPolarLake, LaytheWhillansLake, LaytheLakeChain"
+# The Hot Spring's bacterial mats: orange on the floor round the water, green on the walls. [Claude, revisar]
+glow SpringMats "Subterra/Props/GlowMat01" floor "SubglacialLake" 0.6 "2, 6" "0.95,0.5,0.15" 0 0 false 0.04 0.3 "LaytheHotSpring"
+glow SpringFilm "Subterra/Props/GlowMat01" wall "SubglacialLake" 0.4 "2, 5" "0.3,0.85,0.35" 0 0 false 0.04 0.35 "LaytheHotSpring"
 glow GlowFungi "Subterra/Props/Fungus01" floor "TubeGallery, TubeChamber, TubeBranch" 0.2 "0.4, 1.8" "0.4,0.7,1.0" 18 0 false 0.04 0.55
 glow GlowMoss "Subterra/Props/GlowMat01" wall "TubeGallery, TubeChamber, TubeBranch" 0.08 "2, 7" "0.2,0.4,0.65" 0 0 false 0.03 0.45
 echo "}"
