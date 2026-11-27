@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using KSP.Localization;
 using KSP.UI.Screens;
@@ -119,6 +120,40 @@ namespace Subterra
         private MeshFilter planetFilter;
         private Mesh planetMesh, cutMesh;
         private float localRadius = 1000;
+        private double heightScale = 1000.0 / 600000;
+
+        // Scaled units per metre: the planet's mesh against the terrain's real radius under its vertices (a median of a few
+        // hundred), so the faces' rims meet the scaled surface; the mean radius over the body's if the terrain cannot be read.
+        private static double HeightScale(CelestialBody body, Mesh mesh, float meshRadius)
+        {
+            double fallback = meshRadius / body.Radius;
+            if (body.pqsController == null)
+            {
+                return fallback;
+            }
+
+            Vector3[] v = mesh.vertices;
+            int step = Math.Max(1, v.Length / 300);
+            var ratios = new List<double>();
+            for (int i = 0; i < v.Length; i += step)
+            {
+                Vector3 d = v[i].normalized;
+                double lat = Math.Asin(Mathf.Clamp(d.y, -1f, 1f)) * 180 / Math.PI, lon = Math.Atan2(d.z, d.x) * 180 / Math.PI;
+                double ground = KspSampler.SurfaceRadius(body, lat, lon);
+                if (ground > 0)
+                {
+                    ratios.Add(v[i].magnitude / ground);
+                }
+            }
+
+            if (ratios.Count == 0)
+            {
+                return fallback;
+            }
+
+            ratios.Sort();
+            return ratios[ratios.Count / 2];
+        }
 
         /// <summary>Whether a cutaway is shown (the radar layer steps aside: its sphere showed through the cut as striped rings).</summary>
         public static bool Active { get; private set; }
@@ -247,6 +282,7 @@ namespace Subterra
             planetMesh = source.sharedMesh;
             // The scaled mesh's own radius (not always 1000 units: on Jool's moons the cut was ten times the planet).
             localRadius = MeshRadius(planetMesh);
+            heightScale = HeightScale(body, planetMesh, localRadius);
             Cut(body, CameraLongitude() - 45f);
             Active = true;
             Log.Info(Invariant($"Layer map: {bands.Count} bands of {body.bodyName}, cut open"));
@@ -289,7 +325,7 @@ namespace Subterra
                 faces[k] = new GameObject("face" + k) { layer = root.layer };
                 faces[k].transform.SetParent(root.transform, false);
                 faces[k].transform.localRotation = Quaternion.Euler(0, -(start + 90f * k), 0);
-                faces[k].AddComponent<MeshFilter>().sharedMesh = Face(body, k == 0);
+                faces[k].AddComponent<MeshFilter>().sharedMesh = Face(body, k == 0, start + 90f * k);
                 var fr = faces[k].AddComponent<MeshRenderer>();
                 var m = new Material(Shader.Find("Hidden/Internal-Colored"));
                 m.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
@@ -443,22 +479,47 @@ namespace Subterra
 
         // One face: a half disc in its plane (x out from the axis, y along it), a band per layer (the ocean last, over its
         // layer), a thin dark line at each contact and a white rim, each a hair nearer the viewer than the one under it.
-        private Mesh Face(CelestialBody body, bool first)
+        private Mesh Face(CelestialBody body, bool first, float longitude)
         {
             var vertices = new List<Vector3>();
             var colours = new List<Color>();
             var triangles = new List<int>();
-            float scale = (float)(localRadius / body.Radius);
+            float scale = (float)heightScale;
             float toward = first ? 1f : -1f;
-            void Annulus(double outer, double inner, Color colour, float lift)
+            double r = body.Radius;
+
+            // The ground along the cut (Lucas: the outer layers should meet the terrain; on Minmus its relief is large beside
+            // its radius): the terrain's radius at each step of the face, from pole to pole at the face's longitude (the
+            // scaled body's frame is the geographic one: x longitude 0, y north, z longitude 90).
+            var ground = new double[Segments + 1];
+            for (int s = 0; s <= Segments; s++)
+            {
+                double lat = -90 + 180.0 * s / Segments;
+                ground[s] = body.pqsController != null ? KspSampler.SurfaceRadius(body, lat, longitude) : r;
+            }
+
+            // A depth's radius at step s: the relief carried down, fading out by a quarter of the radius (the core stays round).
+            double At(double depth, int s)
+            {
+                if (depth >= r - 1)
+                {
+                    return 0;
+                }
+
+                double fade = Math.Max(0, 1 - depth / (0.25 * r));
+                return Math.Max(0, r - depth + (ground[s] - r) * fade);
+            }
+
+            void Annulus(double outerDepth, double innerDepth, Color colour, float lift)
             {
                 int start = vertices.Count;
                 for (int s = 0; s <= Segments; s++)
                 {
                     float a = Mathf.PI * (-0.5f + (float)s / Segments);
                     float c = Mathf.Cos(a), sn = Mathf.Sin(a);
+                    double outer = At(outerDepth, s), inner = At(innerDepth, s);
                     // A little darker deep down: the bands read as rock going in, not paint.
-                    float shadeOuter = 0.82f + 0.18f * (float)(outer / body.Radius), shadeInner = 0.82f + 0.18f * (float)(inner / body.Radius);
+                    float shadeOuter = 0.82f + 0.18f * (float)(outer / r), shadeInner = 0.82f + 0.18f * (float)(inner / r);
                     vertices.Add(new Vector3(c * (float)outer * scale, sn * (float)outer * scale, toward * lift));
                     vertices.Add(new Vector3(c * (float)inner * scale, sn * (float)inner * scale, toward * lift));
                     colours.Add(new Color(colour.r * shadeOuter, colour.g * shadeOuter, colour.b * shadeOuter, 1));
@@ -472,20 +533,22 @@ namespace Subterra
                 }
             }
 
-            double r = body.Radius;
             foreach (Band b in bands)
             {
-                Annulus(r - b.Top, r - b.Bottom, b.Colour, b.Name == Localizer.Format("#Subterra_Layer_Ocean") ? 0.02f : 0f);
+                Annulus(b.Top, b.Bottom, b.Colour, b.Name == Localizer.Format("#Subterra_Layer_Ocean") ? 0.02f : 0f);
             }
 
             var line = new Color(0.06f, 0.06f, 0.06f, 1);
-            float px = (float)(r * 0.0015);
+            double px = r * 0.0015;
             foreach (Band b in bands)
             {
-                Annulus(r - b.Bottom + px, r - b.Bottom - px, line, 0.04f);
+                if (b.Bottom < r - 1)
+                {
+                    Annulus(b.Bottom - px, b.Bottom + px, line, 0.04f);
+                }
             }
 
-            Annulus(r + px * 0.5, r - px * 1.5, new Color(0.95f, 0.95f, 0.95f, 1), 0.05f);
+            Annulus(-px * 0.5, px * 1.5, new Color(0.95f, 0.95f, 0.95f, 1), 0.05f);
             var mesh = new Mesh { name = "SubterraLayerMapFace", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
             mesh.SetVertices(vertices);
             mesh.SetColors(colours);
@@ -503,7 +566,7 @@ namespace Subterra
 
             // Names on the bands thick enough on screen, at the middle of the face nearer the camera.
             Camera cam = PlanetariumCamera.Camera;
-            float scale = (float)(localRadius / shown.Radius);
+            float scale = (float)heightScale;
             var style = new GUIStyle(GUI.skin.label) { fontSize = 12, fontStyle = FontStyle.Bold };
             style.normal.textColor = Color.white;
             var shadow = new GUIStyle(style);
