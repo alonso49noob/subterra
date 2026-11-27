@@ -134,6 +134,7 @@ namespace Subterra
             var runtime = new BodyRuntime(spec, body);
             // Relief first: the named sites below sample the terrain it shapes.
             PQSMod_SubterraRelief.Attach(runtime);
+            AddCoreChamber(spec, body);
             foreach (SiteSpec site in spec.Sites)
             {
                 TubeNetwork network = CompileNamed(site, body, runtime.Relief);
@@ -164,6 +165,39 @@ namespace Subterra
             public LiveHeights(CelestialBody body) => this.body = body;
 
             public double SurfaceRadius(double latDeg, double lonDeg) => KspSampler.SurfaceRadius(body, latDeg, lonDeg);
+        }
+
+        /// <summary>The name of a body's core chamber site.</summary>
+        public static string CoreChamberName(string body) => body + "CoreChamber";
+
+        /// <summary>Radius (m) of a body's core chamber: 0.04 % of the body's, 40 to 250 m.</summary>
+        public static double CoreChamberRadius(CelestialBody body) => Math.Max(40, Math.Min(250, 0.0004 * body.Radius));
+
+        // The Core Chamber (Lucas: something more fascinating than science at the core, as Astroneer has): a round hollow at the
+        // very centre of every body, where gravity is gone, the rock glows white-hot and a giant crystal floats (CoreCrystal).
+        // A site of its own, so a drill or a blast reaching it opens into it, and its own biome for science. [Claude, revisar]
+        private static void AddCoreChamber(BodySpec spec, CelestialBody body)
+        {
+            string name = CoreChamberName(spec.Body);
+            if (spec.Sites.Exists(s => s.Name == name))
+            {
+                return;
+            }
+
+            double radius = CoreChamberRadius(body);
+            double ground = KspSampler.SurfaceRadius(body, 0, 0);
+            var site = new SiteSpec { Name = name, DisplayName = "#Subterra_Site_CoreChamber", IsNamed = true, Network = false };
+            // A geode-like bubble whose floor is a radius under the centre: the chamber is centred on it.
+            site.Nodes.Add(new NodeSpec
+            {
+                Lat = 0,
+                Lon = 0,
+                Depth = ground - radius,
+                Width = radius,
+                Height = 2 * radius,
+                Feature = NodeFeature.Geode,
+            });
+            spec.Sites.Add(site);
         }
 
         /// <summary>Farthest (m) a site is moved to reach its biome, and the steps of the search.</summary>

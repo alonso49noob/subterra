@@ -111,10 +111,13 @@ namespace Subterra
             }
 
             text.Append("\n\n").Append(Localizer.Format("#Subterra_Log_Meaning")).Append('\n').Append(Localizer.Format(key, BodyName(body)));
-            if (site != null && LoreExperiments.Contains(experiment) && Localizer.TryGetStringByTag("#Subterra_Lore_" + site.Name, out _))
+            // Every body's Core Chamber shares one story (told with the body's name).
+            string lore = site == null ? null
+                : Localizer.TryGetStringByTag("#Subterra_Lore_" + site.Name, out _) ? "#Subterra_Lore_" + site.Name
+                : site.Name.EndsWith("CoreChamber", StringComparison.Ordinal) ? "#Subterra_Lore_CoreChamber" : null;
+            if (lore != null && LoreExperiments.Contains(experiment))
             {
-                text.Append("\n\n").Append(Localizer.Format("#Subterra_Log_Story")).Append('\n')
-                    .Append(Localizer.Format("#Subterra_Lore_" + site.Name, BodyName(body)));
+                text.Append("\n\n").Append(Localizer.Format("#Subterra_Log_Story")).Append('\n').Append(Localizer.Format(lore, BodyName(body)));
             }
 
             return text.ToString();

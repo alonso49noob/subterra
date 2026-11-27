@@ -27,6 +27,12 @@ namespace Subterra
             PQS pqs = body.pqsController;
             foreach (TubeNetwork net in runtime.Catalog.Named)
             {
+                // The Core Chamber is no surface anomaly (it is found by reaching the centre).
+                if (net.SiteName != null && net.SiteName.EndsWith("CoreChamber", System.StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
                 Vector3d position = net.Skylights.Count > 0
                     ? net.ToBody(net.Skylights[0].SurfaceCenter).ToKsp()
                     : (net.Nodes[0].Up * net.Nodes[0].SurfaceRadius).ToKsp();
