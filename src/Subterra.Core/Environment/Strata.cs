@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Subterra.Core.Model;
+using Subterra.Core.Numerics;
 
 namespace Subterra.Core.Environment
 {
