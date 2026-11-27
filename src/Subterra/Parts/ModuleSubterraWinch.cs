@@ -113,12 +113,11 @@ namespace Subterra
             Vec3d at = Frames.ToBody(body, vessel.GetWorldPos3D());
             BodyFrame.ToLatLon(at, out anchorLat, out anchorLon);
             anchorGround = at.Length - lowest - Math.Max(0, Math.Min(clearance, MaxHookHeight));
-            // The pulley at the top of the tripod, at least 2 m over the ground.
-            anchorRadius = Math.Max(at.Length, anchorGround + 2);
-            anchorSpread = 1.5f;
 
-            // Hooked by a blast shaft's mouth: the cable hangs on the shaft's axis (the vessel is drawn over it before it
-            // goes down), not wherever the vessel stood by the rim; the tripod straddles the hole.
+            // Hooked by a blast shaft's mouth (the nearest): the cable hangs on the shaft's axis (the vessel is drawn over it
+            // before it goes down), not wherever the vessel stood by the rim; the tripod straddles the hole, its feet past
+            // the rounded lip (Lucas: the tripod did not fit the hole). With no hole, it straddles the craft.
+            double best = double.MaxValue, holeRadius = 0;
             foreach (Core.Excavation.ExcavationSpec shaft in ExcavationService.All)
             {
                 if (shaft.Shape != Core.Excavation.ExcavationShape.Shaft || shaft.Body != body.bodyName || shaft.Points.Count < 2)
@@ -129,13 +128,23 @@ namespace Subterra
                 Vec3d top = shaft.ToBody(shaft.Points[shaft.Points.Count - 1]);
                 Vec3d axis = top.Normalized;
                 Vec3d off = at - axis * Vec3d.Dot(at, axis);
-                if (off.Length < shaft.Radius + 6 && Math.Abs(at.Length - top.Length) < 60)
+                if (off.Length < shaft.Radius + 6 && Math.Abs(at.Length - top.Length) < 60 && off.Length < best)
                 {
+                    best = off.Length;
                     BodyFrame.ToLatLon(axis, out anchorLat, out anchorLon);
-                    anchorSpread = (float)shaft.Radius + 1f;
-                    break;
+                    holeRadius = shaft.Radius;
                 }
             }
+
+            anchorSpread = holeRadius > 0
+                ? (float)(holeRadius + Math.Min(4.0, 0.6 * holeRadius) + 1.2)
+                : (float)Math.Max(1.6, HalfWidth(upWorld) + 1.0);
+
+            // The pulley over the craft (it hangs under it) and at least as high as the tripod is wide, so the legs stand
+            // at a tripod's angle.
+            double partHeight = Vector3d.Dot((Vector3d)part.transform.position - body.position, upWorld) - anchorGround;
+            anchorRadius = anchorGround + Math.Max(1.4 * anchorSpread, partHeight + 1.5);
+            feetKey = null;
             anchorBody = body.bodyName;
             hooked = true;
             motion = 0;
@@ -445,47 +454,110 @@ namespace Subterra
             CelestialBody body = vessel.mainBody;
             Vec3d dir = BodyFrame.Direction(anchorLat, anchorLon);
             Vector3 top = Frames.ToWorld(body, dir * anchorRadius);
-            Stretch(cable, top, part.transform.position, CableRadius, true);
-
-            // The anchor (Lucas: a base for it): a tripod over the hole, its feet on the ground round the axis.
+            // The anchor (Lucas: a base for it; then: the tripod looked ugly and did not fit the hole): a steel tripod
+            // straddling the hole, each foot on a pad on the ground where it really is (sampled once per hook), braced a
+            // third of the way up, a head block at the top and the pulley the cable runs over under it.
             Vector3 up = Frames.DirectionToWorld(body, dir.ToVec3());
             Vector3 east = Vector3.Cross(up, Vector3.Cross(Mathf.Abs(up.y) < 0.9f ? Vector3.up : Vector3.right, up)).normalized;
             Vector3 north = Vector3.Cross(up, east);
-            double ground = anchorGround > 0 ? anchorGround : anchorRadius - 2;
-            Vector3 foot0 = Frames.ToWorld(body, dir * ground);
-            Vector3 apex = top + up * 0.3f;
+            // The cable leaves the pulley's rim on the axis, level with its axle.
+            Stretch(cable, top + up * 0.3f, part.transform.position, CableRadius, true);
+            Feet(body, dir);
+            Vector3 head = top + up * 0.75f;
+            var feet = new Vector3[3];
             for (int i = 0; i < 3; i++)
             {
-                float a = i * 2f * Mathf.PI / 3f;
-                Vector3 foot = foot0 + (east * Mathf.Cos(a) + north * Mathf.Sin(a)) * anchorSpread;
-                Stretch(tripod[i], foot, apex, 0.08f, false);
+                feet[i] = Frames.ToWorld(body, feetBody[i]);
+                Vector3 corner = head + (feet[i] - head).normalized * 0.25f;
+                Stretch(tripod[i], feet[i], corner, LegRadius, false);
+                // The pad, flat on the ground.
+                tripod[3 + i].transform.position = feet[i] + up * 0.03f;
+                tripod[3 + i].transform.rotation = Quaternion.FromToRotation(Vector3.up, up);
+                tripod[3 + i].transform.localScale = new Vector3(0.6f, 0.03f, 0.6f);
             }
 
-            // The pulley at the top.
-            tripod[3].transform.position = apex;
-            tripod[3].transform.rotation = Quaternion.FromToRotation(Vector3.up, east);
-            tripod[3].transform.localScale = new Vector3(0.45f, 0.06f, 0.45f);
+            // The braces between the legs, a third of the way up.
+            for (int i = 0; i < 3; i++)
+            {
+                Vector3 a = Vector3.Lerp(feet[i], head, 0.33f), b = Vector3.Lerp(feet[(i + 1) % 3], head, 0.33f);
+                Stretch(tripod[6 + i], a, b, LegRadius * 0.55f, false);
+            }
+
+            // The head block (a cube) and the pulley wheel under it, its axle level: the cable leaves its rim on the axis.
+            tripod[9].transform.position = head;
+            tripod[9].transform.rotation = Quaternion.LookRotation(north, up);
+            tripod[9].transform.localScale = new Vector3(0.55f, 0.4f, 0.55f);
+            tripod[10].transform.position = top + up * 0.3f + east * 0.3f;
+            tripod[10].transform.rotation = Quaternion.FromToRotation(Vector3.up, north);
+            tripod[10].transform.localScale = new Vector3(0.6f, 0.06f, 0.6f);
             ShowRig(true);
         }
 
-        private const float CableRadius = 0.035f;
+        private const float CableRadius = 0.035f, LegRadius = 0.07f;
 
-        private void BuildRig()
+        // The feet in the body frame, on the terrain round the axis (sampled when hooked, and again if the hook moved).
+        private readonly Vec3d[] feetBody = new Vec3d[3];
+        private string feetKey;
+
+        private void Feet(CelestialBody body, Vec3d dir)
         {
-            Shader lit = Shader.Find("KSP/Diffuse") ?? Shader.Find("Standard");
-            cableMaterial = new Material(lit) { color = new Color(0.62f, 0.6f, 0.55f), mainTexture = BraidTexture() };
-            tripodMaterial = new Material(lit) { color = new Color(0.75f, 0.6f, 0.15f) };
-            cable = Cylinder("SubterraWinchCable", cableMaterial);
-            tripod = new GameObject[4];
-            for (int i = 0; i < 4; i++)
+            string key = anchorLat.ToString("F6") + "/" + anchorLon.ToString("F6") + "/" + anchorSpread.ToString("F2");
+            if (key == feetKey)
             {
-                tripod[i] = Cylinder("SubterraWinchTripod", tripodMaterial);
+                return;
+            }
+
+            feetKey = key;
+            Vec3d northB = (new Vec3d(0, 1, 0) - dir * dir.Y);
+            northB = northB.LengthSquared < 1e-12 ? new Vec3d(1, 0, 0) : northB.Normalized;
+            Vec3d eastB = Vec3d.Cross(northB, dir).Normalized;
+            double ground = anchorGround > 0 ? anchorGround : anchorRadius - 2;
+            for (int i = 0; i < 3; i++)
+            {
+                double a = i * 2 * Math.PI / 3 + 0.4;
+                Vec3d foot = (dir * ground + (eastB * Math.Cos(a) + northB * Math.Sin(a)) * anchorSpread).Normalized;
+                BodyFrame.ToLatLon(foot, out double la, out double lo);
+                double r = body.pqsController != null ? KspSampler.SurfaceRadius(body, la, lo) : ground;
+                // Underground (hooked on a cave's floor) the terrain is far over it: the floor the craft stood on.
+                if (r > ground + 3 || r < ground - 20)
+                {
+                    r = ground;
+                }
+
+                feetBody[i] = foot * r;
             }
         }
 
-        private GameObject Cylinder(string name, Material material)
+        private void BuildRig()
         {
-            GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            Shader lit = Shader.Find("KSP/Specular") ?? Shader.Find("KSP/Diffuse") ?? Shader.Find("Standard");
+            cableMaterial = new Material(Shader.Find("KSP/Diffuse") ?? lit) { color = new Color(0.62f, 0.6f, 0.55f), mainTexture = BraidTexture() };
+            // Galvanised steel legs; dark iron pads, braces' ends, head and pulley.
+            tripodMaterial = new Material(lit) { color = new Color(0.6f, 0.62f, 0.64f) };
+            if (tripodMaterial.HasProperty("_Shininess"))
+            {
+                tripodMaterial.SetFloat("_Shininess", 0.4f);
+            }
+
+            darkMaterial = new Material(lit) { color = new Color(0.2f, 0.2f, 0.22f) };
+            cable = Cylinder("SubterraWinchCable", cableMaterial);
+            tripod = new GameObject[11];
+            for (int i = 0; i < 11; i++)
+            {
+                bool dark = (i >= 3 && i < 6) || i >= 9;
+                tripod[i] = i == 9
+                    ? Primitive(PrimitiveType.Cube, "SubterraWinchHead", darkMaterial)
+                    : Cylinder("SubterraWinchTripod", dark ? darkMaterial : tripodMaterial);
+            }
+        }
+
+        private Material darkMaterial;
+
+        private GameObject Cylinder(string name, Material material) => Primitive(PrimitiveType.Cylinder, name, material);
+
+        private GameObject Primitive(PrimitiveType type, string name, Material material)
+        {
+            GameObject go = GameObject.CreatePrimitive(type);
             go.name = name;
             Destroy(go.GetComponent<Collider>());
             var renderer = go.GetComponent<MeshRenderer>();
@@ -593,6 +665,25 @@ namespace Subterra
             {
                 Destroy(tripodMaterial);
             }
+
+            if (darkMaterial != null)
+            {
+                Destroy(darkMaterial);
+            }
+        }
+
+        // The craft's half width across the vertical (its farthest part from the axis through its centre of mass).
+        private double HalfWidth(Vector3d up)
+        {
+            Vector3d centre = vessel.CoMD;
+            double most = 0;
+            foreach (Part p in vessel.parts)
+            {
+                Vector3d d = (Vector3d)p.transform.position - centre;
+                most = Math.Max(most, (d - up * Vector3d.Dot(d, up)).magnitude);
+            }
+
+            return most;
         }
     }
 }
