@@ -67,3 +67,10 @@ along() { # lat0 lon0 lat1 lon1 t  ->  "lat lon"
 fissures() { # name lat lon halfLength width depth ridgeHeight count spacing heading
   printf '\tRELIEF\n\t{\n\t\tname = %s\n\t\tkind = fissures\n\t\tlat = %s\n\t\tlon = %s\n\t\tradius = %s\n\t\twidth = %s\n\t\tdepth = %s\n\t\theight = %s\n\t\tcount = %s\n\t\tspacing = %s\n\t\theading = %s\n\t}\n' "$@"
 }
+
+# A block of other rock off the body's centre (INCLUSION): a lumpy sphere of its own rock (Lucas: Gilly as a fragment of
+# a differentiated parent, with a lump of its iron core and blocks of its mantle).
+inclusion() { # name lat lon centreDepth radius lumpiness hardness density tint [yields "Res:rate;..."]
+  printf '\tINCLUSION\n\t{\n\t\tname = %s\n\t\tdisplayName = #Subterra_Layer_%s\n\t\tlat = %s\n\t\tlon = %s\n\t\tdepth = %s\n\t\tradius = %s\n\t\tlumpiness = %s\n\t\thardness = %s\n\t\tdensity = %s\n\t\ttint = %s\n' "$1" "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9"
+  if [ -n "${10:-}" ]; then local y ys; IFS=";" read -ra ys <<<"${10}"; for y in "${ys[@]}"; do printf '\t\tYIELD\n\t\t{\n\t\t\tresource = %s\n\t\t\trate = %s\n\t\t}\n' "${y%%:*}" "${y#*:}"; done; fi
+  printf '\t}\n'; }

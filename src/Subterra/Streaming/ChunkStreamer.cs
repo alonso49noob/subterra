@@ -892,7 +892,9 @@ namespace Subterra
             double surface = net.SurfaceRadiusNear(key.Bounds.Center);
             // Boundaries moved by a noise of the place and mixed bands either side (Lucas: subtler, interlocked changes of rock).
             ulong seed = Core.Numerics.Hash.Of(net.Body ?? "");
-            var bands = LayerBands.Split(data, p => surface - net.ToBody(p).Length, d => strata.LayerAt(d, biome), p => LayerBands.Jitter(net.ToBody(p), seed));
+            // Blocks of other rock (Gilly's iron and olivine) win over the layers where they hold a triangle.
+            Func<Core.Numerics.Vec3, LayerSpec> inclusion = strata.Inclusions.Count > 0 ? p => strata.InclusionAt(net.ToBody(p)) : (Func<Core.Numerics.Vec3, LayerSpec>)null;
+            var bands = LayerBands.Split(data, p => surface - net.ToBody(p).Length, d => strata.LayerAt(d, biome), p => LayerBands.Jitter(net.ToBody(p), seed), inclusion);
             if (bands == null)
             {
                 return;

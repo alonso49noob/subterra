@@ -83,7 +83,7 @@ namespace Subterra
             ZoneKind zone = net.ZoneAt(local).Kind;
             double depth = Math.Max(0, net.SurfaceRadiusNear(local) - position.Length);
             // The surface biome from the map: request.BiomeName may already be a cave biome (science patch).
-            string layer = runtime.Strata.LayerAt(depth, KspSampler.Biome(body, request.Latitude, request.Longitude))?.Name;
+            string layer = runtime.Strata.LayerAt(position, depth, KspSampler.Biome(body, request.Latitude, request.Longitude))?.Name;
             return Enrichment.Apply(rules, request.ResourceName, zone, layer, baseAbundance);
         }
 

@@ -148,7 +148,7 @@ namespace Subterra
             string biome = KspSampler.Biome(body, lat, lon);
             double depth = Math.Max(0, KspSampler.SurfaceRadius(body, lat, lon) - (at - body.position).magnitude);
             UndergroundState state = UndergroundTracker.For(v);
-            LayerSpec layer = runtime.Strata.LayerAt(depth, biome);
+            LayerSpec layer = runtime.Strata.LayerAt(Frames.ToBody(body, at), depth, biome);
             string layerName = layer == null ? "-" : string.IsNullOrEmpty(layer.DisplayName) ? layer.Name : Localizer.Format(layer.DisplayName);
             lines.Add(Localizer.Format("#Subterra_Log_Read_Where", N(depth), layerName));
 
@@ -302,7 +302,8 @@ namespace Subterra
 
         private static string Core(BodyRuntime runtime, CelestialBody body, string layerName)
         {
-            LayerSpec layer = runtime.Strata.Layers.FirstOrDefault(l => l.Name == layerName);
+            LayerSpec layer = runtime.Strata.Layers.FirstOrDefault(l => l.Name == layerName)
+                ?? runtime.Strata.Inclusions.FirstOrDefault(i => i.Layer?.Name == layerName)?.Layer;
             string key = Pick("#Subterra_Exp_Core_" + layerName);
             if (key == null)
             {

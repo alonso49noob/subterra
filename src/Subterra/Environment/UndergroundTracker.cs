@@ -38,7 +38,7 @@ namespace Subterra
                 state.Sky = net.SkyVisibility(local);
                 state.Zone = net.ZoneAt(local);
                 state.Biome = KspSampler.Biome(body, lat, lon);
-                state.Layer = runtime.Strata.LayerAt(state.Depth, state.Biome)?.Name;
+                state.Layer = runtime.Strata.LayerAt(bodyPos, state.Depth, state.Biome)?.Name;
                 state.RockTemp = runtime.Geotherm.Temperature(state.Depth, state.Biome);
             }
 

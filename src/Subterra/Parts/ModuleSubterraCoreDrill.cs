@@ -579,6 +579,20 @@ namespace Subterra
         /// </summary>
         internal Func<double, LayerSpec> LayersHere(BodyRuntime runtime, CelestialBody body, string biome)
         {
+            // Blocks of other rock down the hole (Gilly's iron and olivine) win over the layers there.
+            if (runtime.Strata.Inclusions.Count > 0)
+            {
+                Func<double, LayerSpec> layers = LayersAndOcean(runtime, body, biome) ?? (d => runtime.Strata.LayerAt(d, biome));
+                Core.Numerics.Vec3d axis = Core.Geo.BodyFrame.Direction(holeLat, holeLon);
+                double surface = KspSampler.SurfaceRadius(body, holeLat, holeLon);
+                return d => runtime.Strata.InclusionAt(axis * (surface - d)) ?? layers(d);
+            }
+
+            return LayersAndOcean(runtime, body, biome);
+        }
+
+        private Func<double, LayerSpec> LayersAndOcean(BodyRuntime runtime, CelestialBody body, string biome)
+        {
             if (runtime.Ocean == null)
             {
                 return null;

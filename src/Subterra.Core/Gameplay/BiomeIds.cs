@@ -26,6 +26,7 @@ namespace Subterra.Core.Gameplay
         public static LayerSpec LayerOf(string biomeId, BodySpec body) =>
             body != null && biomeId != null && biomeId.StartsWith(LayerPrefix, StringComparison.Ordinal)
                 ? body.Strata.Find(l => LayerPrefix + l.Name == biomeId)
+                    ?? body.Inclusions.Find(i => i.Layer != null && LayerPrefix + i.Layer.Name == biomeId)?.Layer
                 : null;
 
         /// <summary>True for zone ids, the names of the body's named sites and its layers' dug-hole biomes (null spec: zones only).</summary>

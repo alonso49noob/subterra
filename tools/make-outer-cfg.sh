@@ -4,6 +4,13 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source "$(dirname "$0")/body-cfg-lib.sh"
+# A node placed by its altitude over the datum (not its depth under the ground).
+anode() { # lat lon altitude width height [feature [skylightRadius]]
+  printf '\t\tNODE\n\t\t{\n\t\t\tlat = %s\n\t\t\tlon = %s\n\t\t\taltitude = %s\n\t\t\tdepth = 50\n\t\t\twidth = %s\n\t\t\theight = %s\n' "$1" "$2" "$3" "$4" "$5"
+  [ -n "${6:-}" ] && printf '\t\t\tfeature = %s\n' "$6"
+  [ -n "${7:-}" ] && printf '\t\t\tskylightRadius = %s\n' "$7"
+  printf '\t\t}\n'
+}
 
 common_scatters() {
   scatter BreakdownBoulders "Subterra/Props/Boulder01, Subterra/Props/Boulder02, Subterra/Props/Boulder03" floor "TubeGallery, TubeChamber, TubeBranch" 1.2 "0.3, 4" 0.6 true 0.035 0.62 3 0.3
@@ -185,6 +192,20 @@ gnode 1.7 1.95 30 26 20 skylight 10
 for i in 0 1 2 3 4; do edge $i $((i + 1)) 0.8 0.15; done
 printf '\t}\n'
 field GillyGaps rubble "Lowlands, Midlands, Highlands" 30 "8, 40" "400, 1500" "10, 60" "500, 1200" 0.5 0.3 0.5 94
+# Inherited structure (Lucas): Gilly is no differentiated body (13 km: too small to melt and sort itself), but a fragment
+# of one that was, broken up and gathered again as rubble: a lump of the parent's iron-nickel core off its centre, blocks
+# of its olivine mantle, and the rubble round them. [Claude, revisar]
+inclusion GillyIronBlock 20 110 7500 2600 0.25 0.85 7.6 "0.62,0.58,0.52" "Ore:0.08;MetallicOre:0.06"
+inclusion GillyOlivineBlock1 -35 40 4000 1100 0.3 0.75 3.3 "0.55,0.62,0.36" "Ore:0.03"
+inclusion GillyOlivineBlock2 45 -70 6000 900 0.3 0.75 3.3 "0.55,0.62,0.36" "Ore:0.03"
+inclusion GillyOlivineBlock3 -10 -150 3000 800 0.3 0.75 3.3 "0.55,0.62,0.36" "Ore:0.03"
+# The Iron Hollow: a gap in the rubble against the iron block's top, sealed (found with the radar or the gravimeter, reached by
+# drilling or blasting down). [Claude, revisar]
+site_head GillyIronHollow
+# Placed by altitude (Gilly's relief is km high): its floor 15 m into the block's top, which is 5139 m under the datum there.
+anode 20 110 -5094 70 60 chamber
+printf '	}
+'
 scatter BreakdownBoulders "Subterra/Props/Boulder01, Subterra/Props/Boulder02, Subterra/Props/Boulder03" floor "TubeGallery, TubeChamber, TubeBranch" 2 "0.3, 5" 0.6 true 0.035 0.5 2.5 0.3
 echo "}"
 } > "$out"; echo "wrote $out"

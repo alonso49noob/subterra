@@ -264,6 +264,19 @@ namespace Subterra
                 });
             }
 
+            // Blocks of other rock off the centre (Gilly's iron and olivine): drawn where the cut goes through them, and in the key.
+            blocks.Clear();
+            foreach (Core.Model.InclusionSpec inclusion in runtime.Strata.Inclusions)
+            {
+                float[] t = inclusion.Layer.Tint ?? new[] { 0.5f, 0.5f, 0.5f };
+                blocks.Add(new Block
+                {
+                    Spec = inclusion,
+                    Name = string.IsNullOrEmpty(inclusion.Layer.DisplayName) ? inclusion.Name : Localizer.Format(inclusion.Layer.DisplayName),
+                    Colour = new Color(Mathf.Clamp01(t[0] * 1.5f), Mathf.Clamp01(t[1] * 1.5f), Mathf.Clamp01(t[2] * 1.5f), 1f),
+                });
+            }
+
             // The ocean, at the equator (its depths change with latitude), over whatever layer it replaces there.
             if (runtime.Ocean != null)
             {
@@ -549,6 +562,49 @@ namespace Subterra
             }
 
             Annulus(-px * 0.5, px * 1.5, new Color(0.95f, 0.95f, 0.95f, 1), 0.05f);
+
+            // The blocks the face goes through: a lumpy disc where its plane cuts each (the face's x along its longitude, y north).
+            var axisX = new Vector3(Mathf.Cos(longitude * Mathf.Deg2Rad), 0, Mathf.Sin(longitude * Mathf.Deg2Rad));
+            var normal = new Vector3(-axisX.z, 0, axisX.x);
+            foreach (Block block in blocks)
+            {
+                Core.Model.InclusionSpec inc = block.Spec;
+                double la = inc.Lat * Math.PI / 180, lo = inc.Lon * Math.PI / 180, cr = r - inc.Depth;
+                var c = new Vector3d(Math.Cos(la) * Math.Cos(lo), Math.Sin(la), Math.Cos(la) * Math.Sin(lo)) * cr;
+                double d = Vector3d.Dot(c, (Vector3d)normal);
+                double most = inc.Radius * (1 + inc.Lumpiness);
+                if (Math.Abs(d) >= most)
+                {
+                    continue;
+                }
+
+                Vector3d p = c - (Vector3d)normal * d;
+                double fx = Vector3d.Dot(p, (Vector3d)axisX), fy = p.y;
+                if (fx < -most)
+                {
+                    continue;
+                }
+
+                const int sides = 40;
+                int centreIndex = vertices.Count;
+                vertices.Add(new Vector3((float)(fx * scale), (float)(fy * scale), toward * 0.03f));
+                colours.Add(block.Colour);
+                for (int k = 0; k <= sides; k++)
+                {
+                    double a = 2 * Math.PI * k / sides;
+                    // The block's own lumpy radius in that direction, cut by the face's plane.
+                    Vector3d inPlane = (Vector3d)axisX * Math.Cos(a) + new Vector3d(0, Math.Sin(a), 0);
+                    double rs = inc.SurfaceRadius(new Core.Numerics.Vec3d(inPlane.x, inPlane.y, inPlane.z));
+                    double rho = rs * rs > d * d ? Math.Sqrt(rs * rs - d * d) : 0;
+                    double x = fx + Math.Cos(a) * rho, y = fy + Math.Sin(a) * rho;
+                    vertices.Add(new Vector3((float)(Math.Max(0, x) * scale), (float)(y * scale), toward * 0.03f));
+                    colours.Add(new Color(block.Colour.r * 0.85f, block.Colour.g * 0.85f, block.Colour.b * 0.85f, 1));
+                    if (k > 0)
+                    {
+                        triangles.AddRange(new[] { centreIndex, centreIndex + k, centreIndex + k + 1 });
+                    }
+                }
+            }
             var mesh = new Mesh { name = "SubterraLayerMapFace", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
             mesh.SetVertices(vertices);
             mesh.SetColors(colours);
@@ -600,7 +656,7 @@ namespace Subterra
             }
 
             keyRect.width = 380;
-            keyRect.height = KeyTop + bands.Count * KeyRow + 8;
+            keyRect.height = KeyTop + (bands.Count + blocks.Count) * KeyRow + 8;
             keyRect = GUI.Window(GetInstanceID(), keyRect, Key, Localizer.Format("#Subterra_LayerMap_Title", shown.displayName.LocalizeRemoveGender()));
         }
 
@@ -636,8 +692,27 @@ namespace Subterra
                     Invariant($"{b.Name}: {Km(b.Top)}–{Km(b.Bottom)}{(b.Temperature.HasValue ? $", {b.Temperature.Value:F0} K" : "")}"));
             }
 
+            // The blocks: where their centre is and how big they are.
+            for (int i = 0; i < blocks.Count; i++)
+            {
+                Block k = blocks[i];
+                float y = KeyTop + (bands.Count + i) * KeyRow;
+                GUI.DrawTexture(new Rect(10, y + 3, 18, 14), Swatch(k.Colour), ScaleMode.StretchToFill);
+                GUI.Label(new Rect(34, y, keyRect.width - 42, KeyRow), Localizer.Format("#Subterra_LayerMap_Block", k.Name,
+                    Km(k.Spec.Depth), Km(2 * k.Spec.Radius), k.Spec.Lat.ToString("F0"), k.Spec.Lon.ToString("F0")));
+            }
+
             GUI.DragWindow();
         }
+
+        private sealed class Block
+        {
+            public Core.Model.InclusionSpec Spec;
+            public string Name;
+            public Color Colour;
+        }
+
+        private readonly List<Block> blocks = new List<Block>();
 
         private static string Km(double m) => m >= 10000 ? Invariant($"{m / 1000:F0} km") : m >= 1000 ? Invariant($"{m / 1000:F1} km") : Invariant($"{m:F0} m");
 

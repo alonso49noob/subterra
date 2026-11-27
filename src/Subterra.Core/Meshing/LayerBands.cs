@@ -78,8 +78,9 @@ namespace Subterra.Core.Meshing
         /// <param name="depthOf">Depth (m, down from the surface) of a point of the mesh.</param>
         /// <param name="layerAt">The layer at a depth (null where there is none).</param>
         /// <param name="jitter">The boundary's offset at a point of the mesh, -1 to 1 (null: flat boundaries, no mixed bands).</param>
+        /// <param name="inclusionAt">The rock of a block off the body's centre at a point of the mesh, or null (it wins over the layers).</param>
         public static List<(LayerSpec Layer, int[] Triangles)> Split(MeshData mesh, Func<Vec3, double> depthOf, Func<double, LayerSpec> layerAt,
-            Func<Vec3, double> jitter = null)
+            Func<Vec3, double> jitter = null, Func<Vec3, LayerSpec> inclusionAt = null)
         {
             List<int> tris = mesh.Triangles;
             int count = tris.Count / 3;
@@ -96,7 +97,8 @@ namespace Subterra.Core.Meshing
                 Vec3 a = mesh.Vertices[tris[t * 3]], b = mesh.Vertices[tris[t * 3 + 1]], c = mesh.Vertices[tris[t * 3 + 2]];
                 var centre = new Vec3((a.X + b.X + c.X) / 3, (a.Y + b.Y + c.Y) / 3, (a.Z + b.Z + c.Z) / 3);
                 double depth = Math.Max(0, depthOf(centre));
-                LayerSpec layer = jitter == null ? layerAt(depth) : Interlocked(depth, jitter(centre), layerAt);
+                LayerSpec layer = inclusionAt?.Invoke(centre)
+                    ?? (jitter == null ? layerAt(depth) : Interlocked(depth, jitter(centre), layerAt));
                 layerOf[t] = layer;
                 if (t == 0)
                 {

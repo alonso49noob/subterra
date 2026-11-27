@@ -12,7 +12,7 @@ namespace Subterra
             Spec = spec;
             Body = body;
             Catalog = new NetworkCatalog(spec, body.Radius);
-            Strata = new Strata(spec.Strata);
+            Strata = new Strata(spec.Strata, spec.Inclusions, body.Radius);
             Geotherm = new Geotherm(spec.Geotherm, Strata);
             Ocean = spec.Ocean != null ? new Subterra.Core.Water.OceanShell(spec.Ocean, body.Radius) : null;
         }
