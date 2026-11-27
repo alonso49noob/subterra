@@ -222,7 +222,7 @@ namespace Subterra
         {
             using (SubterraClock.Measure("MapOverlay"))
             {
-                CelestialBody wanted = Settings.Current.RadarOverlay && userShown ? FocusedBody() : null;
+                CelestialBody wanted = Settings.Current.RadarOverlay && userShown && !LayerMap.Active ? FocusedBody() : null;
                 if (wanted != failedBody)
                 {
                     failedBody = null;

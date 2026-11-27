@@ -55,6 +55,11 @@ namespace Subterra
                 ApplicationLauncher.Instance.RemoveModApplication(button);
             }
 
+            if (ReferenceEquals(lastButton, button))
+            {
+                lastButton = null;
+            }
+
             Teardown();
             if (material != null)
             {
@@ -62,7 +67,25 @@ namespace Subterra
             }
         }
 
-        private void OnLauncherDestroyed() => button = null;
+        // The launcher outlives the scenes: a button only forgotten here stayed in it, and the next scene added another (Lucas:
+        // two layer map buttons). Taken out of the launcher, not only forgotten.
+        private void OnLauncherDestroyed()
+        {
+            if (button != null && ApplicationLauncher.Instance != null)
+            {
+                ApplicationLauncher.Instance.RemoveModApplication(button);
+            }
+
+            if (ReferenceEquals(lastButton, button))
+            {
+                lastButton = null;
+            }
+
+            button = null;
+        }
+
+        // The one button of the layer map, whichever scene's addon made it.
+        private static ApplicationLauncherButton lastButton;
 
         private void AddButton()
         {
@@ -71,8 +94,14 @@ namespace Subterra
                 return;
             }
 
+            if (lastButton != null)
+            {
+                ApplicationLauncher.Instance.RemoveModApplication(lastButton);
+                lastButton = null;
+            }
+
             buttonIcon = buttonIcon ?? MakeIcon();
-            button = ApplicationLauncher.Instance.AddModApplication(() => userShown = true, () => userShown = false, null, null, null, null,
+            button = lastButton = ApplicationLauncher.Instance.AddModApplication(() => userShown = true, () => userShown = false, null, null, null, null,
                 ApplicationLauncher.AppScenes.MAPVIEW | ApplicationLauncher.AppScenes.TRACKSTATION, buttonIcon);
             if (userShown)
             {
@@ -90,6 +119,9 @@ namespace Subterra
         private MeshFilter planetFilter;
         private Mesh planetMesh, cutMesh;
         private float localRadius = 1000;
+
+        /// <summary>Whether a cutaway is shown (the radar layer steps aside: its sphere showed through the cut as striped rings).</summary>
+        public static bool Active { get; private set; }
 
         // The mean distance of a mesh's vertices from its centre.
         private static float MeshRadius(Mesh mesh)
@@ -216,6 +248,7 @@ namespace Subterra
             // The scaled mesh's own radius (not always 1000 units: on Jool's moons the cut was ten times the planet).
             localRadius = MeshRadius(planetMesh);
             Cut(body, CameraLongitude() - 45f);
+            Active = true;
             Log.Info(Invariant($"Layer map: {bands.Count} bands of {body.bodyName}, cut open"));
         }
 
@@ -272,49 +305,136 @@ namespace Subterra
         // (Face 0 bounds the cut at its lower longitude: the rock lies below it and the face looks up the longitudes, +Z.)
         private static Vector3 FaceNormal(int k) => k == 0 ? Vector3.forward : Vector3.back;
 
-        // The triangles of the planet's mesh not wholly inside the quarter (start, start + 90) round its Y axis. The few that
-        // straddle its sides are kept, overlapping the faces a little, so no gap shows between the surface and the cut.
+        // The planet's mesh without the quarter (start, start + 90) round its Y axis. Triangles wholly outside are kept as they
+        // are; those across one side of the cut are clipped exactly at its plane (Lucas: teeth of the surface stuck out over
+        // the faces' edges), with every vertex attribute interpolated; the rare ones across both (at the poles) are kept.
         private static Mesh Shell(Mesh source, float start)
         {
             Vector3[] v = source.vertices;
-            var inside = new bool[v.Length];
-            for (int i = 0; i < v.Length; i++)
+            Vector3[] n = source.normals;
+            Vector2[] uv = source.uv;
+            Vector2[] uv2 = source.uv2;
+            Vector4[] tg = source.tangents;
+            Color[] col = source.colors;
+            bool hasN = n != null && n.Length == v.Length, hasUv = uv != null && uv.Length == v.Length;
+            bool hasUv2 = uv2 != null && uv2.Length == v.Length, hasTg = tg != null && tg.Length == v.Length;
+            bool hasCol = col != null && col.Length == v.Length;
+
+            // The cut's planes through the axis: a1 at `start`, a2 at `start` + 90; the inside of the cut is d1 > 0 and d2 < 0.
+            float s0 = start * Mathf.Deg2Rad, s1 = (start + 90f) * Mathf.Deg2Rad;
+            var n1 = new Vector3(-Mathf.Sin(s0), 0, Mathf.Cos(s0));
+            var n2 = new Vector3(-Mathf.Sin(s1), 0, Mathf.Cos(s1));
+
+            var verts = new List<Vector3>(v);
+            var norms = hasN ? new List<Vector3>(n) : null;
+            var uvs = hasUv ? new List<Vector2>(uv) : null;
+            var uvs2 = hasUv2 ? new List<Vector2>(uv2) : null;
+            var tans = hasTg ? new List<Vector4>(tg) : null;
+            var cols = hasCol ? new List<Color>(col) : null;
+
+            int Lerp(int a, int b, float t)
             {
-                float lon = Mathf.Atan2(v[i].z, v[i].x) * Mathf.Rad2Deg;
-                float d = Mathf.DeltaAngle(start, lon);
-                inside[i] = d > 0 && d < 90;
+                verts.Add(Vector3.Lerp(verts[a], verts[b], t));
+                norms?.Add(Vector3.Lerp(norms[a], norms[b], t).normalized);
+                uvs?.Add(Vector2.Lerp(uvs[a], uvs[b], t));
+                uvs2?.Add(Vector2.Lerp(uvs2[a], uvs2[b], t));
+                tans?.Add(Vector4.Lerp(tans[a], tans[b], t));
+                cols?.Add(Color.Lerp(cols[a], cols[b], t));
+                return verts.Count - 1;
+            }
+
+            bool Inside(int i)
+            {
+                Vector3 p = verts[i];
+                return Vector3.Dot(p, n1) > 0 && Vector3.Dot(p, n2) < 0;
             }
 
             var mesh = new Mesh { name = "SubterraLayerMapSurface", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
-            mesh.vertices = v;
-            mesh.normals = source.normals;
-            mesh.uv = source.uv;
-            if (source.tangents != null && source.tangents.Length == v.Length)
-            {
-                mesh.tangents = source.tangents;
-            }
-
-            if (source.colors != null && source.colors.Length == v.Length)
-            {
-                mesh.colors = source.colors;
-            }
-
-            mesh.subMeshCount = source.subMeshCount;
+            var subs = new List<List<int>>();
             for (int s = 0; s < source.subMeshCount; s++)
             {
                 int[] tris = source.GetTriangles(s);
                 var kept = new List<int>(tris.Length);
                 for (int t = 0; t < tris.Length; t += 3)
                 {
-                    if (!(inside[tris[t]] && inside[tris[t + 1]] && inside[tris[t + 2]]))
+                    int a = tris[t], b = tris[t + 1], c = tris[t + 2];
+                    bool ia = Inside(a), ib = Inside(b), ic = Inside(c);
+                    if (!ia && !ib && !ic)
                     {
-                        kept.Add(tris[t]);
-                        kept.Add(tris[t + 1]);
-                        kept.Add(tris[t + 2]);
+                        kept.Add(a);
+                        kept.Add(b);
+                        kept.Add(c);
+                        continue;
+                    }
+
+                    if (ia && ib && ic)
+                    {
+                        continue;
+                    }
+
+                    // Which side it crosses: the plane the inside vertices are nearer to.
+                    Vector3 mid = (verts[a] + verts[b] + verts[c]) / 3f;
+                    float m1 = Vector3.Dot(mid, n1), m2 = Vector3.Dot(mid, n2);
+                    Vector3 plane = Mathf.Abs(m1) < Mathf.Abs(m2) ? n1 : -n2;
+                    // Keep the part with Dot(p, plane) <= 0 (outside the cut on that side).
+                    var poly = new List<int> { a, b, c };
+                    var clipped = new List<int>(4);
+                    for (int k = 0; k < 3; k++)
+                    {
+                        int p = poly[k], q = poly[(k + 1) % 3];
+                        float dp = Vector3.Dot(verts[p], plane), dq = Vector3.Dot(verts[q], plane);
+                        if (dp <= 0)
+                        {
+                            clipped.Add(p);
+                        }
+
+                        if ((dp <= 0) != (dq <= 0))
+                        {
+                            clipped.Add(Lerp(p, q, dp / (dp - dq)));
+                        }
+                    }
+
+                    for (int k = 1; k + 1 < clipped.Count; k++)
+                    {
+                        kept.Add(clipped[0]);
+                        kept.Add(clipped[k]);
+                        kept.Add(clipped[k + 1]);
                     }
                 }
 
-                mesh.SetTriangles(kept, s);
+                subs.Add(kept);
+            }
+
+            mesh.SetVertices(verts);
+            if (norms != null)
+            {
+                mesh.SetNormals(norms);
+            }
+
+            if (uvs != null)
+            {
+                mesh.SetUVs(0, uvs);
+            }
+
+            if (uvs2 != null)
+            {
+                mesh.SetUVs(1, uvs2);
+            }
+
+            if (tans != null)
+            {
+                mesh.SetTangents(tans);
+            }
+
+            if (cols != null)
+            {
+                mesh.SetColors(cols);
+            }
+
+            mesh.subMeshCount = subs.Count;
+            for (int s = 0; s < subs.Count; s++)
+            {
+                mesh.SetTriangles(subs[s], s);
             }
 
             mesh.RecalculateBounds();
@@ -403,7 +523,9 @@ namespace Subterra
                     continue;
                 }
 
-                var rect = new Rect(at.x - 80, Screen.height - at.y - 9, 160, 20);
+                // As wide as the name (Lucas: "Asthenosphere (partly" was cut short).
+                float w = style.CalcSize(new GUIContent(b.Name)).x + 6;
+                var rect = new Rect(at.x - w * 0.5f, Screen.height - at.y - 9, w, 20);
                 if (drawn.Exists(r => r.Overlaps(rect)))
                 {
                     continue;
@@ -505,6 +627,7 @@ namespace Subterra
 
             cutMesh = null;
             planetFilter = null;
+            Active = false;
             planetMesh = null;
             root = null;
             faces = null;
