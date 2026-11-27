@@ -21,6 +21,12 @@ namespace Subterra.Core.Sdf
             SetCoreBounds(new Aabb(floorCenter, floorCenter).Expand(Math.Max(radius, height)));
         }
 
+        /// <summary>
+        /// Depth (m) of a rounded bowl under the floor (0: a flat floor). Lucas: the lakes looked square, their flat floors
+        /// stacked in terraces; a lake's floor is a bowl, deepest in its middle, and its water's edge follows it round.
+        /// </summary>
+        public float Bowl { get; init; }
+
         public Vec3 FloorCenter => floorCenter;
 
         public Vec3 Up => up;
@@ -35,6 +41,12 @@ namespace Subterra.Core.Sdf
             float v = Vec3.Dot(q, up);
             Vec3 horizontal = q - up * v;
             // Rotationally symmetric: the ellipse (horizontal distance, height) in the vertical plane.
+            if (Bowl > 0)
+            {
+                // The dome over the floor's level, a shallower half-ellipsoid under it: one smooth lens.
+                return SdfOps.Ellipse(horizontal.Length, v, radius, v >= 0 ? height : Bowl);
+            }
+
             float ellipsoid = SdfOps.Ellipse(horizontal.Length, v, radius, height);
             return Math.Max(ellipsoid, -v);
         }

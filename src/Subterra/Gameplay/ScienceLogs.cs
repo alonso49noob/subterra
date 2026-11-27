@@ -177,7 +177,15 @@ namespace Subterra
                     fluid = Math.Max(gas, kPa);
                 }
 
-                double rockKPa = ocean ? 0 : InteriorGravityPatch.RockKPa(body, at);
+                double rockKPa = InteriorGravityPatch.RockKPa(body, at);
+                if (ocean && runtime.Ocean != null)
+                {
+                    // The ocean's ceiling (ice or rock) as solid, not in the water's reading (as the PresMat shows it).
+                    double g = FlightGlobals.getGeeForceAtPosition(at, body).magnitude * InteriorGravityPatch.Factor(body, at);
+                    double ceiling = runtime.Ocean.OverburdenKPa(lat, g);
+                    fluid = gas + Math.Max(0, fluid - gas - ceiling);
+                    rockKPa = ceiling * Settings.Current.RockPressureScale;
+                }
                 double total = fluid + rockKPa;
                 lines.Add(Localizer.Format("#Subterra_Log_Read_Pressure", N(total, "0.##"), N(total / 101.325, "0.###"),
                     N(gas, "0.##"), N(fluid - gas, "0.##"), N(rockKPa, "0.##")));

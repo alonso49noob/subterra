@@ -69,6 +69,7 @@ namespace Subterra
             CaveSeaPatch.Register();
             CameraPatch.Register();
             ThermalPatches.Register();
+            WarpPatch.Register();
             SciencePatches.Register();
             ResourcePatch.Register();
             ScattererPatch.Register();

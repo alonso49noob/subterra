@@ -167,8 +167,44 @@ namespace Subterra
             }
 
             camera.farClipPlane = Mathf.Lerp(MaxSight, MinSight, deep);
-            Shells(camera, tint, camera.farClipPlane);
+            // The haze takes the water's own colour, not the depth's near-black (Lucas: no fog in the lakes; it faded to black,
+            // which looked like none), brighter where the craft's lamps light the water.
+            Color haze = colour * (LampsOn(camera) ? 0.75f : 0.4f);
+            Shells(camera, haze, camera.farClipPlane);
             Under = true;
+        }
+
+        private float nextLamps;
+        private bool lamps;
+
+        // Whether a loaded craft near the camera has a lamp on (looked up twice a second).
+        private bool LampsOn(Camera camera)
+        {
+            if (Time.time < nextLamps)
+            {
+                return lamps;
+            }
+
+            nextLamps = Time.time + 0.5f;
+            lamps = false;
+            foreach (Vessel v in FlightGlobals.VesselsLoaded)
+            {
+                if (v == null || (v.CoMD - (Vector3d)camera.transform.position).sqrMagnitude > 300 * 300)
+                {
+                    continue;
+                }
+
+                foreach (Light light in v.GetComponentsInChildren<Light>())
+                {
+                    if (light.enabled && light.intensity > 0 && light.type != LightType.Directional)
+                    {
+                        lamps = true;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         // Fog that KSP's shaders do not draw themselves (they ignore Unity's fog: the floor of Minmus's ocean ended in a hard
@@ -203,7 +239,7 @@ namespace Subterra
                 shells.Add(shell);
             }
 
-            shellMaterial.color = new Color(tint.r * 0.5f, tint.g * 0.5f, tint.b * 0.5f, ShellAlpha);
+            shellMaterial.color = new Color(tint.r, tint.g, tint.b, ShellAlpha);
             for (int i = 0; i < shells.Count; i++)
             {
                 GameObject shell = shells[i];

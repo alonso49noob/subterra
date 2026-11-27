@@ -62,7 +62,13 @@ namespace Subterra
                 style.normal.textColor = new Color(1f, 0.78f, 0.35f);
             }
 
+            // Lucas: the label showed without the craft being selected (and two overlapped). Only one, for the craft under the
+            // mouse, as KSP shows its own craft names on hover.
             Camera cam = PlanetariumCamera.Camera;
+            Vector2 mouse = new Vector2(Input.mousePosition.x, Input.mousePosition.y);
+            Vessel shown = null;
+            Vector3 shownAt = default;
+            float nearest = HoverPixels;
             foreach (KeyValuePair<Vessel, double> pair in depths)
             {
                 Vessel v = pair.Key;
@@ -71,15 +77,25 @@ namespace Subterra
                     continue;
                 }
 
-                Vector3d world = v.mainBody.GetWorldSurfacePosition(v.latitude, v.longitude, v.altitude);
-                Vector3 screen = cam.WorldToScreenPoint(ScaledSpace.LocalToScaledSpace(world));
+                Vector3 screen = ScreenOf(cam, v);
                 if (screen.z <= 0)
                 {
                     continue;
                 }
 
-                string text = Localizer.Format("#Subterra_Map_Depth", Depth(pair.Value));
-                var rect = new Rect(screen.x - 60, Screen.height - screen.y + 10, 120, 18);
+                float d = Vector2.Distance(mouse, new Vector2(screen.x, screen.y));
+                if (d < nearest)
+                {
+                    nearest = d;
+                    shown = v;
+                    shownAt = screen;
+                }
+            }
+
+            if (shown != null && shownAt.z > 0)
+            {
+                string text = Localizer.Format("#Subterra_Map_Depth", Depth(depths[shown]));
+                var rect = new Rect(shownAt.x - 60, Screen.height - shownAt.y + 14, 120, 18);
                 Color old = style.normal.textColor;
                 style.normal.textColor = Color.black;
                 GUI.Label(new Rect(rect.x + 1, rect.y + 1, rect.width, rect.height), text, style);
@@ -87,6 +103,12 @@ namespace Subterra
                 GUI.Label(rect, text, style);
             }
         }
+
+        /// <summary>How close (pixels) the mouse must be to a craft's icon for its label.</summary>
+        private const float HoverPixels = 24f;
+
+        private static Vector3 ScreenOf(Camera cam, Vessel v) =>
+            cam.WorldToScreenPoint(ScaledSpace.LocalToScaledSpace(v.mainBody.GetWorldSurfacePosition(v.latitude, v.longitude, v.altitude)));
 
         private static string Depth(double metres) =>
             metres >= 10000 ? (metres / 1000).ToString("0.0") + " km" : metres.ToString("#,0") + " m";

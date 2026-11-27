@@ -207,6 +207,8 @@ namespace Subterra.Core.Tubes
                     // A wide, low lens with smooth walls: the ice over a lake is melted smooth, its floor is sediment.
                     prims.Add(new Chamber(Local(p.FloorCenter), up, (float)node.Width, (float)node.Height)
                     {
+                        // A bowl under the floor: deepest in the middle, the water's edge round (Lucas: the lakes looked square).
+                        Bowl = (float)(0.45 * node.Height),
                         Roughness = (float)Math.Min(2.0, 0.002 * node.Width),
                         NoiseScale = (float)Math.Max(20, 0.1 * node.Width),
                         Zone = ZoneKind.SubglacialLake,
@@ -449,12 +451,14 @@ namespace Subterra.Core.Tubes
                 double reach = node.Width * (basin ? rng.Range(0.15, 0.45) : rng.Range(0.55, 0.9));
                 double height = node.Height * (basin ? rng.Range(0.9, 1.3) : rng.Range(0.45, 0.85));
                 // Basins sink under the main floor (a third to two thirds of the lake's height); shore lobes sit a little up.
-                double drop = basin ? node.Height * rng.Range(0.35, 0.7) : -node.Height * rng.Range(0.02, 0.12);
+                // No shelves raised over the main floor (they stood as flat terraces): every lobe at or under it.
+                double drop = basin ? node.Height * rng.Range(0.25, 0.5) : node.Height * rng.Range(0.0, 0.1);
                 Vec3d floor = p.FloorCenter + (east * Math.Cos(angle) + north * Math.Sin(angle)) * reach - u * drop;
                 prims.Add(new Chamber(local(floor), up, (float)radius, (float)height)
                 {
-                    Roughness = (float)Math.Min(4.0, 0.006 * radius),
-                    NoiseScale = (float)Math.Max(12, 0.12 * radius),
+                    Bowl = (float)(height * (basin ? 0.8 : 0.35)),
+                    Roughness = (float)Math.Min(2.0, 0.002 * radius),
+                    NoiseScale = (float)Math.Max(20, 0.1 * radius),
                     Zone = ZoneKind.SubglacialLake,
                     Source = i,
                 });

@@ -188,6 +188,12 @@ namespace Subterra
             {
                 fluid = wet;
             }
+            else if (CaveWaterKPa(body, at, gas) is double cave)
+            {
+                // A cave's lake round a physicsless part (the PresMat is one): the water module only weighs parts with physics
+                // (Lucas: the PresMat did not count the lakes' pressure).
+                fluid = cave;
+            }
             else if (part.WaterContact && part.submergedPortion > 0)
             {
                 fluid = part.staticPressureAtm * 101.325;
@@ -205,8 +211,22 @@ namespace Subterra
                 fluid = Math.Max(gas, part.staticPressureAtm * 101.325);
             }
 
-            // The rock: its weight from the surface down to the sensor (an ocean's ice is in the water's reading already).
-            double rock = inOcean ? 0 : RockKPa(body, at);
+            // The rock: its weight from the surface down to the sensor. In an ocean, the ice or rock of its ceiling (Lucas: the
+            // barometer counted one state only there: the water's reading held the ceiling's whole weight, real size, and the
+            // solid read 0): taken out of the liquid and shown as solid, at the rock's scale.
+            double rock;
+            if (inOcean && BodyRegistry.Instance.TryGet(body, out BodyRuntime ort) && ort.Ocean != null)
+            {
+                double g = FlightGlobals.getGeeForceAtPosition(at, body).magnitude * Factor(body, at);
+                Core.Geo.BodyFrame.ToLatLon(Frames.ToBody(body, at), out double olat, out _);
+                double ceiling = ort.Ocean.OverburdenKPa(olat, g);
+                fluid = gas + Math.Max(0, fluid - gas - ceiling);
+                rock = ceiling * Settings.Current.RockPressureScale;
+            }
+            else
+            {
+                rock = RockKPa(body, at);
+            }
             double total = fluid + rock;
             if (total <= 1e-6)
             {
@@ -217,6 +237,24 @@ namespace Subterra
             sensor.readoutInfo = rock > 0.005 || fluid - gas > 0.005
                 ? Localizer.Format("#Subterra_Pres_Reading", Kpa(total), unit, Kpa(gas), Kpa(Math.Max(0, fluid - gas)), Kpa(rock))
                 : Kpa(total) + " " + unit;
+        }
+
+        /// <summary>The pressure (kPa) at a world point under a cave's water (the air on its surface plus the water over it), or null.</summary>
+        public static double? CaveWaterKPa(CelestialBody body, Vector3d world, double airKPa)
+        {
+            if (body == null || !Underground.Locate(body, world, out Core.Tubes.TubeNetwork net, out Core.Numerics.Vec3 local) || net.Waters.Count == 0)
+            {
+                return null;
+            }
+
+            Core.Water.WaterSample? sample = net.WaterAt(local, margin: 1f, above: 0f);
+            if (sample == null || !sample.Value.Under || sample.Value.Depth <= 0)
+            {
+                return null;
+            }
+
+            double g = FlightGlobals.getGeeForceAtPosition(world, body).magnitude * Factor(body, world);
+            return Core.Water.WaterPhysics.PressureKPa(sample.Value.Depth, sample.Value.Density, g, airKPa);
         }
 
         private static string Kpa(double kPa) =>

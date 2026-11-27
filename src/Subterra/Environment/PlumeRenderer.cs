@@ -147,14 +147,8 @@ namespace Subterra
                     surface[i] = KspSampler.SurfaceRadius(body, la, lo);
                 }
 
-                // Fresh frost along the crack.
-                var frost = new GameObject("frost") { layer = 0 };
-                frost.transform.SetParent(root.transform, false);
-                frost.AddComponent<MeshFilter>().sharedMesh = FrostStrip(body, root.transform, line, surface, (float)relief.Width * 3.5f);
-                var fr = frost.AddComponent<MeshRenderer>();
-                fr.sharedMaterial = frostMaterial;
-                fr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                fr.receiveShadows = false;
+                // (No frost strip along the crack: laid over the terrain it showed only in white shards where the ground rose
+                // through it, Lucas: "cosos blancos". FrostStrip is kept for when it can follow the terrain mesh itself.)
 
                 // Jets at intervals along it (not at its fading ends), each its own height.
                 for (int j = 0; j < JetsPerFissure; j++)

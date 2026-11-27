@@ -9,9 +9,9 @@ namespace Subterra
 {
     /// <summary>
     /// The layers under the ground on the map, at their true scale (Lucas: a Subterra toolbar button in the map that shows the
-    /// planet's layers graphically, at real scale). With the button on, the focused body is drawn cut in half: a half disc
-    /// through its centre, turned to face the camera, each rock layer a band of its colour from its top to its bottom depth,
-    /// the ocean under the ice or rock in blue, drawn over the planet; names on the bands thick enough on screen, and a key
+    /// planet's layers graphically, at real scale; then: more 3D). With the button on, the focused body is drawn as a cutaway:
+    /// its surface with a quarter taken out towards the camera, each rock layer a band of its colour on the two faces of the
+    /// cut from its top to its bottom depth, the ocean under the ice or rock in blue, the faces lit by the sun; names on the bands thick enough on screen, and a key
     /// with every layer's depths and temperature. Map view and Tracking Station. [Claude, revisar]
     /// </summary>
     public abstract class LayerMap : MonoBehaviour
@@ -21,7 +21,6 @@ namespace Subterra
         private static bool userShown;
         private static Texture2D buttonIcon;
         private ApplicationLauncherButton button;
-        private GameObject slice;
         private CelestialBody shown;
         private Material material;
         private readonly List<Band> bands = new List<Band>();
@@ -81,6 +80,18 @@ namespace Subterra
             }
         }
 
+        // Lucas: "something more 3D". A cutaway, as the Earth is drawn in textbooks: the planet's own surface with a quarter
+        // taken out towards the camera, and on the two faces of the cut each layer a band of its colour, the faces lit by the
+        // sun as solid rock would be. The real scaled planet is hidden while it shows.
+        private GameObject root;
+        private GameObject[] faces;
+        private Material shellSource;
+        private MeshRenderer hidden;
+        private float wedgeStart;
+
+        /// <summary>Degrees the camera may swing from the cut's middle before the cut turns to face it again.</summary>
+        private const float Refacing = 50f;
+
         private void LateUpdate()
         {
             CelestialBody body = userShown ? FocusedBody() : null;
@@ -93,14 +104,33 @@ namespace Subterra
                 }
             }
 
-            if (slice == null || PlanetariumCamera.Camera == null)
+            if (root == null || PlanetariumCamera.Camera == null)
             {
                 return;
             }
 
-            // Faces the camera, its cut edge upright on screen: the right half of the body shows its insides.
-            Transform cam = PlanetariumCamera.Camera.transform;
-            slice.transform.rotation = Quaternion.LookRotation(cam.forward, cam.up);
+            // The cut turns to face the camera when it has swung round the planet.
+            float facing = CameraLongitude();
+            if (Mathf.Abs(Mathf.DeltaAngle(facing, wedgeStart + 45f)) > Refacing)
+            {
+                Cut(shown, facing - 45f);
+            }
+
+            // Each face lit as rock in sunlight would be (darker turned away from the sun).
+            Vector3 toSun = (ScaledSpace.LocalToScaledSpace(FlightGlobals.Bodies[0].position) - root.transform.position).normalized;
+            for (int k = 0; k < faces.Length; k++)
+            {
+                Vector3 normal = faces[k].transform.TransformDirection(FaceNormal(k)).normalized;
+                float light = 0.45f + 0.55f * Mathf.Max(0, Vector3.Dot(normal, toSun));
+                faces[k].GetComponent<MeshRenderer>().sharedMaterial.color = new Color(light, light, light, 1);
+            }
+        }
+
+        // The camera's longitude round the planet's axis, in the scaled body's frame (degrees).
+        private float CameraLongitude()
+        {
+            Vector3 cam = shown.scaledBody.transform.InverseTransformPoint(PlanetariumCamera.Camera.transform.position);
+            return Mathf.Atan2(cam.z, cam.x) * Mathf.Rad2Deg;
         }
 
         private static CelestialBody FocusedBody()
@@ -123,6 +153,13 @@ namespace Subterra
                 return;
             }
 
+            hidden = body.scaledBody.GetComponent<MeshRenderer>();
+            MeshFilter source = body.scaledBody.GetComponent<MeshFilter>();
+            if (hidden == null || source == null || source.sharedMesh == null)
+            {
+                return;
+            }
+
             shown = body;
             bands.Clear();
             foreach (LayerSpec layer in runtime.Strata.Column(null))
@@ -135,7 +172,7 @@ namespace Subterra
                     Top = layer.Top,
                     Bottom = bottom,
                     Temperature = runtime.Geotherm.Temperature((layer.Top + bottom) * 0.5, null),
-                    Colour = new Color(Mathf.Clamp01(t[0] * 1.5f), Mathf.Clamp01(t[1] * 1.5f), Mathf.Clamp01(t[2] * 1.5f), 0.97f),
+                    Colour = new Color(Mathf.Clamp01(t[0] * 1.5f), Mathf.Clamp01(t[1] * 1.5f), Mathf.Clamp01(t[2] * 1.5f), 1f),
                 });
             }
 
@@ -143,52 +180,142 @@ namespace Subterra
             if (runtime.Ocean != null)
             {
                 double top = body.Radius - runtime.Ocean.CeilingRadius(0), bottom = body.Radius - runtime.Ocean.FloorRadius(0);
-                bands.Add(new Band { Name = Localizer.Format("#Subterra_Layer_Ocean"), Top = top, Bottom = bottom, Temperature = runtime.Ocean.Spec.Temperature, Colour = new Color(0.15f, 0.45f, 0.95f, 0.97f) });
-            }
-
-            if (material == null)
-            {
-                material = new Material(Shader.Find("Hidden/Internal-Colored"));
-                material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-                material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-                material.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
-                material.SetInt("_ZWrite", 0);
-                material.SetInt("_ZTest", (int)UnityEngine.Rendering.CompareFunction.Always);
-                material.renderQueue = 3200;
+                bands.Add(new Band { Name = Localizer.Format("#Subterra_Layer_Ocean"), Top = top, Bottom = bottom, Temperature = runtime.Ocean.Spec.Temperature, Colour = new Color(0.15f, 0.45f, 0.95f, 1f) });
             }
 
             // A child of the scaled body (1000 local units at body.Radius): drawn by the map camera, at the body's true scale.
             Transform parent = body.scaledBody.transform;
-            slice = new GameObject("SubterraLayerMap") { layer = parent.gameObject.layer };
-            slice.transform.SetParent(parent, false);
-            slice.transform.localPosition = Vector3.zero;
-            slice.AddComponent<MeshFilter>().sharedMesh = Mesh(body);
-            var renderer = slice.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = material;
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            renderer.receiveShadows = false;
-            Log.Info(Invariant($"Layer map: {bands.Count} bands of {body.bodyName}"));
+            root = new GameObject("SubterraLayerMap") { layer = parent.gameObject.layer };
+            root.transform.SetParent(parent, false);
+            shellSource = hidden.sharedMaterial;
+            hidden.enabled = false;
+            Cut(body, CameraLongitude() - 45f);
+            Log.Info(Invariant($"Layer map: {bands.Count} bands of {body.bodyName}, cut open"));
         }
 
-        // The half disc (x >= 0 in its plane), a band per layer (then the ocean, drawn last, over its layer), a thin dark line at
-        // each boundary, the ground's edge white.
-        private Mesh Mesh(CelestialBody body)
+        // (Re)builds the cut: the planet's surface without the quarter from `start` to `start` + 90 degrees, and its two faces.
+        private void Cut(CelestialBody body, float start)
+        {
+            wedgeStart = start;
+            foreach (Transform child in root.transform)
+            {
+                MeshFilter f = child.GetComponent<MeshFilter>();
+                if (f != null)
+                {
+                    Destroy(f.sharedMesh);
+                }
+
+                MeshRenderer r = child.GetComponent<MeshRenderer>();
+                if (r != null && r.sharedMaterial != shellSource)
+                {
+                    Destroy(r.sharedMaterial);
+                }
+
+                Destroy(child.gameObject);
+            }
+
+            // The surface: the scaled planet's own mesh and material, less the triangles wholly inside the quarter.
+            var shell = new GameObject("surface") { layer = root.layer };
+            shell.transform.SetParent(root.transform, false);
+            shell.AddComponent<MeshFilter>().sharedMesh = Shell(body.scaledBody.GetComponent<MeshFilter>().sharedMesh, start);
+            var sr = shell.AddComponent<MeshRenderer>();
+            sr.sharedMaterials = hidden.sharedMaterials;
+            sr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+            // The two faces of the cut, in the meridian planes at its two sides.
+            faces = new GameObject[2];
+            for (int k = 0; k < 2; k++)
+            {
+                faces[k] = new GameObject("face" + k) { layer = root.layer };
+                faces[k].transform.SetParent(root.transform, false);
+                faces[k].transform.localRotation = Quaternion.Euler(0, -(start + 90f * k), 0);
+                faces[k].AddComponent<MeshFilter>().sharedMesh = Face(body, k == 0);
+                var fr = faces[k].AddComponent<MeshRenderer>();
+                var m = new Material(Shader.Find("Hidden/Internal-Colored"));
+                m.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
+                m.SetInt("_ZWrite", 1);
+                m.SetInt("_ZTest", (int)UnityEngine.Rendering.CompareFunction.LessEqual);
+                m.renderQueue = 2000;
+                fr.sharedMaterial = m;
+                fr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+        }
+
+        // Face k's normal in its own frame, pointing out of the rock into the cut.
+        // (Face 0 bounds the cut at its lower longitude: the rock lies below it and the face looks up the longitudes, +Z.)
+        private static Vector3 FaceNormal(int k) => k == 0 ? Vector3.forward : Vector3.back;
+
+        // The triangles of the planet's mesh not wholly inside the quarter (start, start + 90) round its Y axis. The few that
+        // straddle its sides are kept, overlapping the faces a little, so no gap shows between the surface and the cut.
+        private static Mesh Shell(Mesh source, float start)
+        {
+            Vector3[] v = source.vertices;
+            var inside = new bool[v.Length];
+            for (int i = 0; i < v.Length; i++)
+            {
+                float lon = Mathf.Atan2(v[i].z, v[i].x) * Mathf.Rad2Deg;
+                float d = Mathf.DeltaAngle(start, lon);
+                inside[i] = d > 0 && d < 90;
+            }
+
+            var mesh = new Mesh { name = "SubterraLayerMapSurface", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+            mesh.vertices = v;
+            mesh.normals = source.normals;
+            mesh.uv = source.uv;
+            if (source.tangents != null && source.tangents.Length == v.Length)
+            {
+                mesh.tangents = source.tangents;
+            }
+
+            if (source.colors != null && source.colors.Length == v.Length)
+            {
+                mesh.colors = source.colors;
+            }
+
+            mesh.subMeshCount = source.subMeshCount;
+            for (int s = 0; s < source.subMeshCount; s++)
+            {
+                int[] tris = source.GetTriangles(s);
+                var kept = new List<int>(tris.Length);
+                for (int t = 0; t < tris.Length; t += 3)
+                {
+                    if (!(inside[tris[t]] && inside[tris[t + 1]] && inside[tris[t + 2]]))
+                    {
+                        kept.Add(tris[t]);
+                        kept.Add(tris[t + 1]);
+                        kept.Add(tris[t + 2]);
+                    }
+                }
+
+                mesh.SetTriangles(kept, s);
+            }
+
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        // One face: a half disc in its plane (x out from the axis, y along it), a band per layer (the ocean last, over its
+        // layer), a thin dark line at each contact and a white rim, each a hair nearer the viewer than the one under it.
+        private Mesh Face(CelestialBody body, bool first)
         {
             var vertices = new List<Vector3>();
             var colours = new List<Color>();
             var triangles = new List<int>();
             float scale = (float)(1000.0 / body.Radius);
-            void Annulus(double outer, double inner, Color colour, float z)
+            float toward = first ? 1f : -1f;
+            void Annulus(double outer, double inner, Color colour, float lift)
             {
                 int start = vertices.Count;
                 for (int s = 0; s <= Segments; s++)
                 {
                     float a = Mathf.PI * (-0.5f + (float)s / Segments);
-                    var dir = new Vector3(Mathf.Cos(a), Mathf.Sin(a), z);
-                    vertices.Add(new Vector3(dir.x * (float)outer * scale, dir.y * (float)outer * scale, z));
-                    vertices.Add(new Vector3(dir.x * (float)inner * scale, dir.y * (float)inner * scale, z));
-                    colours.Add(colour);
-                    colours.Add(colour);
+                    float c = Mathf.Cos(a), sn = Mathf.Sin(a);
+                    // A little darker deep down: the bands read as rock going in, not paint.
+                    float shadeOuter = 0.82f + 0.18f * (float)(outer / body.Radius), shadeInner = 0.82f + 0.18f * (float)(inner / body.Radius);
+                    vertices.Add(new Vector3(c * (float)outer * scale, sn * (float)outer * scale, toward * lift));
+                    vertices.Add(new Vector3(c * (float)inner * scale, sn * (float)inner * scale, toward * lift));
+                    colours.Add(new Color(colour.r * shadeOuter, colour.g * shadeOuter, colour.b * shadeOuter, 1));
+                    colours.Add(new Color(colour.r * shadeInner, colour.g * shadeInner, colour.b * shadeInner, 1));
                 }
 
                 for (int s = 0; s < Segments; s++)
@@ -201,18 +328,18 @@ namespace Subterra
             double r = body.Radius;
             foreach (Band b in bands)
             {
-                Annulus(r - b.Top, r - b.Bottom, b.Colour, 0);
+                Annulus(r - b.Top, r - b.Bottom, b.Colour, b.Name == Localizer.Format("#Subterra_Layer_Ocean") ? 0.02f : 0f);
             }
 
-            var line = new Color(0.05f, 0.05f, 0.05f, 0.9f);
+            var line = new Color(0.06f, 0.06f, 0.06f, 1);
             float px = (float)(r * 0.0015);
             foreach (Band b in bands)
             {
-                Annulus(r - b.Bottom + px, r - b.Bottom - px, line, -0.01f);
+                Annulus(r - b.Bottom + px, r - b.Bottom - px, line, 0.04f);
             }
 
-            Annulus(r + px * 1.5, r - px * 0.5, new Color(1, 1, 1, 0.9f), -0.02f);
-            var mesh = new Mesh { name = "SubterraLayerMap", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+            Annulus(r + px * 0.5, r - px * 1.5, new Color(0.95f, 0.95f, 0.95f, 1), 0.05f);
+            var mesh = new Mesh { name = "SubterraLayerMapFace", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
             mesh.SetVertices(vertices);
             mesh.SetColors(colours);
             mesh.SetTriangles(triangles, 0);
@@ -222,30 +349,53 @@ namespace Subterra
 
         private void OnGUI()
         {
-            if (slice == null || shown == null || PlanetariumCamera.Camera == null)
+            if (root == null || shown == null || PlanetariumCamera.Camera == null)
             {
                 return;
             }
 
-            // Names on the bands thick enough on screen, along the cut edge.
+            // Names on the bands thick enough on screen, at the middle of the face nearer the camera.
             Camera cam = PlanetariumCamera.Camera;
             float scale = (float)(1000.0 / shown.Radius);
             var style = new GUIStyle(GUI.skin.label) { fontSize = 12, fontStyle = FontStyle.Bold };
             style.normal.textColor = Color.white;
+            var shadow = new GUIStyle(style);
+            shadow.normal.textColor = new Color(0, 0, 0, 0.8f);
+            Transform face = NearerFace(cam);
             foreach (Band b in bands)
             {
-                Vector3 top = cam.WorldToScreenPoint(slice.transform.TransformPoint(new Vector3(0, (float)(shown.Radius - b.Top) * scale, 0)));
-                Vector3 bottom = cam.WorldToScreenPoint(slice.transform.TransformPoint(new Vector3(0, (float)(shown.Radius - b.Bottom) * scale, 0)));
-                if (top.z < 0 || Mathf.Abs(top.y - bottom.y) < 14)
+                float mid = (float)(shown.Radius - (b.Top + b.Bottom) * 0.5) * scale;
+                Vector3 at = cam.WorldToScreenPoint(face.TransformPoint(new Vector3(mid, 0, 0)));
+                Vector3 top = cam.WorldToScreenPoint(face.TransformPoint(new Vector3((float)(shown.Radius - b.Top) * scale, 0, 0)));
+                Vector3 bottom = cam.WorldToScreenPoint(face.TransformPoint(new Vector3((float)(shown.Radius - b.Bottom) * scale, 0, 0)));
+                if (at.z < 0 || Vector2.Distance(top, bottom) < 16)
                 {
                     continue;
                 }
 
-                float y = Screen.height - (top.y + bottom.y) * 0.5f;
-                GUI.Label(new Rect(top.x + 8, y - 9, 320, 20), b.Name, style);
+                var rect = new Rect(at.x - 80, Screen.height - at.y - 9, 160, 20);
+                GUI.Label(new Rect(rect.x + 1, rect.y + 1, rect.width, rect.height), b.Name, shadow);
+                GUI.Label(rect, b.Name, style);
             }
 
             keyRect = GUILayout.Window(GetInstanceID(), keyRect, Key, Localizer.Format("#Subterra_LayerMap_Title", shown.displayName.LocalizeRemoveGender()));
+        }
+
+        private Transform NearerFace(Camera cam)
+        {
+            float best = float.MaxValue;
+            Transform nearest = faces[0].transform;
+            foreach (GameObject f in faces)
+            {
+                float d = (f.transform.TransformPoint(new Vector3(500, 0, 0)) - cam.transform.position).sqrMagnitude;
+                if (d < best)
+                {
+                    best = d;
+                    nearest = f.transform;
+                }
+            }
+
+            return nearest;
         }
 
         private void Key(int id)
@@ -253,7 +403,9 @@ namespace Subterra
             foreach (Band b in bands)
             {
                 GUILayout.BeginHorizontal();
-                GUILayout.Box(Swatch(b.Colour), GUILayout.Width(18), GUILayout.Height(16));
+                // A real swatch (Lucas: the colours showed as tiny pixels: a 1x1 texture drawn at its own size).
+                Rect swatch = GUILayoutUtility.GetRect(22, 16, GUILayout.Width(22), GUILayout.Height(16));
+                GUI.DrawTexture(new Rect(swatch.x + 2, swatch.y + 2, 18, 13), Swatch(b.Colour), ScaleMode.StretchToFill);
                 GUILayout.Label(Invariant($"{b.Name}: {Km(b.Top)}–{Km(b.Bottom)}{(b.Temperature.HasValue ? $", {b.Temperature.Value:F0} K" : "")}"));
                 GUILayout.EndHorizontal();
             }
@@ -267,8 +419,9 @@ namespace Subterra
         {
             if (!Swatches.TryGetValue(c, out Texture2D t) || t == null)
             {
-                t = new Texture2D(1, 1);
-                t.SetPixel(0, 0, new Color(c.r, c.g, c.b, 1));
+                t = new Texture2D(2, 2) { filterMode = FilterMode.Point };
+                var px = new Color(c.r, c.g, c.b, 1);
+                t.SetPixels(new[] { px, px, px, px });
                 t.Apply();
                 Swatches[c] = t;
             }
@@ -278,13 +431,35 @@ namespace Subterra
 
         private void Teardown()
         {
-            if (slice != null)
+            if (root != null)
             {
-                Destroy(slice.GetComponent<MeshFilter>().sharedMesh);
-                Destroy(slice);
+                foreach (Transform child in root.transform)
+                {
+                    MeshFilter f = child.GetComponent<MeshFilter>();
+                    if (f != null)
+                    {
+                        Destroy(f.sharedMesh);
+                    }
+
+                    MeshRenderer r = child.GetComponent<MeshRenderer>();
+                    if (r != null && r.sharedMaterial != shellSource)
+                    {
+                        Destroy(r.sharedMaterial);
+                    }
+                }
+
+                Destroy(root);
             }
 
-            slice = null;
+            // The real planet back.
+            if (hidden != null)
+            {
+                hidden.enabled = true;
+            }
+
+            root = null;
+            faces = null;
+            hidden = null;
             shown = null;
         }
 
