@@ -11,10 +11,39 @@ namespace Subterra.Core.Environment
         private readonly Dictionary<string, Entry> columns = new Dictionary<string, Entry>();
         private readonly object gate = new object();
 
-        public Strata(IReadOnlyList<LayerSpec> layers)
+        public Strata(IReadOnlyList<LayerSpec> layers, IReadOnlyList<InclusionSpec> inclusions = null, double bodyRadius = 0)
         {
             this.layers = layers ?? new List<LayerSpec>();
+            Inclusions = inclusions ?? new List<InclusionSpec>();
+            BodyRadius = bodyRadius;
         }
+
+        /// <summary>Blocks of other rock off the body's centre (Gilly's iron and olivine).</summary>
+        public IReadOnlyList<InclusionSpec> Inclusions { get; }
+
+        public double BodyRadius { get; }
+
+        /// <summary>The rock of the inclusion holding <paramref name="bodyPos"/> (body frame), or null.</summary>
+        public LayerSpec InclusionAt(Vec3d bodyPos)
+        {
+            if (Inclusions.Count == 0 || BodyRadius <= 0)
+            {
+                return null;
+            }
+
+            foreach (InclusionSpec inclusion in Inclusions)
+            {
+                if (inclusion.Contains(bodyPos, BodyRadius))
+                {
+                    return inclusion.Layer;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>The rock at a point: an inclusion's if it holds it, else the layer at its depth.</summary>
+        public LayerSpec LayerAt(Vec3d bodyPos, double depth, string biome) => InclusionAt(bodyPos) ?? LayerAt(depth, biome);
 
         public IReadOnlyList<LayerSpec> Layers => layers;
 

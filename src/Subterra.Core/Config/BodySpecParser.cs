@@ -93,6 +93,32 @@ namespace Subterra.Core.Config
                 }
             }
 
+            // INCLUSION { name lat lon depth radius lumpiness, and a layer's properties: displayName hardness density gradient
+            // tint texture YIELD }: a block of other rock off the body's centre.
+            foreach (CfgNode inclusion in node.GetNodes("INCLUSION"))
+            {
+                LayerSpec rock = ParseLayer(inclusion, r);
+                if (rock == null)
+                {
+                    continue;
+                }
+
+                Reader ir = r.Sub("INCLUSION " + rock.Name);
+                var spec2 = new InclusionSpec
+                {
+                    Name = rock.Name,
+                    Lat = ir.Double(inclusion, "lat", 0),
+                    Lon = ir.Double(inclusion, "lon", 0),
+                    Depth = Math.Max(0, ir.Double(inclusion, "depth", 1000)),
+                    Radius = Math.Max(1, ir.Double(inclusion, "radius", 500)),
+                    Lumpiness = Math.Max(0, Math.Min(0.6, ir.Double(inclusion, "lumpiness", 0.2))),
+                    Layer = rock,
+                };
+                rock.Top = Math.Max(0, spec2.Depth - spec2.Radius);
+                rock.Bottom = spec2.Depth + spec2.Radius;
+                spec.Inclusions.Add(spec2);
+            }
+
             foreach (CfgNode relief in node.GetNodes("RELIEF"))
             {
                 ReliefSpec parsed = ParseRelief(relief, r);

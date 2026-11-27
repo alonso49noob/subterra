@@ -30,6 +30,9 @@ namespace Subterra.Core.Model
 
         public List<ReliefSpec> Reliefs { get; set; } = new List<ReliefSpec>();
 
+        /// <summary>Blocks of other rock inside the body, off its centre (INCLUSION).</summary>
+        public List<InclusionSpec> Inclusions { get; set; } = new List<InclusionSpec>();
+
         /// <summary>The ocean under the ice, or null (sub-project 4).</summary>
         public OceanSpec Ocean { get; set; }
     }
