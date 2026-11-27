@@ -42,6 +42,7 @@ namespace Subterra
             }
 
             nextCheck = Time.time + 1f;
+            ChokeRockets();
             float boost = 1;
             if (Deep())
             {
@@ -181,6 +182,83 @@ namespace Subterra
         }
 
         // Saved as they were (the persistent fields of these modules are not the ones changed, but to be safe).
-        private void OnDestroy() => Restore();
+        /// <summary>
+        /// Ambient pressure (atm) from which a rocket engine loses thrust, and at which it has none (Lucas: rocket engines must
+        /// not work in the abyssal depths). Its exhaust cannot get out against air or water near its own chamber's pressure;
+        /// many stock engines' Isp curves stop at 1 atm and KSP kept their last value, so they pushed at any depth.
+        /// Air-breathing engines are left alone (deep assist helps them). [Claude, revisar]
+        /// </summary>
+        public const double ChokeStartAtm = 10, ChokeFullAtm = 50;
+
+        private readonly Dictionary<ModuleEngines, float> choked = new Dictionary<ModuleEngines, float>();
+        private bool chokeWarned;
+
+        /// <summary>A rocket engine's share of its thrust at <paramref name="atm"/> of ambient pressure.</summary>
+        public static float RocketShare(double atm) =>
+            atm <= ChokeStartAtm ? 1f : (float)Math.Max(0, 1 - (atm - ChokeStartAtm) / (ChokeFullAtm - ChokeStartAtm));
+
+        private void ChokeRockets()
+        {
+            SubterraWaterModule water = SubterraWaterModule.Of(vessel);
+            bool any = false;
+            foreach (Part p in vessel.parts)
+            {
+                foreach (PartModule m in p.Modules)
+                {
+                    if (!(m is ModuleEngines engine) || AirBreathing(engine))
+                    {
+                        continue;
+                    }
+
+                    // The air round the engine, or the water over it.
+                    double atm = p.staticPressureAtm;
+                    if (water != null && water.PressureOn(p, out double kPa))
+                    {
+                        atm = Math.Max(atm, kPa / 101.325);
+                    }
+
+                    float share = RocketShare(atm);
+                    if (share < 1)
+                    {
+                        if (!choked.ContainsKey(engine))
+                        {
+                            choked[engine] = engine.multFlow;
+                        }
+
+                        engine.multFlow = choked[engine] * share;
+                        any |= engine.EngineIgnited;
+                    }
+                    else if (choked.TryGetValue(engine, out float was))
+                    {
+                        engine.multFlow = was;
+                        choked.Remove(engine);
+                    }
+                }
+            }
+
+            if (any && !chokeWarned && vessel == FlightGlobals.ActiveVessel)
+            {
+                chokeWarned = true;
+                ScreenMessages.PostScreenMessage(KSP.Localization.Localizer.Format("#Subterra_Rocket_Choked"), 6f);
+            }
+            else if (!any)
+            {
+                chokeWarned = false;
+            }
+        }
+
+        private void OnDestroy()
+        {
+            Restore();
+            foreach (KeyValuePair<ModuleEngines, float> pair in choked)
+            {
+                if (pair.Key != null)
+                {
+                    pair.Key.multFlow = pair.Value;
+                }
+            }
+
+            choked.Clear();
+        }
     }
 }
