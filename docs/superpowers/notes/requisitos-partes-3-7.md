@@ -645,3 +645,9 @@ sedimentos), 512² y sin costuras; se calculan en hilos aparte mientras carga el
   con Lucas: capas de un gigante tipo Júpiter (nubes de amoníaco, hidrógeno molecular, hidrógeno metálico líquido, núcleo
   de roca y hielo), primero en el corte del mapa de capas (sin PQS: solo SUBTERRA_BODY con capas), y quizá la presión y
   la temperatura al bajar por su atmósfera; nada de cuevas.
+
+## Cohetes bajo tierra — decisión de Lucas, 2026-11-27
+
+- Los motores cohete se ahogan con la presión del aire o el agua (de 10 atm a 50 atm, DeepAssistModule). En cuevas de
+  cuerpos sin aire (Mun, Minmus) hay vacío y siguen funcionando: Lucas lo prefiere así ("está bien que funcionen"), sin
+  límite por profundidad.
