@@ -236,8 +236,9 @@ icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed
     *) deep="8000 200000 400000" ;;
   esac
   read iceBottom mantleBottom bodyRadius <<<"$deep"
-  layer WaterIce 5 $((iceBottom / 2)) 0.45 0.95 0.5 "0.64,0.68,0.72" "*" "Water:0.04;LqdMethane:0.005;Ammonia:0.005"
-  layer HighPressureIce $((iceBottom / 2)) $iceBottom 0.6 1.3 0.5 "0.56,0.50,0.68"
+  # No high-pressure ice on these moons: it needs some 200 MPa, and under Vall's 40 km of ice (2.3 m/s²) there are about
+  # 85 MPa, as on Europa; less on Eeloo and Pol. Only Tylo has it (its own script). [Claude, revisar]
+  layer WaterIce 5 $iceBottom 0.45 0.95 0.5 "0.64,0.68,0.72" "*" "Water:0.04;LqdMethane:0.005;Ammonia:0.005"
   layer RockyMantle $iceBottom $mantleBottom 0.85 3.0 3 "0.46,0.36,0.26"
   layer IronCore $mantleBottom $bodyRadius 0.95 5.0 1.5 "0.62,0.42,0.22"
   printf '\t}\n'
