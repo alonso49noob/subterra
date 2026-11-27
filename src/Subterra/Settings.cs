@@ -56,9 +56,9 @@ namespace Subterra
         public float PocketMinRadius;
         public float PocketMinHeight;
 
-        /// <summary>Share of the real weight of the rock the PresMat adds to the air and water (Lucas liked pressures some 1000 times
-        /// under real life; the rock at full weight would swamp the rest). [Claude, revisar]</summary>
-        public double RockPressureScale = 0.01;
+        /// <summary>Share of the real weight of the rock the PresMat adds to the air and water: a tenth, to fit KSP's classic 1:10
+        /// scale (Lucas).</summary>
+        public double RockPressureScale = 0.1;
 
         /// <summary>Boulders, rubble and slabs on the floors of caves and tunnels (Lucas: a very optional switch to take them out).</summary>
         public bool TunnelRocks = true;

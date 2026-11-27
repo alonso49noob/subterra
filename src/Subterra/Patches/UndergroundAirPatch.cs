@@ -30,6 +30,10 @@ namespace Subterra
                 harmony.Patch(AccessTools.Method(typeof(CelestialBody), nameof(CelestialBody.GetTemperature), new[] { typeof(double) })
                         ?? throw new MissingMethodException("CelestialBody", "GetTemperature"),
                     prefix: new HarmonyMethod(typeof(UndergroundAirPatch), nameof(TemperaturePrefix)));
+                // The air the aerodynamics feel is capped (Lucas: parts shook under the great pressures deep down): see MaxAeroDensity.
+                harmony.Patch(AccessTools.Method(typeof(CelestialBody), nameof(CelestialBody.GetDensity), new[] { typeof(double), typeof(double) })
+                        ?? throw new MissingMethodException("CelestialBody", "GetDensity"),
+                    postfix: new HarmonyMethod(typeof(UndergroundAirPatch), nameof(DensityPostfix)));
                 harmony.Patch(AccessTools.Method(typeof(FlightIntegrator), "DragCubeSetupAndPartAeroStats")
                         ?? throw new MissingMethodException("FlightIntegrator", "DragCubeSetupAndPartAeroStats"),
                     postfix: new HarmonyMethod(typeof(UndergroundAirPatch), nameof(PartPressurePostfix)));
@@ -39,6 +43,33 @@ namespace Subterra
                     Part.CheckPartPressure = CheckPartPressure;
                 }
             });
+        }
+
+        /// <summary>
+        /// Densest air (kg/m³) KSP's aerodynamics are ever given, whatever the body (a little over twice Eve's sea level).
+        /// </summary>
+        public const double MaxAeroDensity = 15;
+
+        // Under a body's datum the parts feel the air as it is at the datum, however high the pressure (Lucas: parts shook
+        // under the great pressures deep down; "make the parts not act on such pressures"): hundreds of atmospheres down a
+        // shaft made the air denser than water, and the drag on every slight movement of a part shook the craft apart. The
+        // pressure itself (barometer, PresMat) is unchanged; only the density the aerodynamics and heating use.
+        private static void DensityPostfix(CelestialBody __instance, double pressure, ref double __result)
+        {
+            if (__instance != null && __instance.atmosphere && pressure > __instance.atmospherePressureSeaLevel * 1.001)
+            {
+                double datum = __instance.atmospherePressureSeaLevel * 1000 * __instance.atmosphereMolarMass
+                    / (PhysicsGlobals.IdealGasConstant * Math.Max(1, __instance.atmosphereTemperatureSeaLevel));
+                if (datum > 0 && __result > datum)
+                {
+                    __result = datum;
+                }
+            }
+
+            if (__result > MaxAeroDensity)
+            {
+                __result = MaxAeroDensity;
+            }
         }
 
         /// <summary>The air column of <paramref name="body"/> and its datum pressure (kPa); null without an atmosphere.</summary>

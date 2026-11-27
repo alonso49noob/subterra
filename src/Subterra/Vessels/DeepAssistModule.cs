@@ -9,15 +9,20 @@ namespace Subterra
     /// <summary>
     /// Stock parts made up for the thick air and water deep down (Lucas: wheels, reaction wheels and engines could not work
     /// under those pressures; only when very deep; propellers and intakes yes, rocket engines no). Past
-    /// <see cref="MinAtm"/> of pressure round a craft under the ground or in an ocean, the torque of wheel motors, reaction
-    /// wheels and rotors, and the thrust, fuel flow and intake area of air-breathing engines grow with the square root of the
-    /// pressure (at most <see cref="MaxBoost"/> times): the drag grows with the air's density, and without it a rover or a
-    /// jet could not move. Put back as they were above. [Claude, revisar]
+    /// <see cref="MinDensity"/> of air round a craft under the ground (or in an ocean's water), the torque of wheel motors,
+    /// reaction wheels and rotors, and the thrust, fuel flow and intake area of air-breathing engines grow with the square
+    /// root of how much denser the air is than at Kerbin's sea level (at most <see cref="MaxBoost"/> times; reaction wheels
+    /// <see cref="MaxWheelBoost"/>): the drag grows with the air's density, and without it a rover or a jet could not move.
+    /// Then (Lucas: craft shook deep down) the air the aerodynamics feel is capped (UndergroundAirPatch.MaxAeroDensity) and
+    /// the help with it: reaction wheels 25 times stronger made SAS overshoot. Put back as they were above. [Claude, revisar]
     /// </summary>
     public sealed class DeepAssistModule : VesselModule
     {
-        /// <summary>Pressure (atm) from which parts are made up for it, and the most they are multiplied by.</summary>
-        public const double MinAtm = 5, MaxBoost = 25;
+        /// <summary>
+        /// Air density (kg/m³) from which parts are helped, the most they are multiplied by, the help in water, and the most a
+        /// reaction wheel gets.
+        /// </summary>
+        public const double MinDensity = 3, MaxBoost = 4, WaterBoost = 3, MaxWheelBoost = 2;
 
         private readonly Dictionary<PartModule, float[]> original = new Dictionary<PartModule, float[]>();
         private readonly Dictionary<ModuleWheelMotor, FloatCurve> curves = new Dictionary<ModuleWheelMotor, FloatCurve>();
@@ -25,8 +30,9 @@ namespace Subterra
 
         public override Activation GetActivation() => Activation.LoadedVessels | Activation.FlightScene;
 
-        /// <summary>The multiplier for <paramref name="atm"/> of pressure deep down (1 under <see cref="MinAtm"/>).</summary>
-        public static float Boost(double atm) => atm < MinAtm ? 1f : (float)Math.Min(MaxBoost, Math.Sqrt(atm));
+        /// <summary>The multiplier for air of <paramref name="density"/> kg/m³ deep down: the square root of how much denser than
+        /// Kerbin's sea level, 1 under <see cref="MinDensity"/>.</summary>
+        public static float Boost(double density) => density < MinDensity ? 1f : (float)Math.Min(MaxBoost, Math.Sqrt(density / 1.225));
 
         private void FixedUpdate()
         {
@@ -39,14 +45,9 @@ namespace Subterra
             float boost = 1;
             if (Deep())
             {
-                double kPa = vessel.staticPressurekPa;
+                // From the air the aerodynamics feel (capped: UndergroundAirPatch.MaxAeroDensity), or a fixed help in water.
                 SubterraWaterModule water = SubterraWaterModule.Of(vessel);
-                if (water != null && water.PressureOn(vessel.rootPart, out double wet))
-                {
-                    kPa = Math.Max(kPa, wet);
-                }
-
-                boost = Boost(kPa / 101.325);
+                boost = water != null && water.AnyWet ? (float)WaterBoost : Boost(vessel.atmDensity);
             }
 
             if (Math.Abs(boost - applied) < 0.05f * applied && original.Count > 0 == boost > 1)
@@ -86,9 +87,10 @@ namespace Subterra
                     {
                         case ModuleReactionWheel rw:
                             original[rw] = new[] { rw.PitchTorque, rw.YawTorque, rw.RollTorque };
-                            rw.PitchTorque *= boost;
-                            rw.YawTorque *= boost;
-                            rw.RollTorque *= boost;
+                            float rwBoost = (float)Math.Min(boost, MaxWheelBoost);
+                            rw.PitchTorque *= rwBoost;
+                            rw.YawTorque *= rwBoost;
+                            rw.RollTorque *= rwBoost;
                             break;
                         case ModuleWheelMotor motor when motor.torqueCurve != null:
                             curves[motor] = motor.torqueCurve;
