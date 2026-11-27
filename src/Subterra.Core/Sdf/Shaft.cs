@@ -79,6 +79,22 @@ namespace Subterra.Core.Sdf
             }
         }
 
+        /// <summary>
+        /// Metres over which the top edge is rounded (Lucas: round the mouth's edges; the ground met a dug shaft in a sharp
+        /// step, with gaps and flaps where it was cut): the wall curves out by that much in a quarter circle up to the top.
+        /// </summary>
+        public float TopBevel
+        {
+            get => topBevel;
+            init
+            {
+                topBevel = Math.Max(0, value);
+                SetCoreBounds(BoxAround(bottomCenter, bottomCenter + up * length, radius * flare * (1 + lobes) + topBevel));
+            }
+        }
+
+        private readonly float topBevel;
+
         /// <summary>Phase of the lobes (any number: two shafts with different seeds differ).</summary>
         public float LobeSeed { get; init; }
 
@@ -106,6 +122,16 @@ namespace Subterra.Core.Sdf
             if (lobes > 0 && radial > 1e-4f)
             {
                 r *= RimRadius(across) / radius;
+            }
+
+            if (topBevel > 0)
+            {
+                float below = Math.Max(0, length - h);
+                if (below < topBevel)
+                {
+                    float k = topBevel - below;
+                    r += topBevel - (float)Math.Sqrt(Math.Max(0, topBevel * topBevel - k * k));
+                }
             }
 
             return Math.Max(radial - r, Math.Max(-h, h - length));

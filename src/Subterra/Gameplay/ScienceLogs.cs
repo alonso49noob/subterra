@@ -96,13 +96,151 @@ namespace Subterra
                 return null;
             }
 
-            string text = Localizer.Format(key, BodyName(body));
-            if (site != null && LoreExperiments.Contains(experiment) && Localizer.TryGetStringByTag("#Subterra_Lore_" + site.Name, out _))
+            // Lucas: clearer, with more information, easier to read. A heading (the instrument, the place), what it read here
+            // (the real values where the craft is), what that means, and the place's story in a named site.
+            var text = new System.Text.StringBuilder();
+            text.Append(Heading(experiment, body, biome));
+            List<string> reading = Reading(runtime, body, experiment);
+            if (reading.Count > 0)
             {
-                text += "\n\n" + Localizer.Format("#Subterra_Lore_" + site.Name, BodyName(body));
+                text.Append("\n\n").Append(Localizer.Format("#Subterra_Log_Reading"));
+                foreach (string line in reading)
+                {
+                    text.Append("\n  • ").Append(line);
+                }
             }
 
-            return text;
+            text.Append("\n\n").Append(Localizer.Format("#Subterra_Log_Meaning")).Append('\n').Append(Localizer.Format(key, BodyName(body)));
+            if (site != null && LoreExperiments.Contains(experiment) && Localizer.TryGetStringByTag("#Subterra_Lore_" + site.Name, out _))
+            {
+                text.Append("\n\n").Append(Localizer.Format("#Subterra_Log_Story")).Append('\n')
+                    .Append(Localizer.Format("#Subterra_Lore_" + site.Name, BodyName(body)));
+            }
+
+            return text.ToString();
+        }
+
+        // "Thermometer · Tube gallery, Kerbin".
+        private static string Heading(string experiment, CelestialBody body, string biome)
+        {
+            string instrument = ResearchAndDevelopment.GetExperiment(experiment)?.experimentTitle ?? experiment;
+            return Localizer.Format("#Subterra_Log_Heading", instrument, SciencePatches.DisplayName(body, biome), BodyName(body));
+        }
+
+        private static string N(double v, string format = "N0") => v.ToString(format, CultureInfo.InvariantCulture);
+
+        // What the instrument read where the active vessel is (if it is on this body): each experiment its own lines, all of
+        // them where and in what rock.
+        private static List<string> Reading(BodyRuntime runtime, CelestialBody body, string experiment)
+        {
+            var lines = new List<string>();
+            Vessel v = FlightGlobals.ActiveVessel;
+            if (v == null || v.mainBody != body || body.pqsController == null)
+            {
+                return lines;
+            }
+
+            Vector3d at = v.CoMD;
+            double lat = body.GetLatitude(at), lon = body.GetLongitude(at);
+            string biome = KspSampler.Biome(body, lat, lon);
+            double depth = Math.Max(0, KspSampler.SurfaceRadius(body, lat, lon) - (at - body.position).magnitude);
+            UndergroundState state = UndergroundTracker.For(v);
+            LayerSpec layer = runtime.Strata.LayerAt(depth, biome);
+            string layerName = layer == null ? "-" : string.IsNullOrEmpty(layer.DisplayName) ? layer.Name : Localizer.Format(layer.DisplayName);
+            lines.Add(Localizer.Format("#Subterra_Log_Read_Where", N(depth), layerName));
+
+            double? rock = state.Inside ? state.RockTemp : runtime.Geotherm.Temperature(depth, biome);
+            SubterraWaterModule water = SubterraWaterModule.Of(v);
+            bool wet = water != null && water.AnyWet;
+            bool ocean = Underground.OceanAt(body, at) is Core.Water.WaterSample sea && sea.Under;
+
+            void Temperature()
+            {
+                if (!rock.HasValue)
+                {
+                    return;
+                }
+
+                double surface = runtime.Geotherm.Temperature(0, biome) ?? rock.Value;
+                string gradient = depth > 20 ? N(Math.Max(0, rock.Value - surface) / depth * 1000, "0.#") : "-";
+                lines.Add(Localizer.Format("#Subterra_Log_Read_Temp", N(rock.Value), N(rock.Value - 273.15), gradient));
+            }
+
+            void Pressure()
+            {
+                double gas = Math.Max(0, v.staticPressurekPa), fluid = gas;
+                if (water != null && water.PressureOn(v.rootPart, out double kPa))
+                {
+                    fluid = Math.Max(gas, kPa);
+                }
+
+                double rockKPa = ocean ? 0 : InteriorGravityPatch.RockKPa(body, at);
+                double total = fluid + rockKPa;
+                lines.Add(Localizer.Format("#Subterra_Log_Read_Pressure", N(total, "0.##"), N(total / 101.325, "0.###"),
+                    N(gas, "0.##"), N(fluid - gas, "0.##"), N(rockKPa, "0.##")));
+            }
+
+            void Gravity()
+            {
+                double g0 = body.GeeASL * PhysicsGlobals.GravitationalAcceleration;
+                double factor = InteriorGravityPatch.Factor(body, at);
+                lines.Add(Localizer.Format("#Subterra_Log_Read_Gravity", N(g0 * Math.Min(1, factor), "0.00"), N(Math.Min(1, factor) * 100, "0")));
+            }
+
+            void Rock(bool holds)
+            {
+                if (layer == null)
+                {
+                    return;
+                }
+
+                // A rough speed of sound in the rock, from its hardness (loose regolith a few hundred m/s, hard rock ~6 km/s).
+                double vp = 300 + 7500 * layer.Hardness * layer.Hardness;
+                string what = holds
+                    ? layer.Yields.Count == 0 ? Localizer.Format("#Subterra_Log_Core_Nothing")
+                        : string.Join(", ", layer.Yields.Select(y => $"{y.Key} {(y.Value * 100).ToString("0.#", CultureInfo.InvariantCulture)}%"))
+                    : null;
+                lines.Add(holds
+                    ? Localizer.Format("#Subterra_Log_Read_Sample", N(layer.Hardness, "0.00"), N(layer.Density, "0.0"), what)
+                    : Localizer.Format("#Subterra_Log_Read_Seismic", N(vp), N(layer.Density, "0.0"), N(layer.Hardness, "0.00")));
+            }
+
+            switch (experiment)
+            {
+                case "temperatureScan":
+                    Temperature();
+                    break;
+                case "barometerScan":
+                    Pressure();
+                    break;
+                case "gravityScan":
+                    Gravity();
+                    break;
+                case "seismicScan":
+                    Rock(false);
+                    break;
+                case "surfaceSample":
+                case "evaScience":
+                    Rock(true);
+                    Temperature();
+                    break;
+                case "crewReport":
+                case "evaReport":
+                    Temperature();
+                    Pressure();
+                    lines.Add(Localizer.Format("#Subterra_Log_Read_Sky", N(state.Inside ? state.Sky * 100 : 0, "0.#")));
+                    break;
+                default:
+                    Temperature();
+                    break;
+            }
+
+            if (wet && water.DeepestDepth > 0)
+            {
+                lines.Add(Localizer.Format("#Subterra_Log_Read_Water", N(water.DeepestDepth, "0.#")));
+            }
+
+            return lines;
         }
 
         private static ZoneKind ParseZone(string biome) =>
@@ -161,22 +299,34 @@ namespace Subterra
                 key = Pick("#Subterra_Exp_Core_Kind_" + kind) ?? "#Subterra_Exp_CoreSample_Result";
             }
 
-            string text = Localizer.Format(key, BodyName(body));
+            string meaning = Localizer.Format(key, BodyName(body));
             if (layer == null)
             {
-                return text;
+                return meaning;
             }
 
-            // The measurements: where the layer lies, how hard and dense it is, how hot at its middle, and what it holds.
-            double mid = (layer.Top + layer.Bottom) * 0.5;
-            double? temp = runtime.Geotherm.Temperature(mid, layer.Where.Count > 0 && layer.Where[0] != "*" ? layer.Where[0] : null);
+            // Lucas: more information, easier to read. A heading, the measurements as a list (where the layer lies, how hard
+            // and dense, how hot at its top and bottom, the weight of the rock over its middle, how fast a drill gets through
+            // it, what it holds), then what the core shows.
+            string shown = string.IsNullOrEmpty(layer.DisplayName) ? layer.Name : Localizer.Format(layer.DisplayName);
+            string biome = layer.Where.Count > 0 && layer.Where[0] != "*" ? layer.Where[0] : null;
+            double? top = runtime.Geotherm.Temperature(layer.Top, biome), bottom = runtime.Geotherm.Temperature(Math.Min(layer.Bottom, body.Radius), biome);
             string holds = layer.Yields.Count == 0 ? Localizer.Format("#Subterra_Log_Core_Nothing")
                 : string.Join(", ", layer.Yields.Select(y => $"{y.Key} {(y.Value * 100).ToString("0.#", CultureInfo.InvariantCulture)}%"));
-            text += "\n\n" + Localizer.Format("#Subterra_Log_Core_Data",
-                layer.Top.ToString("N0", CultureInfo.InvariantCulture), layer.Bottom.ToString("N0", CultureInfo.InvariantCulture),
-                layer.Hardness.ToString("0.00", CultureInfo.InvariantCulture), layer.Density.ToString("0.0", CultureInfo.InvariantCulture),
-                temp.HasValue ? temp.Value.ToString("N0", CultureInfo.InvariantCulture) : "-", holds);
-            return text;
+            double mid = (layer.Top + Math.Min(layer.Bottom, body.Radius)) * 0.5;
+            double weight = Subterra.Core.Environment.Lithostatic.PressureKPa(runtime.Strata.Spans(biome), mid,
+                body.GeeASL * PhysicsGlobals.GravitationalAcceleration, body.Radius) * Settings.Current.RockPressureScale;
+            double rate = Subterra.Core.Excavation.DrillMath.Rate(1, layer.Hardness, null, 0);
+            var text = new System.Text.StringBuilder();
+            text.Append(Localizer.Format("#Subterra_Log_CoreHeading", shown, BodyName(body)));
+            text.Append("\n\n").Append(Localizer.Format("#Subterra_Log_Reading"));
+            text.Append("\n  • ").Append(Localizer.Format("#Subterra_Log_Core_Where", N(layer.Top), N(Math.Min(layer.Bottom, body.Radius)), N(Math.Min(layer.Bottom, body.Radius) - layer.Top)));
+            text.Append("\n  • ").Append(Localizer.Format("#Subterra_Log_Core_Rock", N(layer.Hardness, "0.00"), N(layer.Density, "0.0"), N(rate * 100, "0")));
+            text.Append("\n  • ").Append(Localizer.Format("#Subterra_Log_Core_Heat", top.HasValue ? N(top.Value) : "-", bottom.HasValue ? N(bottom.Value) : "-"));
+            text.Append("\n  • ").Append(Localizer.Format("#Subterra_Log_Core_Weight", N(weight, "0.#")));
+            text.Append("\n  • ").Append(Localizer.Format("#Subterra_Log_Core_Holds", holds));
+            text.Append("\n\n").Append(Localizer.Format("#Subterra_Log_Meaning")).Append('\n').Append(meaning);
+            return text.ToString();
         }
     }
 }

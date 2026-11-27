@@ -105,6 +105,8 @@ namespace Subterra.Core.Excavation
                 return new Shaft(bottom, top - bottom, Radius, (top - bottom).Length)
                 {
                     Zone = ZoneKind.Excavation,
+                    // A rounded mouth (at the ground, or at the floor of the cave a stacked shaft starts from).
+                    TopBevel = (float)Math.Min(4.0, 0.6 * Radius),
                     Roughness = 0.4f,
                     NoiseScale = 2f,
                     Source = index,
