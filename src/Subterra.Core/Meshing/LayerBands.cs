@@ -15,14 +15,16 @@ namespace Subterra.Core.Meshing
     /// side of it the walls take two mixes of both rocks (mostly the upper with some of the lower, then the reverse), so the
     /// rock goes over in steps, A, A with B, B with A, B. Both are scaled down in thin layers, which they must not swallow.
     /// </para>
+    /// <para>
+    /// Then (Lucas: a gradient, or strata with edges on the solid blocks): that wide, tongued gradient is kept where a viscous
+    /// layer (asthenosphere, mantle, core) meets another; between two solid layers the contact is sharp, barely undulating,
+    /// with a thin dark seam along it. [Claude, revisar]
+    /// </para>
     /// </summary>
     public static class LayerBands
     {
         /// <summary>Most the boundary moves up or down (m), and as a share of the layer's thickness.</summary>
         public const double MaxJitter = 12, JitterShare = 0.25;
-
-        /// <summary>Height (m) of each of the two mixed bands either side of a boundary, and as a share of the layer's thickness.</summary>
-        public const double MaxBand = 3, BandShare = 0.12;
 
         /// <summary>Wavelength (m) of the boundary's tongues.</summary>
         public const double JitterWavelength = 28;
@@ -149,14 +151,26 @@ namespace Subterra.Core.Meshing
                 return null;
             }
 
-            double d = Math.Max(0, depth + offset * Math.Min(MaxJitter, JitterShare * Thickness(here)));
+            // Lucas: the contacts still looked odd; two ways: a gradient, or strata (solid blocks with edges, as in layered
+            // rock), except for the viscous layers (asthenosphere, mantle, core). Solid on both sides: a sharp contact, barely
+            // undulating, with a thin dark seam along it. A viscous layer on either side: a wide gradient.
+            bool viscous = ViscousContact(depth, here, layerAt);
+            double reach = viscous ? Math.Min(MaxJitter, JitterShare * Thickness(here)) : Math.Min(StrataJitter, StrataShare * Thickness(here));
+            double d = Math.Max(0, depth + offset * reach);
             LayerSpec layer = layerAt(d);
             if (layer == null)
             {
                 return here;
             }
 
-            double band = Math.Min(MaxBand, BandShare * Thickness(layer));
+            if (!viscous)
+            {
+                double seam = Math.Min(SeamHeight, 0.05 * Thickness(layer));
+                LayerSpec under = seam > 0.05 ? layerAt(d + seam) : null;
+                return under != null && !ReferenceEquals(under, layer) && !IsViscous(under) ? Seam(layer, under) : layer;
+            }
+
+            double band = Math.Min(GradientBand, GradientShare * Thickness(layer));
             if (band <= 0.05)
             {
                 return layer;
@@ -178,6 +192,67 @@ namespace Subterra.Core.Meshing
         }
 
         private static double Thickness(LayerSpec layer) => Math.Max(0, layer.Bottom - layer.Top);
+
+        /// <summary>Most a solid contact undulates (m), and as a share of the layer's thickness.</summary>
+        public const double StrataJitter = 3, StrataShare = 0.06;
+
+        /// <summary>Height (m) of the dark seam along a solid contact.</summary>
+        public const double SeamHeight = 0.8;
+
+        /// <summary>Height (m) of each of the two mixed bands of a viscous contact (a gradient), and as a share of the thickness.</summary>
+        public const double GradientBand = 18, GradientShare = 0.2;
+
+        /// <summary>Layers that flow (Lucas: the asthenosphere, the mantle, the core): their contacts are gradients.</summary>
+        public static bool IsViscous(LayerSpec layer)
+        {
+            if (layer == null)
+            {
+                return false;
+            }
+
+            RockKind kind = RockTextures.KindFor(layer.Name, layer.Texture);
+            return kind == RockKind.Asthenosphere || kind == RockKind.Mantle || kind == RockKind.MoltenMetal || kind == RockKind.Core
+                || kind == RockKind.Metal;
+        }
+
+        // Whether the contact nearest to the depth has a viscous layer on either side.
+        private static bool ViscousContact(double depth, LayerSpec here, Func<double, LayerSpec> layerAt)
+        {
+            if (IsViscous(here))
+            {
+                return true;
+            }
+
+            bool nearTop = depth - here.Top < here.Bottom - depth;
+            LayerSpec other = nearTop ? (here.Top > 0.05 ? layerAt(here.Top - 0.05) : null) : layerAt(here.Bottom + 0.05);
+            return IsViscous(other);
+        }
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<(LayerSpec, LayerSpec), LayerSpec> Seams =
+            new System.Collections.Concurrent.ConcurrentDictionary<(LayerSpec, LayerSpec), LayerSpec>();
+
+        /// <summary>The dark seam between two solid layers (one object per pair).</summary>
+        public static LayerSpec Seam(LayerSpec upper, LayerSpec lower) =>
+            Seams.GetOrAdd((upper, lower), k =>
+            {
+                float[] tu = k.Item1.Tint ?? new[] { 0.5f, 0.5f, 0.5f }, tl = k.Item2.Tint ?? new[] { 0.5f, 0.5f, 0.5f };
+                return new LayerSpec
+                {
+                    Name = k.Item1.Name + ">" + k.Item2.Name + "@seam",
+                    DisplayName = k.Item1.DisplayName,
+                    Top = k.Item1.Bottom,
+                    Bottom = k.Item1.Bottom,
+                    Hardness = k.Item1.Hardness,
+                    Density = k.Item1.Density,
+                    Gradient = k.Item1.Gradient,
+                    Tint = new[] { (tu[0] + tl[0]) * 0.3f, (tu[1] + tl[1]) * 0.3f, (tu[2] + tl[2]) * 0.3f },
+                    Texture = k.Item1.Texture,
+                    BlendUpper = k.Item1,
+                    BlendLower = k.Item2,
+                    BlendShare = 0.5f,
+                    Seam = true,
+                };
+            });
 
         private static int IndexOf(List<LayerSpec> order, LayerSpec layer)
         {

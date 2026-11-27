@@ -9,6 +9,12 @@ namespace Subterra.Core.Model
 
         /// <summary>A sinuous rille: a trench sunk along a path (a lava tube whose roof fell in), with intact bridges.</summary>
         Rille,
+
+        /// <summary>
+        /// Tiger stripes (Lucas: cryovolcanoes like Enceladus's, not a pimple of a dome): a few long, gently curved parallel
+        /// fissures, each a trench between two low ridges, jets of ice along them.
+        /// </summary>
+        Fissures,
     }
 
     /// <summary>A change to a body's terrain height (cfg node <c>RELIEF</c>).</summary>
@@ -47,5 +53,14 @@ namespace Subterra.Core.Model
 
         /// <summary>Stretches of intact roof: (fraction of the path's length at their middle, length in m).</summary>
         public List<(double at, double length)> Bridges { get; set; } = new List<(double, double)>();
+
+        // Fissures (also Lat, Lon, Width, Depth; Radius is half their length, Height their ridges')
+        /// <summary>How many fissures, and the metres between them.</summary>
+        public int Count { get; set; } = 4;
+
+        public double Spacing { get; set; } = 400;
+
+        /// <summary>Compass heading (degrees from north) of the fissures.</summary>
+        public double Heading { get; set; } = 30;
     }
 }

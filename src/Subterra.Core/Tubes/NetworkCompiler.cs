@@ -212,6 +212,7 @@ namespace Subterra.Core.Tubes
                         Zone = ZoneKind.SubglacialLake,
                         Source = i,
                     });
+                    AddLakeLobes(prims, node, p, up, id, i, Local);
 
                     // A cryovolcanic vent (Lucas: on airless icy moons a lake gives itself away by cryovolcanism): a straight
                     // conduit from the top of the lake's dome up through the ice to a hole in the surface.
@@ -424,6 +425,40 @@ namespace Subterra.Core.Tubes
                 Index = skylights.Count,
                 Smooth = true,
             });
+        }
+
+        /// <summary>Lobes round a lake's main lens (the first two are deep basins).</summary>
+        public const int LakeLobes = 5;
+
+        // Lucas: the lakes were giant round domes with flat, dull floors; more irregular, deeper, less boring. Round the main
+        // lens: lower lobes of their own size reaching out past its edge (an uneven shoreline), two sunk well under its floor
+        // (deep basins: the floor has relief, the water depth). The same for a lake every time. [Claude, revisar]
+        private static void AddLakeLobes(List<Primitive> prims, NodeSpec node, PathPoint p, Vec3 up, string id, int i, Func<Vec3d, Vec3> local)
+        {
+            var rng = new Rng(Hash.Combine(Hash.Of(id + "/lake"), (ulong)i));
+            Vec3d u = p.Up;
+            Vec3d east = Vec3d.Cross(new Vec3d(0, 1, 0), u);
+            east = east.LengthSquared < 1e-12 ? new Vec3d(1, 0, 0) : east.Normalized;
+            Vec3d north = Vec3d.Cross(u, east);
+            double start = rng.NextDouble() * Math.PI * 2;
+            for (int k = 0; k < LakeLobes; k++)
+            {
+                double angle = start + k * Math.PI * 2 / LakeLobes + rng.Range(-0.4, 0.4);
+                bool basin = k < 2;
+                double radius = node.Width * (basin ? rng.Range(0.22, 0.38) : rng.Range(0.35, 0.6));
+                double reach = node.Width * (basin ? rng.Range(0.15, 0.45) : rng.Range(0.55, 0.9));
+                double height = node.Height * (basin ? rng.Range(0.9, 1.3) : rng.Range(0.45, 0.85));
+                // Basins sink under the main floor (a third to two thirds of the lake's height); shore lobes sit a little up.
+                double drop = basin ? node.Height * rng.Range(0.35, 0.7) : -node.Height * rng.Range(0.02, 0.12);
+                Vec3d floor = p.FloorCenter + (east * Math.Cos(angle) + north * Math.Sin(angle)) * reach - u * drop;
+                prims.Add(new Chamber(local(floor), up, (float)radius, (float)height)
+                {
+                    Roughness = (float)Math.Min(4.0, 0.006 * radius),
+                    NoiseScale = (float)Math.Max(12, 0.12 * radius),
+                    Zone = ZoneKind.SubglacialLake,
+                    Source = i,
+                });
+            }
         }
 
         // Edges joined at nodes of degree 2 form one chain (one group: plain min between their pieces).

@@ -142,6 +142,9 @@ layer RockyMantle 3000 95000 0.8 2.8 3 "0.46,0.44,0.42"
 layer IronCore 95000 138000 0.95 5.0 2 "0.60,0.42,0.24"
 printf '\t}\n'
 site_head DresCanyonCaves
+printf '		// Lucas: the caves were not in the canyon: moved at load to the nearest canyon floor. [Claude, revisar]
+		snapBiome = Canyons
+'
 node "${CANYON[0]}" "${CANYON[1]}" 30 80 35 skylight 20
 node $(along ${CANYON[@]} 0.5) 60 200 70 chamber
 node "${CANYON[2]}" "${CANYON[3]}" 50 80 35 end
@@ -253,8 +256,9 @@ icy() { # body prefix temp comment siteName lat0 lon0 lat1 lon1 fieldBiomes seed
     site_head $lname
     node $llat $llon $ldepth $lradius $lheight lake "$lvent" "" "$lcolour"
     printf '\t}\n'
-    # Steep domes with a summit crater, as Ceres's Ahuna Mons (Lucas: the cryovolcanoes should look like ones).
-    volcano ${lname}Dome $llat $llon $ldome $ldomeh $((lvent * 5)) $((lvent * 3))
+    # Tiger stripes over the lake, as Enceladus's (Lucas: the domes looked like pimples; "hazlo como encelado"): four
+    # fissures between ridges, jets of ice along them. [Claude, revisar]
+    fissures ${lname}Stripes $llat $llon $((ldome * 6 / 10)) $((lvent * 3)) $((lvent * 3 / 2)) $((lvent * 3 / 4)) 4 $((ldome / 9)) $(((lvent * 37) % 180))
   done
   field ${body}Ice $style "$biomes" 3 "10, 80" "500, 4000" "10, 80" "1000, 3000" 0.5 0.15 0.6 $seed
   # Cryovolcanic conduits: frozen pipes spiralling down hundreds of metres from a skylight. [Claude, revisar]

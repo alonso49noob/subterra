@@ -58,3 +58,9 @@ along() { # lat0 lon0 lat1 lon1 t  ->  "lat lon"
     s = 0.12 * n * sin(pi * t) * (0.7 * sin(2 * pi * 1.3 * t + f1) + 0.3 * sin(2 * pi * 2.7 * t + f2));
     printf "%.5f %.5f", la + (-dlo / n) * s, lo + (dla / n) * s / c }'
 }
+
+# Tiger stripes (PQSMod_SubterraRelief), as Enceladus's (Lucas: cryovolcanoes like Enceladus, not a dome):
+# parallel fissures, each a trench between low ridges, with jets of ice along them.
+fissures() { # name lat lon halfLength width depth ridgeHeight count spacing heading
+  printf '\tRELIEF\n\t{\n\t\tname = %s\n\t\tkind = fissures\n\t\tlat = %s\n\t\tlon = %s\n\t\tradius = %s\n\t\twidth = %s\n\t\tdepth = %s\n\t\theight = %s\n\t\tcount = %s\n\t\tspacing = %s\n\t\theading = %s\n\t}\n' "$@"
+}

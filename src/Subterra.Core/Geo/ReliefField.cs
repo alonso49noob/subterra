@@ -20,7 +20,7 @@ namespace Subterra.Core.Geo
             radius = bodyRadius;
             foreach (ReliefSpec s in specs)
             {
-                features.Add(s.Kind == ReliefKind.Volcano ? (Feature)new Volcano(s, bodyRadius) : new Rille(s, bodyRadius));
+                features.Add(s.Kind == ReliefKind.Volcano ? (Feature)new Volcano(s, bodyRadius) : s.Kind == ReliefKind.Fissures ? new Stripes(s, bodyRadius) : new Rille(s, bodyRadius));
             }
         }
 
@@ -88,6 +88,55 @@ namespace Subterra.Core.Geo
                 double bowl = u < 1 ? -craterDepth * (1 - u * u) : 0;
                 double lip = craterDepth * 0.08 * Math.Exp(-Math.Pow((u - 1) / 0.12, 2));
                 return cone + bowl + lip;
+            }
+        }
+
+        // Tiger stripes: each fissure a V trench between two low ridges (the ice its jets snowed down), fading at its ends.
+        private sealed class Stripes : Feature
+        {
+            private readonly List<Vec3d[]> lines;
+            private readonly double halfWidth, depth, ridge, bodyRadius;
+
+            public Stripes(ReliefSpec s, double bodyRadius)
+            {
+                this.bodyRadius = bodyRadius;
+                lines = Fissures.Lines(s, bodyRadius);
+                halfWidth = s.Width * 0.5;
+                depth = s.Depth;
+                ridge = s.Height;
+                Centre = BodyFrame.Direction(s.Lat, s.Lon);
+                double reach = 0;
+                foreach (Vec3d[] line in lines)
+                {
+                    foreach (Vec3d p in line)
+                    {
+                        reach = Math.Max(reach, Math.Acos(Math.Max(-1, Math.Min(1, Vec3d.Dot(p, Centre)))));
+                    }
+                }
+
+                CosReach = Math.Cos(reach + 4 * s.Width / bodyRadius);
+            }
+
+            public override double Delta(Vec3d dir)
+            {
+                double sum = 0;
+                foreach (Vec3d[] line in lines)
+                {
+                    double d = Fissures.Distance(line, dir, bodyRadius, out double share);
+                    double x = d / halfWidth;
+                    if (x >= 3.5)
+                    {
+                        continue;
+                    }
+
+                    double ends = Math.Min(1, Math.Min(share, 1 - share) / 0.12);
+                    ends = ends * ends * (3 - 2 * ends);
+                    double trench = x < 1 ? -depth * (1 - x) * (1 - x) * (1 + x) : 0;
+                    double ridges = ridge * Math.Exp(-Math.Pow((x - 1.7) / 0.7, 2));
+                    sum += (trench + ridges) * ends;
+                }
+
+                return sum;
             }
         }
 

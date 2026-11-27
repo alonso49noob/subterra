@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Subterra.Core.Geo;
 using Subterra.Core.Numerics;
@@ -112,34 +113,262 @@ namespace Subterra
             root.transform.localRotation = Quaternion.FromToRotation(Vector3.up, ((Vector3)vent.Direction.ToKsp()).normalized)
                 * Quaternion.Euler(0, (vent.Seed % 360), 0);
 
-            // The chimney: a rough cone, narrowing to its mouth.
-            var chimney = new GameObject("chimney") { layer = ChunkObject.Layer };
-            chimney.transform.SetParent(root.transform, false);
-            Mesh cone = Cone(r, r * 0.3f, h, 14, 6, vent.Seed, rough: 0.18f, alpha: false);
-            chimney.AddComponent<MeshFilter>().sharedMesh = cone;
-            chimney.AddComponent<MeshRenderer>().sharedMaterial = rock;
-            chimney.AddComponent<MeshCollider>().sharedMesh = cone;
+            // Lucas: the chimney did not fit the floor at all, and its particles looked odd. Now a black smoker as on Earth's
+            // ridges: a wide mound of the floor's own rock, a main chimney and two shorter spires of dark sulphide, each closed
+            // by a crater-like mouth, and dark mineral smoke rising from them. [Claude, revisar]
+            BodyRegistry.Instance.TryGet(body, out BodyRuntime runtime);
+            Material floorRock = FloorRock(body, runtime, floorRadius) ?? rock;
+            AddPiece(root, "mound", Mound(r * 3.2f, h * 0.22f, vent.Seed), floorRock, Vector3.zero, true);
 
-            // Warm water rising: a column widening as it goes up and fading out.
-            var column = new GameObject("plume") { layer = 0 };
-            column.transform.SetParent(root.transform, false);
-            column.transform.localPosition = new Vector3(0, h, 0);
-            column.AddComponent<MeshFilter>().sharedMesh = Cone(r * 0.3f, r * 2.5f, h * 4, 18, 10, vent.Seed + 1, rough: 0, alpha: true);
-            var renderer = column.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = plume;
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var rng = new System.Random((int)(vent.Seed & 0x7fffffff));
+            var mouths = new List<(Vector3 at, float radius)>();
+            for (int k = 0; k < 3; k++)
+            {
+                float share = k == 0 ? 1f : 0.45f + 0.25f * (float)rng.NextDouble();
+                float cr = r * (k == 0 ? 1f : 0.55f), ch = h * share;
+                float angle = (float)(rng.NextDouble() * Math.PI * 2);
+                Vector3 at = k == 0 ? Vector3.zero : new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * r * (1.2f + 0.6f * (float)rng.NextDouble());
+                at.y = h * 0.12f;
+                AddPiece(root, "chimney" + k, Chimney(cr, cr * 0.32f, ch, vent.Seed + (ulong)k * 7), rock, at, true);
+                mouths.Add((at + new Vector3(0, ch, 0), cr * 0.32f));
+            }
 
-            // The glow of the hot water at its mouth.
+            // Mineral smoke from each mouth: dark, billowing, widening and fading as it rises (local space: it stays with the
+            // vent as the body turns).
+            foreach (var mouth in mouths)
+            {
+                Smoke(root, mouth.at, mouth.radius, mouth.radius == mouths[0].radius ? 1f : 0.4f);
+            }
+
+            // The glow of the hot water at the main mouth: dim, lighting the chimney and the smoke round it.
             var glow = new GameObject("glow").AddComponent<Light>();
             glow.transform.SetParent(root.transform, false);
-            glow.transform.localPosition = new Vector3(0, h + 1, 0);
+            glow.transform.localPosition = mouths[0].at + new Vector3(0, 1, 0);
             glow.type = LightType.Point;
-            glow.color = new Color(1f, 0.55f, 0.25f);
-            glow.range = Mathf.Clamp(h * 2.5f, 25, 80);
-            glow.intensity = 1.6f;
+            glow.color = new Color(1f, 0.5f, 0.22f);
+            glow.range = Mathf.Clamp(h * 1.6f, 18, 50);
+            glow.intensity = 0.9f;
             glow.shadows = LightShadows.None;
-            glow.renderMode = LightRenderMode.ForcePixel;
             return root;
+        }
+
+        private static void AddPiece(GameObject root, string name, Mesh mesh, Material material, Vector3 at, bool collide)
+        {
+            var go = new GameObject(name) { layer = ChunkObject.Layer };
+            go.transform.SetParent(root.transform, false);
+            go.transform.localPosition = at;
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var renderer = go.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            if (collide)
+            {
+                go.AddComponent<MeshCollider>().sharedMesh = mesh;
+            }
+        }
+
+        // The rock of the layer at the floor (the sea floor's own material).
+        private static Material FloorRock(CelestialBody body, BodyRuntime runtime, double floorRadius)
+        {
+            if (runtime == null)
+            {
+                return null;
+            }
+
+            double depth = Math.Max(0, body.Radius - floorRadius);
+            Core.Model.LayerSpec layer = runtime.Strata.LayerAt(depth, "");
+            return MaterialFactory.ForLayer(layer, body, runtime.Geotherm.Temperature(depth, ""), depth);
+        }
+
+        // A low, lumpy dome of rubble round the chimneys (closed at its top).
+        private static Mesh Mound(float radius, float height, ulong seed)
+        {
+            const int segments = 20, rings = 6;
+            var verts = new List<Vector3>();
+            var uvs = new List<Vector2>();
+            var tris = new List<int>();
+            var rng = new System.Random((int)(seed & 0x7fffffff) ^ 0x3c3c);
+            var bumps = new float[segments];
+            for (int s = 0; s < segments; s++)
+            {
+                bumps[s] = 0.8f + 0.4f * (float)rng.NextDouble();
+            }
+
+            for (int ring = 0; ring <= rings; ring++)
+            {
+                float t = (float)ring / rings;
+                float rr = radius * (1 - t * 0.92f);
+                float y = height * Mathf.Sin(t * Mathf.PI * 0.5f) - 0.5f;
+                for (int s = 0; s <= segments; s++)
+                {
+                    float a = s * Mathf.PI * 2 / segments;
+                    float bump = bumps[s % segments];
+                    verts.Add(new Vector3(Mathf.Cos(a) * rr * bump, y * (0.85f + 0.3f * bump - 0.15f), Mathf.Sin(a) * rr * bump));
+                    uvs.Add(new Vector2((float)s / segments * radius * 0.1f, t * radius * 0.05f));
+                }
+            }
+
+            for (int ring = 0; ring < rings; ring++)
+            {
+                for (int s = 0; s < segments; s++)
+                {
+                    int a = ring * (segments + 1) + s, b = a + segments + 1;
+                    tris.AddRange(new[] { a, b, a + 1, a + 1, b, b + 1 });
+                }
+            }
+
+            var mesh = new Mesh { name = "SubterraVentMound" };
+            mesh.SetVertices(verts);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        // A rough chimney narrowing to a closed mouth: its rim, and a shallow crater inside it down to a small vent hole.
+        private static Mesh Chimney(float bottom, float top, float height, ulong seed)
+        {
+            Mesh body = Cone(bottom, top, height, 12, 7, seed, rough: 0.22f, alpha: false);
+            var verts = new List<Vector3>(body.vertices);
+            var uvs = new List<Vector2>(body.uv);
+            var tris = new List<int>(body.triangles);
+            const int segments = 12;
+            // The rim folds inward and down into the crater, ending in a small dark hole.
+            int start = verts.Count;
+            for (int ring = 0; ring <= 2; ring++)
+            {
+                float rr = top * (ring == 0 ? 1.08f : ring == 1 ? 0.7f : 0.25f);
+                float y = height + (ring == 0 ? 0.15f * top : -0.35f * top * ring);
+                for (int s = 0; s <= segments; s++)
+                {
+                    float a = s * Mathf.PI * 2 / segments;
+                    verts.Add(new Vector3(Mathf.Cos(a) * rr, y, Mathf.Sin(a) * rr));
+                    uvs.Add(new Vector2((float)s / segments, ring * 0.2f));
+                }
+            }
+
+            for (int ring = 0; ring < 2; ring++)
+            {
+                for (int s = 0; s < segments; s++)
+                {
+                    int a = start + ring * (segments + 1) + s, b = a + segments + 1;
+                    tris.AddRange(new[] { a, a + 1, b, a + 1, b + 1, b });
+                }
+            }
+
+            var mesh = new Mesh { name = "SubterraVentChimney" };
+            mesh.SetVertices(verts);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            UnityEngine.Object.Destroy(body);
+            return mesh;
+        }
+
+        private static Material smokeMaterial;
+        private static Texture2D puff;
+
+        private static void Smoke(GameObject root, Vector3 at, float mouth, float strength)
+        {
+            if (smokeMaterial == null)
+            {
+                Shader shader = Shader.Find("KSP/Particles/Alpha Blended") ?? Shader.Find("Legacy Shaders/Particles/Alpha Blended") ?? Shader.Find("Sprites/Default");
+                smokeMaterial = new Material(shader) { mainTexture = Puff(), renderQueue = 3100 };
+                if (smokeMaterial.HasProperty("_TintColor"))
+                {
+                    smokeMaterial.SetColor("_TintColor", new Color(0.5f, 0.5f, 0.5f, 0.5f));
+                }
+            }
+
+            var go = new GameObject("smoke") { layer = 0 };
+            go.transform.SetParent(root.transform, false);
+            go.transform.localPosition = at;
+            go.transform.localRotation = Quaternion.Euler(-90, 0, 0);
+            var ps = go.AddComponent<ParticleSystem>();
+            ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var main = ps.main;
+            main.loop = true;
+            main.duration = 5;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(7f, 11f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(1.5f * strength + 0.8f, 3f * strength + 1f);
+            main.startSize = new ParticleSystem.MinMaxCurve(mouth * 1.6f, mouth * 2.6f);
+            main.startRotation = new ParticleSystem.MinMaxCurve(0, Mathf.PI * 2);
+            main.startColor = new ParticleSystem.MinMaxGradient(new Color(0.09f, 0.08f, 0.07f, 0.55f), new Color(0.16f, 0.13f, 0.1f, 0.4f));
+            main.simulationSpace = ParticleSystemSimulationSpace.Local;
+            main.maxParticles = (int)(90 * strength) + 20;
+            main.gravityModifier = 0;
+
+            var emission = ps.emission;
+            emission.rateOverTime = 9f * strength + 2f;
+
+            var shape = ps.shape;
+            shape.shapeType = ParticleSystemShapeType.Cone;
+            shape.angle = 6;
+            shape.radius = mouth * 0.6f;
+
+            // Billowing out as it rises and slows, and drifting a little.
+            var size = ps.sizeOverLifetime;
+            size.enabled = true;
+            size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0, 0.6f), new Keyframe(0.4f, 2.2f), new Keyframe(1, 4.5f)));
+            var velocity = ps.velocityOverLifetime;
+            velocity.enabled = true;
+            velocity.space = ParticleSystemSimulationSpace.Local;
+            velocity.x = new ParticleSystem.MinMaxCurve(-0.4f, 0.4f);
+            velocity.y = new ParticleSystem.MinMaxCurve(-0.4f, 0.4f);
+            velocity.z = new ParticleSystem.MinMaxCurve(0f, 0f);
+            var limit = ps.limitVelocityOverLifetime;
+            limit.enabled = true;
+            limit.limit = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0, 4f), new Keyframe(1, 0.6f)));
+            limit.dampen = 0.15f;
+            var rotation = ps.rotationOverLifetime;
+            rotation.enabled = true;
+            rotation.z = new ParticleSystem.MinMaxCurve(-0.3f, 0.3f);
+            var colour = ps.colorOverLifetime;
+            colour.enabled = true;
+            var fade = new Gradient();
+            fade.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(new Color(0.8f, 0.78f, 0.75f), 1) },
+                new[] { new GradientAlphaKey(0, 0), new GradientAlphaKey(1, 0.12f), new GradientAlphaKey(0.6f, 0.6f), new GradientAlphaKey(0, 1) });
+            colour.color = new ParticleSystem.MinMaxGradient(fade);
+
+            var renderer = go.GetComponent<ParticleSystemRenderer>();
+            renderer.sharedMaterial = smokeMaterial;
+            renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            ps.Simulate(8f, true, true);
+            ps.Play(true);
+        }
+
+        // A soft round puff with a lumpy edge.
+        private static Texture2D Puff()
+        {
+            if (puff != null)
+            {
+                return puff;
+            }
+
+            const int size = 64;
+            puff = new Texture2D(size, size, TextureFormat.RGBA32, true) { name = "SubterraVentPuff", wrapMode = TextureWrapMode.Clamp };
+            var px = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = (x + 0.5f) / size * 2 - 1, dy = (y + 0.5f) / size * 2 - 1;
+                    float a = Mathf.Atan2(dy, dx);
+                    float edge = 0.78f + 0.12f * Mathf.Sin(a * 5 + 1.3f) + 0.06f * Mathf.Sin(a * 11);
+                    float d = Mathf.Sqrt(dx * dx + dy * dy) / edge;
+                    float alpha = Mathf.Clamp01(1 - d);
+                    alpha = alpha * alpha * (3 - 2 * alpha);
+                    px[y * size + x] = new Color32(255, 255, 255, (byte)(255 * alpha));
+                }
+            }
+
+            puff.SetPixels32(px);
+            puff.Apply(true);
+            return puff;
         }
 
         // A cone (open at both ends) from radius `bottom` to `top` over `height`, bumped by `rough` (share of the radius); with

@@ -278,6 +278,7 @@ namespace Subterra.Core.Config
                 IsNamed = true,
                 UnderRelief = r.Bool(node, "underRelief", false),
                 Network = r.Bool(node, "network", true),
+                SnapBiome = node.GetValue("snapBiome")?.Trim(),
             };
 
             int index = 0;
@@ -466,6 +467,27 @@ namespace Subterra.Core.Config
                 relief.Height = Clamp(r.Double(node, "height", relief.Height), -20000, 20000, r, "height");
                 relief.CraterRadius = Clamp(r.Double(node, "craterRadius", relief.CraterRadius), 0, relief.Radius, r, "craterRadius");
                 relief.CraterDepth = Clamp(r.Double(node, "craterDepth", relief.CraterDepth), 0, 20000, r, "craterDepth");
+                if (double.IsNaN(relief.Lat) || double.IsNaN(relief.Lon))
+                {
+                    r.Warn("needs lat and lon; skipped");
+                    return null;
+                }
+
+                return relief;
+            }
+
+            if (relief.Kind == ReliefKind.Fissures)
+            {
+                // fissures: lat lon radius (half their length) width depth height (their ridges) count spacing heading.
+                relief.Lat = r.Double(node, "lat", double.NaN);
+                relief.Lon = r.Double(node, "lon", double.NaN);
+                relief.Radius = Clamp(r.Double(node, "radius", 1500), 100, 200000, r, "radius");
+                relief.Width = Clamp(r.Double(node, "width", 60), 5, 5000, r, "width");
+                relief.Depth = Clamp(r.Double(node, "depth", 25), 0, 2000, r, "depth");
+                relief.Height = Clamp(r.Double(node, "height", 10), 0, 2000, r, "height");
+                relief.Count = (int)Clamp(r.Double(node, "count", 4), 1, 12, r, "count");
+                relief.Spacing = Clamp(r.Double(node, "spacing", 400), 10, 20000, r, "spacing");
+                relief.Heading = r.Double(node, "heading", 30);
                 if (double.IsNaN(relief.Lat) || double.IsNaN(relief.Lon))
                 {
                     r.Warn("needs lat and lon; skipped");

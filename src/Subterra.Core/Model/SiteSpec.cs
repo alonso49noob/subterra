@@ -24,6 +24,12 @@ namespace Subterra.Core.Model
         /// </summary>
         public bool Network { get; set; } = true;
 
+        /// <summary>
+        /// A biome the site must lie in (Lucas: Dres's canyon caves were not in its canyon): at load, if its first node is
+        /// elsewhere, the whole site moves to the lowest ground of that biome nearest to it. Null: it stays.
+        /// </summary>
+        public string SnapBiome { get; set; }
+
         /// <summary>Set once the network has grown (a site is compiled again when a game loads again).</summary>
         public bool Elaborated { get; set; }
 

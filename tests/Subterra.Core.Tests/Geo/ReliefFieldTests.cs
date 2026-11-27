@@ -31,6 +31,23 @@ namespace Subterra.Core.Tests.Geo
         }
 
         [Fact]
+        public void FissuresAreTrenchesBetweenRidges()
+        {
+            // Lucas: cryovolcanoes like Enceladus's tiger stripes, not a dome.
+            var s = new ReliefSpec { Kind = ReliefKind.Fissures, Name = "Stripes", Lat = 0, Lon = 0, Radius = 1500, Width = 60, Depth = 25, Height = 10, Count = 4, Spacing = 300, Heading = 0 };
+            List<Vec3d[]> lines = Fissures.Lines(s, R);
+            Assert.Equal(4, lines.Count);
+            var field = new ReliefField(new[] { s }, R);
+            Vec3d mid = lines[1][Fissures.Points / 2];
+            Assert.InRange(field.HeightDelta(mid), -26, -15);
+            // Beside the trench, on its ridge (1.7 half-widths out, across the stripes: east-west for a north heading).
+            BodyFrame.ToLatLon(mid, out double lat, out double lon);
+            double ridge = System.Math.Max(field.HeightDelta(At(lat, lon + Deg(51))), field.HeightDelta(At(lat, lon - Deg(51))));
+            Assert.InRange(ridge, 4, 12);
+            Assert.Equal(0, field.HeightDelta(At(Deg(4000), 0)), 6);
+        }
+
+        [Fact]
         public void RilleSinksAlongItsPathButNotOverBridges()
         {
             var rille = new ReliefSpec { Kind = ReliefKind.Rille, Width = 400, Depth = 60 };

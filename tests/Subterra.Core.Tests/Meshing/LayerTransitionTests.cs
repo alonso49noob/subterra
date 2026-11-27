@@ -19,25 +19,47 @@ namespace Subterra.Core.Tests.Meshing
 
         private static LayerSpec At(double depth, double offset = 0) => LayerBands.Interlocked(depth, offset, d => Column.LayerAt(d, null));
 
+        // Lucas: strata for solid layers (a sharp contact with an edge), a gradient where a viscous layer meets another.
+        private static readonly LayerSpec Mantle = new LayerSpec { Name = "Mantle", Top = 0, Bottom = 2000, Tint = new[] { 0.3f, 0.35f, 0.25f } };
+        private static readonly LayerSpec OuterCore = new LayerSpec { Name = "OuterCore", Top = 2000, Bottom = 4000, Tint = new[] { 0.7f, 0.4f, 0.2f } };
+        private static readonly Strata Deep = new Strata(new List<LayerSpec> { Mantle, OuterCore });
+
+        private static LayerSpec DeepAt(double depth, double offset = 0) => LayerBands.Interlocked(depth, offset, d => Deep.LayerAt(d, null));
+
         [Fact]
-        public void TheRockGoesOverInSteps()
+        public void SolidContactsAreSharpWithADarkSeam()
         {
-            // Unmoved: basalt, mostly basalt with breccia, mostly breccia with basalt, breccia.
             Assert.Same(Basalt, At(1490));
-            LayerSpec upperBand = At(1498.5), lowerBand = At(1501.5);
-            Assert.True(upperBand.IsBlend && lowerBand.IsBlend);
-            Assert.Same(Basalt, upperBand.BlendUpper);
-            Assert.Same(Breccia, upperBand.BlendLower);
-            Assert.True(upperBand.BlendShare < 0.5f && lowerBand.BlendShare > 0.5f);
-            Assert.Same(Breccia, At(1510));
+            Assert.Same(Basalt, At(1498));
+            LayerSpec seam = At(1499.6);
+            Assert.True(seam.Seam && seam.IsBlend);
+            Assert.Same(Basalt, seam.BlendUpper);
+            Assert.Same(Breccia, seam.BlendLower);
+            Assert.True(seam.Tint[0] < Basalt.Tint[0] && seam.Tint[0] < Breccia.Tint[0], "darker than both");
+            Assert.Same(Breccia, At(1501));
         }
 
         [Fact]
-        public void TheBoundaryMovesUpAndDownByTheJitter()
+        public void SolidContactsBarelyUndulate()
         {
-            // Pushed 12 m down, a point 8 m above the boundary is in the breccia; pulled up, 8 m below it is basalt.
-            Assert.Same(Breccia, At(1492, 1));
-            Assert.Same(Basalt, At(1508, -1));
+            // Moved 3 m at most: 2 m from the contact a point can change side, 5 m from it never.
+            Assert.Same(Breccia, At(1498, 1));
+            Assert.Same(Basalt, At(1502, -1));
+            Assert.Same(Basalt, At(1495, 1));
+            Assert.Same(Breccia, At(1505, -1));
+        }
+
+        [Fact]
+        public void ViscousContactsAreAGradient()
+        {
+            Assert.Same(Mantle, DeepAt(1970));
+            LayerSpec upperBand = DeepAt(1990), lowerBand = DeepAt(2010);
+            Assert.True(upperBand.IsBlend && lowerBand.IsBlend && !upperBand.Seam);
+            Assert.True(upperBand.BlendShare < 0.5f && lowerBand.BlendShare > 0.5f);
+            Assert.Same(OuterCore, DeepAt(2030));
+            // Tongues up to 12 m: pushed down, 25 m above the contact is already in the gradient.
+            Assert.True(DeepAt(1975, 1).IsBlend);
+            Assert.Same(Mantle, DeepAt(1975, -1));
         }
 
         [Fact]

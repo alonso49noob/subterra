@@ -166,11 +166,83 @@ namespace Subterra
             public double SurfaceRadius(double latDeg, double lonDeg) => KspSampler.SurfaceRadius(body, latDeg, lonDeg);
         }
 
+        /// <summary>Farthest (m) a site is moved to reach its biome, and the steps of the search.</summary>
+        private const double SnapReach = 60000, SnapStep = 500;
+
+        // A site that must lie in a biome (snapBiome) and does not: moved, every node by the same shift, to the lowest ground of
+        // that biome among the nearest places in it (a canyon's floor, not its rim). [Claude, revisar]
+        private static void SnapToBiome(SiteSpec site, CelestialBody body)
+        {
+            if (string.IsNullOrEmpty(site.SnapBiome) || site.Nodes.Count == 0 || body.BiomeMap == null)
+            {
+                return;
+            }
+
+            NodeSpec first = site.Nodes[0];
+            bool In(double la, double lo) => string.Equals(KspSampler.Biome(body, la, lo), site.SnapBiome, StringComparison.OrdinalIgnoreCase);
+            if (In(first.Lat, first.Lon))
+            {
+                return;
+            }
+
+            double bestLat = double.NaN, bestLon = double.NaN, bestRadius = double.MaxValue;
+            double found = -1;
+            for (double d = SnapStep; d <= SnapReach; d += SnapStep)
+            {
+                // Once a ring reaches the biome, a few more rings (2 km) are searched for its lowest ground.
+                if (found > 0 && d > found + 2000)
+                {
+                    break;
+                }
+
+                int bearings = Math.Max(12, (int)(2 * Math.PI * d / SnapStep));
+                for (int k = 0; k < bearings; k++)
+                {
+                    double a = 2 * Math.PI * k / bearings;
+                    double la = first.Lat + d * Math.Cos(a) / body.Radius * 180 / Math.PI;
+                    double lo = first.Lon + d * Math.Sin(a) / (body.Radius * Math.Max(0.05, Math.Cos(first.Lat * Math.PI / 180))) * 180 / Math.PI;
+                    if (la > 89 || la < -89 || !In(la, lo))
+                    {
+                        continue;
+                    }
+
+                    if (found < 0)
+                    {
+                        found = d;
+                    }
+
+                    double radius = KspSampler.SurfaceRadius(body, la, lo);
+                    if (radius < bestRadius)
+                    {
+                        bestRadius = radius;
+                        bestLat = la;
+                        bestLon = lo;
+                    }
+                }
+            }
+
+            if (double.IsNaN(bestLat))
+            {
+                Log.Warn($"Site {site.Name}: no {site.SnapBiome} within {SnapReach / 1000:F0} km; left where it is");
+                return;
+            }
+
+            double dLat = bestLat - first.Lat, dLon = bestLon - first.Lon;
+            foreach (NodeSpec n in site.Nodes)
+            {
+                n.Lat = Math.Max(-89.9, Math.Min(89.9, n.Lat + dLat));
+                n.Lon += dLon;
+            }
+
+            Log.Info($"Site {site.Name} moved {dLat:F4}, {dLon:F4} degrees into {site.SnapBiome} (now at {site.Nodes[0].Lat:F4}, {site.Nodes[0].Lon:F4})");
+        }
+
         // Heights are read straight from the PQS on the main thread: named sites are few and small.
         internal static TubeNetwork CompileNamed(SiteSpec site, CelestialBody body, Core.Geo.ReliefField relief = null)
         {
             try
             {
+                SnapToBiome(site, body);
                 // A named site grows into a network around its own nodes first (its new nodes need terrain samples too).
                 Core.Procedural.FieldGenerator.Elaborate(site, body.Radius, new LiveHeights(body));
                 var samples = new PrecomputedSamples();

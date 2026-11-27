@@ -54,5 +54,8 @@ namespace Subterra.Core.Model
         public float BlendShare { get; set; }
 
         public bool IsBlend => BlendUpper != null && BlendLower != null;
+
+        /// <summary>The thin dark seam along a contact between two solid layers (a blend drawn darker).</summary>
+        public bool Seam { get; set; }
     }
 }

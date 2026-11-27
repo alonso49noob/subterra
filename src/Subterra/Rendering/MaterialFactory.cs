@@ -493,6 +493,13 @@ namespace Subterra
         /// The walls where two layers meet (Lucas: subtler, interlocked changes of rock): both rocks mixed by a mask, each with
         /// the contrast and tint it has on its own walls; the main one's gloss. Null if a rock's texture failed.
         /// </summary>
+        // The seam along a solid contact is the two rocks mixed, darker (Lucas: edges on the solid blocks, as in strata).
+        private static float[] SeamTint(LayerSpec blend, float[] tint)
+        {
+            float[] t = tint ?? new[] { 0.5f, 0.5f, 0.5f };
+            return blend.Seam ? new[] { t[0] * 0.55f, t[1] * 0.55f, t[2] * 0.55f } : t;
+        }
+
         private static Material ForRockBlend(CelestialBody body, LayerSpec blend)
         {
             string key = (body?.bodyName ?? "") + "/" + blend.Name;
@@ -505,7 +512,7 @@ namespace Subterra
                 {
                     var clock = System.Diagnostics.Stopwatch.StartNew();
                     Core.Meshing.RockTexture mixed = Core.Meshing.RockTextures.Blend(RockKindJobs[upperKind].Result, RockKindJobs[lowerKind].Result,
-                        BlendMask(blend.BlendShare), blend.BlendUpper.Tint, blend.BlendLower.Tint, KindContrast, MaxKindTint, out float scale);
+                        BlendMask(blend.BlendShare), SeamTint(blend, blend.BlendUpper.Tint), SeamTint(blend, blend.BlendLower.Tint), KindContrast, MaxKindTint, out float scale);
                     Core.Meshing.RockKind main = blend.BlendShare < 0.5f ? upperKind : lowerKind;
                     var (albedo, normal, _) = Upload(mixed, main, 0, null, 1f, "Subterra rock " + key);
                     textures = (albedo, normal, scale);
