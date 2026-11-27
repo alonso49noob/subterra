@@ -42,6 +42,77 @@ namespace Subterra
             {
                 Show();
             }
+
+            Orbits(map);
+        }
+
+        // The orbit lines of craft under the ground or in an ocean under the ice (Lucas: "hundreds of waypoints", a rainbow at
+        // the craft in the subsurface oceans when the map opened): a craft floating there is not landed, so KSP drew its
+        // "orbit", a tiny ellipse inside the planet redrawn every frame in its colours. Turned off in the map, back after.
+        private readonly System.Collections.Generic.Dictionary<OrbitRenderer, OrbitRendererBase.DrawMode> orbitModes =
+            new System.Collections.Generic.Dictionary<OrbitRenderer, OrbitRendererBase.DrawMode>();
+        private float nextOrbits;
+
+        private void Orbits(bool map)
+        {
+            if (!map)
+            {
+                RestoreOrbits();
+                return;
+            }
+
+            if (Time.time < nextOrbits || FlightGlobals.Vessels == null)
+            {
+                return;
+            }
+
+            nextOrbits = Time.time + 1f;
+            foreach (Vessel v in FlightGlobals.Vessels)
+            {
+                OrbitRenderer r = v != null ? v.orbitRenderer : null;
+                if (r == null || orbitModes.ContainsKey(r) || !BelowGround(v))
+                {
+                    continue;
+                }
+
+                orbitModes[r] = r.drawMode;
+                r.drawMode = OrbitRendererBase.DrawMode.OFF;
+            }
+        }
+
+        // Loaded: in a cave, an ocean or buried. Not loaded: its altitude under the terrain where it is.
+        private static bool BelowGround(Vessel v)
+        {
+            if (v.mainBody == null || !BodyRegistry.Instance.TryGet(v.mainBody, out _))
+            {
+                return false;
+            }
+
+            if (v.loaded)
+            {
+                return IsUnderground(v);
+            }
+
+            return v.mainBody.pqsController != null
+                && KspSampler.SurfaceRadius(v.mainBody, v.latitude, v.longitude) - (v.mainBody.Radius + v.altitude) > 3;
+        }
+
+        private void RestoreOrbits()
+        {
+            if (orbitModes.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var pair in orbitModes)
+            {
+                if (pair.Key != null)
+                {
+                    pair.Key.drawMode = pair.Value;
+                }
+            }
+
+            orbitModes.Clear();
         }
 
         // Once KSP has finished entering the map (it targets the vessel), the body instead, seen whole.
@@ -89,6 +160,10 @@ namespace Subterra
             hidden = null;
         }
 
-        private void OnDestroy() => Show();
+        private void OnDestroy()
+        {
+            Show();
+            RestoreOrbits();
+        }
     }
 }

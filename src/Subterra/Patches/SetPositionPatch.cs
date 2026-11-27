@@ -66,22 +66,33 @@ namespace Subterra
         // already turned it upright for where it goes), plus Margin all round and a little more headroom.
         private static void Fit(Vessel vessel, Vector3d rootTarget, Vector3d up, out Vector3d middle, out float radius, out float height)
         {
+            // From each mesh's own (local) bounds through its transform as it is now. Renderer.bounds still held where the craft
+            // was before KSP moved it: set from 8 km down to 800 m, a pocket 6 km wide and 11 km tall was carved, open to the
+            // sky (Lucas saw slabs of terrain and water, and a dark shape). Subterra's own objects on parts (light beams) are
+            // left out.
             var points = new System.Collections.Generic.List<Vector3d>();
             Vector3d root = vessel.transform.position;
             foreach (Part part in vessel.parts)
             {
                 foreach (Renderer r in part.GetComponentsInChildren<Renderer>(false))
                 {
-                    if (!(r is MeshRenderer || r is SkinnedMeshRenderer) || r.bounds.size.sqrMagnitude <= 0)
+                    if (r.gameObject.name.StartsWith("Subterra", StringComparison.Ordinal))
                     {
                         continue;
                     }
 
-                    Bounds b = r.bounds;
+                    Mesh mesh = r is SkinnedMeshRenderer skinned ? skinned.sharedMesh
+                        : r is MeshRenderer ? r.GetComponent<MeshFilter>()?.sharedMesh : null;
+                    if (mesh == null || mesh.bounds.size.sqrMagnitude <= 0)
+                    {
+                        continue;
+                    }
+
+                    Bounds b = mesh.bounds;
                     for (int i = 0; i < 8; i++)
                     {
-                        var corner = new Vector3d((i & 1) == 0 ? b.min.x : b.max.x, (i & 2) == 0 ? b.min.y : b.max.y, (i & 4) == 0 ? b.min.z : b.max.z);
-                        points.Add(rootTarget + (corner - root));
+                        var local = new Vector3((i & 1) == 0 ? b.min.x : b.max.x, (i & 2) == 0 ? b.min.y : b.max.y, (i & 4) == 0 ? b.min.z : b.max.z);
+                        points.Add(rootTarget + ((Vector3d)r.transform.TransformPoint(local) - root));
                     }
                 }
 
@@ -105,6 +116,18 @@ namespace Subterra
                 wide = Math.Max(wide, (d - up * h).magnitude);
             }
 
+            // A craft is not kilometres across: anything past MaxCraftSize is a measuring fault, and the pocket falls back to
+            // KSP's own idea of the craft's size.
+            if (wide > MaxCraftSize || high - low > MaxCraftSize)
+            {
+                Vector3 size = vessel.vesselSize;
+                Log.Warn($"Pocket: craft measured {wide:F0} m wide, {high - low:F0} m tall; using its size {size} instead");
+                wide = Math.Max(size.x, size.z) * 0.5;
+                low = -size.y * 0.5;
+                high = size.y * 0.5;
+                centroid = rootTarget;
+            }
+
             // Scaled up (Lucas: room for something bigger) about the floor, Margin under the craft: it grows up and out.
             Settings s = Settings.Current;
             double scale = Math.Max(1, s.PocketScale);
@@ -112,6 +135,9 @@ namespace Subterra
             height = (float)Math.Max(Math.Max(3, high - low + Margin * 2 + Headroom) * scale, s.PocketMinHeight);
             middle = centroid + up * (low - Margin + height * 0.5);
         }
+
+        /// <summary>Largest a craft is believed to measure (m) before its measure is taken for a fault.</summary>
+        private const double MaxCraftSize = 300;
 
         /// <summary>Extra room (m) over the craft in a carved pocket.</summary>
         private const double Headroom = 1;

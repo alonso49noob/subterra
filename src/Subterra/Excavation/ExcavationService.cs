@@ -250,6 +250,8 @@ namespace Subterra
         public static ExcavationSpec Pocket(BodyRuntime runtime, Vec3d centre, float radius, float height)
         {
             Subscribe();
+            radius = Math.Min(radius, (float)MaxPocketRadius);
+            height = Math.Min(height, (float)(4 * MaxPocketRadius));
             CelestialBody body = runtime.Body;
             Vec3d up = centre.Normalized;
             Vec3d bottom = centre - up * (height * 0.5);
@@ -401,6 +403,9 @@ namespace Subterra
             }
         }
 
+        /// <summary>Widest pocket (m) ever carved (pocketMinRadius reaches 2000 m).</summary>
+        public const double MaxPocketRadius = 2100;
+
         public static void Load(ConfigNode node)
         {
             Reset();
@@ -419,9 +424,26 @@ namespace Subterra
             foreach (ConfigNode n in node.GetNodes("EXCAVATION"))
             {
                 ExcavationSpec spec = ExcavationSpec.FromCfg(CfgAdapter.ToCore(n), warnings);
+                // A pocket kilometres wide is a fault of an older build (Set Position measured the craft where it had been: 6 km
+                // pockets on Minmus, open to the sky). None is ever carved past MaxPocketRadius: dropped.
+                if (spec != null && spec.Shape == Core.Excavation.ExcavationShape.Shaft && spec.Radius > MaxPocketRadius)
+                {
+                    Log.Warn($"Dropped {spec.Id} on {spec.Body}: {spec.Radius:F0} m wide, a measuring fault");
+                    continue;
+                }
+
                 if (spec != null && spec.Points.Count > 0)
                 {
                     Specs.Add(spec);
+                }
+            }
+
+            // Joins to what was dropped are forgotten.
+            foreach (ExcavationSpec spec in Specs)
+            {
+                if (!string.IsNullOrEmpty(spec.JoinedTo) && !Specs.Exists(s => s.Id == spec.JoinedTo))
+                {
+                    spec.JoinedTo = null;
                 }
             }
 
